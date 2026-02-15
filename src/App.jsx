@@ -334,7 +334,7 @@ const MainSystem = ({ user, role, onLogout }) => {
   const pendingAtestados = atestados.filter(a => a.status === 'Pendente').length;
   const pendingPermutas = permutas.filter(p => p.status === 'Pendente').length;
 
-  const refreshData = async () => {
+  const refreshData = async (showFeedback = true) => {
     setLoading(true);
     try {
       if (API_URL_GESTAO) {
@@ -347,22 +347,28 @@ const MainSystem = ({ user, role, onLogout }) => {
       if (API_URL_INDICADORES) {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
         const data2 = await res2.json();
-        // A chave upiStats contém a contagem real de leitos ocupados
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
       if (!API_URL_GESTAO && !API_URL_INDICADORES) {
-          alert("Modo Demonstração: Configure o Apps Script para salvar na planilha real.");
+          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script para salvar na planilha real.");
       } else {
-          alert("Sincronizado!");
+          if (showFeedback) alert("Sincronizado!");
       }
     } catch(e) {
       console.error(e);
-      alert("Erro de conexão. Verifique o console.");
+      if (showFeedback) alert("Erro de conexão. Verifique o console.");
     } finally {
       setLoading(false);
     }
   };
+
+  // Atualização automática ao entrar no Dashboard
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      refreshData(false); // Modo silencioso
+    }
+  }, [activeTab]);
 
   const sendData = async (action, payload) => {
     if (!API_URL_GESTAO) {
@@ -438,14 +444,14 @@ const MainSystem = ({ user, role, onLogout }) => {
                    <Eye className="text-blue-600" />
                    <div>
                       <h4 className="font-bold text-blue-800">Modo RT</h4>
-                      <p className="text-sm text-blue-700">Acesso total para visualização.</p>
+                      <p className="text-sm text-blue-700">Acesso total para visualização. Homologação restrita à Chefia.</p>
                    </div>
                 </div>
              )}
 
              <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2>
-                <button onClick={refreshData} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar</button>
+                <button onClick={() => refreshData(true)} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar</button>
              </div>
 
              <div className="grid grid-cols-2 gap-4">
