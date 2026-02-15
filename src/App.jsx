@@ -423,13 +423,40 @@ const MainSystem = ({ user, role, onLogout }) => {
       status: 'Pendente',
       solicitante: user,
       substituto: formPermuta.substituto,
-      dataSai: formPermuta.dataSai
+      dataSai: formPermuta.dataSai,
+      dataEntra: formPermuta.dataEntra // Incluindo dataEntra
     };
     setPermutas([newItem, ...permutas]);
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
     alert("Permuta enviada!");
+  };
+
+  const handleRequest = (type) => {
+    const newItem = { 
+      id: Date.now(), 
+      status: 'Pendente', 
+      militar: user, 
+      solicitante: user,
+      data: new Date().toISOString().split('T')[0],
+      dataSai: new Date().toISOString().split('T')[0],
+      dataEntra: new Date().toISOString().split('T')[0]
+    };
+    
+    if (type === 'atestado') {
+       if(API_URL_GESTAO) sendData('saveAtestado', {...newItem, tipo: 'Atestado', cid: '---'});
+       else {
+           setAtestados([{...newItem, tipo: 'Atestado', cid: '---'}, ...atestados]);
+           alert("Solicitação enviada (Local)!");
+       }
+    } else {
+       if(API_URL_GESTAO) sendData('savePermuta', {...newItem, substituto: '---'});
+       else {
+           setPermutas([{...newItem, substituto: '---'}, ...permutas]);
+           alert("Solicitação enviada (Local)!");
+       }
+    }
   };
 
   const renderContent = () => {
@@ -554,7 +581,12 @@ const MainSystem = ({ user, role, onLogout }) => {
                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'Pendente' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{p.status}</span></td>
                          <td className="p-3 font-medium text-red-700">{p.solicitante}</td>
                          <td className="p-3 font-medium text-green-700">{p.substituto || '---'}</td>
-                         <td className="p-3 text-slate-500">{formatDate(p.dataSai)}</td>
+                         <td className="p-3 text-slate-500">
+                           <div className="flex flex-col text-xs">
+                             <span className="text-red-500">S: {formatDate(p.dataSai)}</span>
+                             <span className="text-green-600">E: {formatDate(p.dataEntra)}</span>
+                           </div>
+                         </td>
                          <td className="p-3 flex gap-2">
                             {p.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(p.id, 'permuta')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
                             <button onClick={() => handleDelete(p.id, 'permuta')} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
@@ -645,6 +677,7 @@ const MainSystem = ({ user, role, onLogout }) => {
                     {item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}
                  </div>
                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                 {!sidebarOpen && <div className="absolute left-14 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">{item.label}</div>}
               </button>
             ))}
          </nav>
