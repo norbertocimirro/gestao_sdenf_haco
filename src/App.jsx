@@ -1,53 +1,158 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Activity, AlertCircle, 
-  Menu, X, LogOut, ShieldAlert, ArrowRightLeft, 
+  Menu, LogOut, ShieldAlert, ArrowRightLeft, 
   Star, Sun, Palmtree, CalendarRange, Cake, BookOpen, 
   Plus, Trash2, Lock, CheckCircle, Eye, Thermometer, TrendingDown,
-  Plane, Stethoscope, RefreshCw
+  Plane, Stethoscope, RefreshCw, Send
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // --- CONFIGURAÇÃO ---
-// SUBSTITUA ISSO PELA URL DO SEU SCRIPT GOOGLE APÓS IMPLANTAR
-const API_URL = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+// 1. URL DA PLANILHA DE GESTÃO (Oficiais, Férias, Atestados, Permutas)
+const API_URL_GESTAO = "https://docs.google.com/spreadsheets/d/1C9KR9xWtLMo2PmITmTERWiBg2Bl3bXnC_4JYWy_G29g/edit?usp=sharing"; // Ex: "https://script.google.com/.../exec"
 
-// --- FALLBACK DATA (Caso a planilha esteja vazia ou offline) ---
-// Mantemos os dados originais como backup
-const BACKUP_OFFICERS = [
+// 2. URL DA PLANILHA DE INDICADORES (Leitos, Braden, Fugulin)
+const API_URL_INDICADORES = "https://docs.google.com/spreadsheets/d/1aQ9pD5B-LzgpY-JVniW9ad0Oeda2p-0rYK2pmv--wno/edit?usp=sharing"; // Ex: "https://script.google.com/.../exec"
+
+// --- DADOS REAIS (SNAPSHOT DA PLANILHA) ---
+
+// 1. EFETIVO COMPLETO (24 OFICIAIS)
+const REAL_OFFICERS = [
+  // CHEFIA
   { id: 2, antiguidade: 2, nome: 'Zanini', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Chefe SDENF', role: 'admin', nascimento: '24/03' },
   { id: 6, antiguidade: 6, nome: 'Cimirro', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Adjunto', role: 'admin', nascimento: '03/02' },
   { id: 11, antiguidade: 11, nome: 'Renata', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', cargo: 'RT Enfermagem', role: 'rt', nascimento: '11/07' },
+  
+  // TROPA
   { id: 1, antiguidade: 1, nome: 'Gisele', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '18/06' },
-  // ... (outros oficiais seriam carregados da planilha)
+  { id: 3, antiguidade: 3, nome: 'Marasca', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '11/04' },
+  { id: 4, antiguidade: 4, nome: 'Serafin', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '26/02' },
+  { id: 5, antiguidade: 5, nome: 'Sandri', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '11/09' },
+  { id: 7, antiguidade: 7, nome: 'Parode', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '12/02' },
+  { id: 8, antiguidade: 8, nome: 'Oliveira', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '20/08' },
+  { id: 9, antiguidade: 9, nome: 'Karen Casarin', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '16/02' },
+  { id: 10, antiguidade: 10, nome: 'Luiziane', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '20/04' },
+  { id: 12, antiguidade: 12, nome: 'Jéssica Cunha', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '23/06' },
+  { id: 13, antiguidade: 13, nome: 'Suelen Stiehl', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '13/03' },
+  { id: 14, antiguidade: 14, nome: 'Pâmela Maia', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '24/04' },
+  { id: 15, antiguidade: 15, nome: 'Favilla', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '10/04' },
+  { id: 16, antiguidade: 16, nome: 'Jéssica', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '15/09' },
+  { id: 17, antiguidade: 17, nome: 'Zomer', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '20/06' },
+  { id: 18, antiguidade: 18, nome: 'Laura Elisa', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '11/06' },
+  { id: 19, antiguidade: 19, nome: 'Bárbara Viegas', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '17/04' },
+  { id: 20, antiguidade: 20, nome: 'Bárbara Figueiredo', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '26/10' },
+  { id: 21, antiguidade: 21, nome: 'Anderson', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '19/05' },
+  { id: 22, antiguidade: 22, nome: 'Cássia Freitas', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '09/07' },
+  { id: 23, antiguidade: 23, nome: 'Nascimento', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '03/06' },
+  { id: 24, antiguidade: 24, nome: 'Jéssica', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '04/07' }
 ];
 
+// 2. FÉRIAS REAIS 2026 (BASEADO NAS PLANILHAS)
+const INITIAL_VACATIONS = [
+  { id: 1, nome: 'Cimirro', inicio: '2026-03-02', fim: '2026-03-11', tipo: '10 dias', status: 'Confirmado' }, // Aniversário Alice 04/03
+  { id: 2, nome: 'Cimirro', inicio: '2026-06-24', fim: '2026-07-03', tipo: '10 dias', status: 'Confirmado' },
+  { id: 3, nome: 'Marasca', inicio: '2026-01-26', fim: '2026-02-09', tipo: '15 dias', status: 'Realizado' },
+  { id: 4, nome: 'Serafin', inicio: '2026-01-05', fim: '2026-01-19', tipo: '15 dias', status: 'Realizado' },
+  { id: 5, nome: 'Serafin', inicio: '2026-04-06', fim: '2026-04-20', tipo: '15 dias', status: 'Confirmado' },
+  { id: 6, nome: 'Karen Casarin', inicio: '2026-04-22', fim: '2026-05-11', tipo: '20 dias', status: 'Confirmado' },
+  { id: 7, nome: 'Sandri', inicio: '2026-02-18', fim: '2026-02-27', tipo: '10 dias', status: 'Confirmado' },
+  { id: 8, nome: 'Zomer', inicio: '2026-02-10', fim: '2026-02-24', tipo: '15 dias', status: 'Confirmado' },
+  { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
+];
+
+// 3. INDICADORES UPI (SNAPSHOT 13/02)
+const INITIAL_UPI_STATS = {
+  leitosOcupados: 8,
+  totalLeitos: 15, // Corrigido para 15 conforme solicitado
+  mediaBraden: 17.1,
+  mediaFugulin: 21.3,
+  dataReferencia: '13/02/2026'
+};
+
+// 4. MOCKS INICIAIS
+const INITIAL_ATESTADOS = [
+  { id: 101, militar: 'Cb SEF Pereira', tipo: 'Atestado', cid: 'M54', inicio: '2026-02-10', fim: '2026-02-12', status: 'Homologado' },
+];
+const INITIAL_PERMUTAS = [];
+
+// --- COMPONENTES ---
+
+const LoginScreen = ({ onLogin }) => {
+  const [roleGroup, setRoleGroup] = useState('chefia');
+  const [user, setUser] = useState('');
+  
+  const chefiaList = REAL_OFFICERS.filter(o => o.role === 'admin' || o.role === 'rt');
+  const tropaList = REAL_OFFICERS.filter(o => o.role === 'user');
+  const filteredOfficers = roleGroup === 'chefia' ? chefiaList : tropaList;
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="text-center mb-8">
+           <Plane size={48} className="mx-auto text-blue-600 mb-2"/>
+           <h1 className="text-2xl font-bold text-slate-800">SGA-Enf HACO</h1>
+           <p className="text-slate-500">Sistema de Gestão de Enfermagem</p>
+        </div>
+        
+        <div className="bg-slate-100 p-1 rounded-lg flex mb-4">
+           <button onClick={() => setRoleGroup('chefia')} className={`flex-1 py-2 text-sm font-bold rounded ${roleGroup === 'chefia' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
+           <button onClick={() => setRoleGroup('tropa')} className={`flex-1 py-2 text-sm font-bold rounded ${roleGroup === 'tropa' ? 'bg-white shadow text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
+        </div>
+
+        <select className="w-full p-3 border rounded-lg mb-4 bg-slate-50 font-medium" value={user} onChange={e => setUser(e.target.value)}>
+           <option value="">Selecione seu nome...</option>
+           {filteredOfficers.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome} {o.role === 'rt' ? '(RT)' : ''}</option>)}
+        </select>
+
+        <button 
+           onClick={() => {
+              const selectedUser = filteredOfficers.find(o => o.nome === user);
+              if (selectedUser) onLogin(selectedUser.nome, selectedUser.role);
+           }} 
+           disabled={!user} 
+           className={`w-full py-3 rounded-lg font-bold text-white transition ${user ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}
+        >
+           ACESSAR SISTEMA
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const AgendaTab = ({ user }) => {
-  // Agenda local (simulação de privacidade - dados não vão para planilha por segurança pessoal)
   const [events, setEvents] = useState([]);
   const [newEvent, setNewEvent] = useState({ date: '', title: '', type: 'work' });
 
+  // Carregar dados iniciais e salvar no LocalStorage
   useEffect(() => {
-    // Carrega dados locais baseados no usuário
-    const saved = localStorage.getItem(`agenda_${user}`);
-    if (saved) {
-      setEvents(JSON.parse(saved));
+    const savedAgenda = localStorage.getItem(`agenda_${user}`);
+    if (savedAgenda) {
+      setEvents(JSON.parse(savedAgenda));
     } else if (user === 'Cimirro') {
-      setEvents([
+      // Dados padrão para Cimirro se não houver save
+      const initialCimirro = [
         { id: 1, date: '2026-03-04', title: 'Aniversário Alice (11 Anos)', type: 'family', details: 'Comprar presente' },
         { id: 2, date: '2026-05-29', title: 'Aniversário Pedro', type: 'family', details: 'Festa na escola?' },
         { id: 3, date: '2026-07-05', title: 'Aniversário Fabiane', type: 'family', details: 'Jantar especial' },
-        { id: 4, date: '2026-02-20', title: 'Revisão Renault Symbol', type: 'personal', details: 'Oficina do Beto' },
-      ]);
+        { id: 4, date: '2026-02-20', title: 'Revisão Renault Symbol', type: 'personal', details: 'Oficina do Beto' }
+      ];
+      setEvents(initialCimirro);
+      localStorage.setItem(`agenda_${user}`, JSON.stringify(initialCimirro));
     }
   }, [user]);
 
   const addEvent = (e) => {
     e.preventDefault();
-    const updated = [...events, { id: Date.now(), ...newEvent }];
-    setEvents(updated);
-    localStorage.setItem(`agenda_${user}`, JSON.stringify(updated));
+    const updatedEvents = [...events, { id: Date.now(), ...newEvent }];
+    setEvents(updatedEvents);
+    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents)); // Persistir
     setNewEvent({ date: '', title: '', type: 'work' });
+  };
+
+  const deleteEvent = (id) => {
+    const updatedEvents = events.filter(e => e.id !== id);
+    setEvents(updatedEvents);
+    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents)); // Persistir
   };
 
   return (
@@ -66,17 +171,26 @@ const AgendaTab = ({ user }) => {
          </form>
          <div className="mt-4 p-3 bg-yellow-50 rounded border border-yellow-100 flex gap-2">
             <Lock size={14} className="text-yellow-600 mt-1 flex-shrink-0"/>
-            <p className="text-xs text-yellow-800">Agenda Local. Salva apenas neste dispositivo.</p>
+            <p className="text-xs text-yellow-800">Agenda Pessoal Editável. Salva neste dispositivo.</p>
          </div>
       </div>
+
       <div className="md:col-span-2 space-y-4">
          <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen className="text-indigo-500"/> Agenda de {user}</h3>
-         {events.map(ev => (
-            <div key={ev.id} className="bg-white p-4 rounded-xl border-l-4 shadow-sm flex justify-between" style={{borderLeftColor: ev.type === 'family' ? '#ec4899' : ev.type === 'personal' ? '#8b5cf6' : '#3b82f6'}}>
-               <div>
-                  <h4 className="font-bold text-slate-800">{ev.title}</h4>
-                  <p className="text-xs text-slate-500">{new Date(ev.date).toLocaleDateString('pt-BR')}</p>
+         {events.length === 0 && <p className="text-slate-400 italic">Nenhum evento agendado.</p>}
+         {events.sort((a,b) => new Date(a.date) - new Date(b.date)).map(ev => (
+            <div key={ev.id} className="bg-white p-4 rounded-xl border-l-4 shadow-sm flex justify-between items-start" style={{borderLeftColor: ev.type === 'family' ? '#ec4899' : ev.type === 'personal' ? '#8b5cf6' : '#3b82f6'}}>
+               <div className="flex gap-4">
+                  <div className="text-center min-w-[50px]">
+                     <div className="text-xs font-bold text-slate-400 uppercase">{new Date(ev.date).toLocaleDateString('pt-BR', {month:'short'})}</div>
+                     <div className="text-xl font-bold text-slate-800">{new Date(ev.date).getDate()}</div>
+                  </div>
+                  <div>
+                     <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                     <p className="text-sm text-slate-500">{ev.type.toUpperCase()}</p>
+                  </div>
                </div>
+               <button onClick={() => deleteEvent(ev.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
             </div>
          ))}
       </div>
@@ -84,22 +198,94 @@ const AgendaTab = ({ user }) => {
   );
 };
 
-const TimelineView = ({ vacations, officers, semester }) => {
-  // Lógica de visualização simplificada para garantir renderização
+const TimelineView = ({ vacations, semester, userHighlight }) => {
+  const months = semester === 1 
+    ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun']
+    : ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const startMonthIndex = semester === 1 ? 0 : 6;
+  const year = 2026;
+
+  const filteredVacations = vacations.filter(v => {
+    const start = new Date(v.inicio);
+    return start.getFullYear() === year && start.getMonth() >= startMonthIndex && start.getMonth() < startMonthIndex + 6;
+  });
+
+  const officersWithVacation = Array.from(new Set(filteredVacations.map(v => v.nome)));
+
+  const getPosition = (dateStr) => {
+    const d = new Date(dateStr);
+    const relMonth = d.getMonth() - startMonthIndex;
+    if (relMonth < 0) return 0;
+    return (relMonth * (100/6)) + (d.getDate() * ((100/6)/30));
+  };
+
+  const getWidth = (startStr, endStr) => {
+    const days = Math.ceil(Math.abs(new Date(endStr) - new Date(startStr)) / 86400000);
+    return days * ((100/6)/30);
+  };
+
   return (
-    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-      <h3 className="font-bold text-slate-700 mb-4">Cronograma Visual (Gantt)</h3>
-      <div className="min-w-[600px] space-y-2">
-        {vacations.map((v, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="w-20 text-xs font-bold truncate">{v.nome}</span>
-            <div className="flex-1 bg-slate-100 h-6 rounded relative">
-               <div className="absolute top-1 bottom-1 bg-blue-400 rounded text-[10px] text-white flex items-center px-2 truncate" 
-                    style={{left: '20%', width: '30%'}}>
-                 {v.inicio} - {v.tipo}
-               </div>
-            </div>
-          </div>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden text-xs">
+      <div className="p-3 bg-slate-50 border-b flex justify-between items-center">
+        <h3 className="font-bold text-slate-700 flex items-center gap-2"><CalendarRange size={14}/> Cronograma {semester}º Sem/2026</h3>
+      </div>
+      <div className="p-4 overflow-x-auto">
+         <div className="min-w-[600px]">
+           <div className="grid grid-cols-6 mb-2 text-slate-400 font-bold text-center">
+             {months.map(m => <div key={m}>{m}</div>)}
+           </div>
+           <div className="relative space-y-2">
+             <div className="absolute inset-0 grid grid-cols-6 pointer-events-none border-l border-r border-slate-100">
+               {[1,2,3,4,5,6].map(i => <div key={i} className="border-r border-slate-100 h-full"></div>)}
+             </div>
+             {officersWithVacation.map((name, idx) => {
+               const isUser = userHighlight && name.includes(userHighlight);
+               return (
+                 <div key={idx} className={`relative flex items-center py-1 z-10 ${isUser ? 'bg-yellow-50' : ''}`}>
+                   <div className="w-24 flex-shrink-0 font-bold text-slate-700 truncate pr-2 border-r border-slate-100 text-[10px]">
+                     {name} {isUser && <Star size={8} className="inline text-yellow-500 fill-yellow-500"/>}
+                   </div>
+                   <div className="flex-1 h-3 relative">
+                     {filteredVacations.filter(v => v.nome === name).map((v, vIdx) => (
+                       <div key={vIdx} 
+                            className={`absolute h-3 rounded-full border border-white shadow-sm ${isUser ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                            style={{ left: `${getPosition(v.inicio)}%`, width: `${Math.max(getWidth(v.inicio, v.fim), 1.5)}%` }} 
+                            title={`${v.inicio} a ${v.fim}`}>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )
+             })}
+           </div>
+         </div>
+      </div>
+    </div>
+  );
+};
+
+const BirthdayWidget = ({ staff }) => {
+  const today = new Date(2026, 1, 15);
+  const currentMonth = today.getMonth();
+  const birthdays = staff.filter(p => p.nascimento && parseInt(p.nascimento.split('/')[1]) - 1 === currentMonth)
+                         .sort((a,b) => parseInt(a.nascimento) - parseInt(b.nascimento));
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+      <div className="p-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex justify-between items-center">
+        <h3 className="font-bold flex items-center gap-2 text-sm"><Cake size={16} /> Aniversários Fev</h3>
+      </div>
+      <div className="p-3 flex-1 overflow-y-auto max-h-[250px] space-y-2">
+        {birthdays.map(p => (
+           <div key={p.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border-b border-slate-50 last:border-0">
+              <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">
+                 {p.nascimento.split('/')[0]}
+              </div>
+              <div className="flex-1">
+                 <p className="text-sm font-bold text-slate-700">{p.patente} {p.nome}</p>
+                 <p className="text-[10px] text-slate-400">{p.nascimento}</p>
+              </div>
+           </div>
         ))}
       </div>
     </div>
@@ -112,43 +298,63 @@ const MainSystem = ({ user, role, onLogout }) => {
   const [loading, setLoading] = useState(false);
   
   // Estado Global vindo da Planilha
-  const [officers, setOfficers] = useState(BACKUP_OFFICERS);
-  const [atestados, setAtestados] = useState([]);
-  const [permutas, setPermutas] = useState([]);
-  const [vacations, setVacations] = useState([]);
-  const [upiStats, setUpiStats] = useState({ leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0 });
+  const [officers, setOfficers] = useState(REAL_OFFICERS);
+  const [atestados, setAtestados] = useState(INITIAL_ATESTADOS);
+  const [permutas, setPermutas] = useState(INITIAL_PERMUTAS);
+  const [vacations, setVacations] = useState(INITIAL_VACATIONS);
+  const [upiStats, setUpiStats] = useState(INITIAL_UPI_STATS);
 
-  // Função para buscar dados do Google Sheets
-  const fetchData = async () => {
-    if (API_URL === "SUA_URL_DO_APPS_SCRIPT_AQUI") return; // Evita erro se url não configurada
+  // Stats
+  const pendingAtestados = atestados.filter(a => a.status === 'Pendente').length;
+  const pendingPermutas = permutas.filter(p => p.status === 'Pendente').length;
+
+  // Lógica de Atualização Automática (API Google Sheets)
+  const refreshData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}?action=getData`);
-      const data = await response.json();
-      if (data.officers && data.officers.length > 0) setOfficers(data.officers);
-      if (data.atestados) setAtestados(data.atestados);
-      if (data.permutas) setPermutas(data.permutas);
-      if (data.vacations) setVacations(data.vacations);
-      if (data.upiStats) setUpiStats(data.upiStats);
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error);
+      // 1. Fetch Gestão
+      if (API_URL_GESTAO) {
+        const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
+        const data1 = await res1.json();
+        if (data1.officers && data1.officers.length > 0) setOfficers(data1.officers);
+        if (data1.atestados) setAtestados(data1.atestados);
+        if (data1.permutas) setPermutas(data1.permutas);
+        if (data1.vacations) setVacations(data1.vacations);
+      }
+
+      // 2. Fetch Indicadores
+      if (API_URL_INDICADORES) {
+        const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
+        const data2 = await res2.json();
+        // Assume que a planilha de indicadores retorna um objeto upiStats
+        // Se a planilha de indicadores tiver estrutura diferente, ajustar aqui
+        if (data2.upiStats) setUpiStats(data2.upiStats);
+      }
+      
+      if (!API_URL_GESTAO && !API_URL_INDICADORES) {
+          alert("URLs das planilhas não configuradas no código.");
+      } else {
+          alert("Dados sincronizados com sucesso!");
+      }
+
+    } catch(e) {
+      console.error("Erro na sincronização:", e);
+      alert("Erro ao conectar com as planilhas. Verifique o console.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
-
-  // Envio de Dados
+  // Envio de Dados (Apenas para Gestão)
   const sendData = async (action, payload) => {
-    if (API_URL === "SUA_URL_DO_APPS_SCRIPT_AQUI") {
-      alert("Configure a API_URL no código para salvar de verdade!");
+    if (!API_URL_GESTAO) {
+      alert("Configure a API_URL_GESTAO no código para salvar de verdade!");
       return;
     }
     try {
-      await fetch(API_URL, {
+      await fetch(API_URL_GESTAO, {
         method: 'POST',
-        mode: 'no-cors', // Necessário para Apps Script
+        mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action, payload })
       });
@@ -161,114 +367,215 @@ const MainSystem = ({ user, role, onLogout }) => {
     }
   };
 
+  // Actions
+  const handleHomologar = (id, type) => {
+    if (role !== 'admin') return alert("Apenas Chefe e Adjunto podem homologar.");
+    if (type === 'atestado') setAtestados(atestados.map(a => a.id === id ? {...a, status: 'Homologado'} : a));
+    if (type === 'permuta') setPermutas(permutas.map(p => p.id === id ? {...p, status: 'Homologado'} : p));
+  };
+
   const handleRequest = (type) => {
     const newItem = { 
       id: Date.now(), 
       status: 'Pendente', 
       militar: user, 
-      data: new Date().toISOString().split('T')[0] 
+      solicitante: user,
+      data: new Date().toISOString().split('T')[0],
+      dataSai: new Date().toISOString().split('T')[0]
     };
     
     if (type === 'atestado') {
-      sendData('saveAtestado', { ...newItem, tipo: 'Atestado', cid: '---' });
+       // Se tiver API, usa sendData, senão usa state local
+       if(API_URL_GESTAO) sendData('saveAtestado', {...newItem, tipo: 'Atestado', cid: '---'});
+       else {
+           setAtestados([{...newItem, tipo: 'Atestado', cid: '---'}, ...atestados]);
+           alert("Solicitação enviada (Local)!");
+       }
     } else {
-      sendData('savePermuta', { ...newItem, solicitante: user, substituto: '---' });
+       if(API_URL_GESTAO) sendData('savePermuta', {...newItem, substituto: '---'});
+       else {
+           setPermutas([{...newItem, substituto: '---'}, ...permutas]);
+           alert("Solicitação enviada (Local)!");
+       }
     }
   };
 
   const renderContent = () => {
-    if (loading) return <div className="p-8 text-center">Carregando dados da planilha...</div>;
+    if (loading) return <div className="p-10 text-center text-slate-500">Sincronizando dados...</div>;
 
     switch(activeTab) {
       case 'dashboard':
         return (
           <div className="space-y-6 animate-fadeIn">
-             <div className="flex justify-between">
-               <h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2>
-               <button onClick={fetchData} className="flex items-center gap-2 text-sm text-blue-600"><RefreshCw size={14}/> Atualizar Dados</button>
-             </div>
-             
-             {/* INDICADORES UPI REAIS */}
-             <div className="bg-slate-800 rounded-xl p-5 text-white shadow-lg flex justify-between items-center">
-                <div>
-                   <h3 className="font-bold flex items-center gap-2"><Activity/> Indicadores UPI</h3>
-                   <p className="text-xs text-slate-400">Sincronizado via Google Sheets</p>
+             {role === 'rt' && (
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex gap-3 items-center mb-4">
+                   <Eye className="text-blue-600" />
+                   <div>
+                      <h4 className="font-bold text-blue-800">Modo RT</h4>
+                      <p className="text-sm text-blue-700">Acesso total para visualização. Homologação restrita à Chefia.</p>
+                   </div>
                 </div>
-                <div className="text-center">
-                   <p className="text-xs uppercase text-slate-400">Ocupação</p>
-                   <p className="text-2xl font-bold">{upiStats.leitosOcupados || 8} <span className="text-sm text-slate-500">/ 30</span></p>
-                </div>
-                <div className="text-center">
-                   <p className="text-xs uppercase text-slate-400">Braden</p>
-                   <p className="text-2xl font-bold text-yellow-400">{Number(upiStats.mediaBraden || 17.1).toFixed(1)}</p>
-                </div>
-                <div className="text-center">
-                   <p className="text-xs uppercase text-slate-400">Fugulin</p>
-                   <p className="text-2xl font-bold text-green-400">{Number(upiStats.mediaFugulin || 21.3).toFixed(1)}</p>
-                </div>
+             )}
+
+             <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2>
+                <button onClick={refreshData} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar Planilhas</button>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-5 rounded-xl border border-slate-200">
-                   <p className="text-slate-500 text-xs font-bold">Efetivo Total</p>
-                   <h3 className="text-2xl font-bold">{officers.length}</h3>
+             {/* AÇÕES RÁPIDAS (NOVO) */}
+             <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => handleRequest('atestado')} className="bg-red-50 hover:bg-red-100 border border-red-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
+                   <div className="bg-red-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ShieldAlert size={20}/></div>
+                   <span className="font-bold text-red-800">Novo Atestado</span>
+                </button>
+                <button onClick={() => handleRequest('permuta')} className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
+                   <div className="bg-indigo-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ArrowRightLeft size={20}/></div>
+                   <span className="font-bold text-indigo-800">Nova Permuta</span>
+                </button>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* CARD UPI EM TEMPO REAL (ATUALIZADO) */}
+                <div className="md:col-span-4 bg-slate-800 rounded-xl p-5 text-white shadow-lg flex flex-col md:flex-row items-center justify-between">
+                   <div className="flex items-center gap-4 mb-4 md:mb-0">
+                      <div className="bg-blue-600 p-3 rounded-lg"><Activity size={24}/></div>
+                      <div>
+                         <h3 className="font-bold text-lg">UPI - Leitos & Escalas</h3>
+                         <p className="text-slate-400 text-xs">Dados de {upiStats.dataReferencia}</p>
+                      </div>
+                   </div>
+                   <div className="flex gap-8 text-center">
+                      <div>
+                         <p className="text-slate-400 text-xs uppercase font-bold">Ocupação</p>
+                         <p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ {upiStats.totalLeitos}</span></p>
+                      </div>
+                      <div>
+                         <p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p>
+                         <p className="text-2xl font-bold text-yellow-400 flex items-center gap-1 justify-center">
+                            {Number(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/>
+                         </p>
+                      </div>
+                      <div>
+                         <p className="text-slate-400 text-xs uppercase font-bold">Média Fugulin</p>
+                         <p className="text-2xl font-bold text-green-400 flex items-center gap-1 justify-center">
+                            {Number(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/>
+                         </p>
+                      </div>
+                   </div>
                 </div>
-                <div className="bg-white p-5 rounded-xl border border-slate-200">
-                   <p className="text-slate-500 text-xs font-bold">Pendências</p>
-                   <h3 className="text-2xl font-bold">{atestados.length + permutas.length}</h3>
+
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                   <p className="text-slate-500 text-xs uppercase font-bold">Pendências</p>
+                   <h3 className="text-2xl font-bold text-slate-800">{pendingAtestados + pendingPermutas}</h3>
+                </div>
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                   <p className="text-slate-500 text-xs uppercase font-bold">Efetivo</p>
+                   <h3 className="text-2xl font-bold text-slate-800">{REAL_OFFICERS.length}</h3>
+                </div>
+                <div className="md:col-span-2">
+                   <BirthdayWidget staff={REAL_OFFICERS} />
                 </div>
              </div>
           </div>
         );
+      
       case 'agenda': return <AgendaTab user={user} />;
+      
       case 'atestados':
         return (
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
              <div className="flex justify-between mb-4">
-               <h3 className="font-bold text-lg flex gap-2"><ShieldAlert className="text-red-500"/> Atestados</h3>
-               <button onClick={() => handleRequest('atestado')} className="bg-red-600 text-white px-4 py-2 rounded text-sm font-bold">Novo Registro</button>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShieldAlert className="text-red-500"/> Gestão de Atestados</h3>
+                <button onClick={() => handleRequest('atestado')} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700">Novo Atestado</button>
              </div>
-             <table className="w-full text-left text-sm">
-               <thead className="bg-slate-50 uppercase"><tr><th>Status</th><th>Militar</th><th>Data</th></tr></thead>
-               <tbody>
-                 {atestados.map((a, i) => (
-                   <tr key={i} className="border-t">
-                     <td className="p-3 font-bold text-xs">{a.status}</td>
-                     <td className="p-3">{a.militar}</td>
-                     <td className="p-3">{a.data}</td>
-                   </tr>
-                 ))}
-                 {atestados.length === 0 && <tr><td colSpan="3" className="p-4 text-center text-slate-400">Nenhum registro.</td></tr>}
-               </tbody>
-             </table>
-          </div>
-        );
-      case 'ferias':
-         return (
-            <div className="space-y-6">
-               <h3 className="font-bold text-lg flex gap-2"><Palmtree className="text-orange-500"/> Gestão de Férias</h3>
-               <TimelineView vacations={vacations} officers={officers} semester={1} userHighlight={user} />
-            </div>
-         );
-      case 'efetivo':
-         return (
-            <div className="bg-white rounded-xl border p-6">
-               <h3 className="font-bold mb-4">Quadro de Oficiais</h3>
+             <div className="overflow-x-auto">
                <table className="w-full text-left text-sm">
-                 <thead className="bg-slate-50 uppercase"><tr><th>#</th><th>Nome</th><th>Setor</th></tr></thead>
-                 <tbody>
-                   {officers.map((o, i) => (
-                     <tr key={i} className="border-t hover:bg-slate-50">
-                       <td className="p-3 text-slate-400">{o.antiguidade || i+1}</td>
-                       <td className="p-3 font-bold text-slate-700">{o.patente} {o.nome}</td>
-                       <td className="p-3"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">{o.setor}</span></td>
+                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead>
+                 <tbody className="divide-y divide-slate-50">
+                   {atestados.map((a, idx) => (
+                     <tr key={idx} className={a.status === 'Pendente' ? 'bg-red-50/50' : ''}>
+                       <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${a.status === 'Pendente' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{a.status}</span></td>
+                       <td className="p-3 font-medium">{a.militar}</td>
+                       <td className="p-3 text-slate-500">{a.data || a.inicio}</td>
+                       <td className="p-3">
+                          {a.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(a.id, 'atestado')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
+                          {a.status === 'Pendente' && role === 'rt' && <span className="text-slate-400 text-xs italic flex items-center gap-1"><Eye size={12}/> Visualização</span>}
+                          {a.status === 'Pendente' && role === 'user' && <span className="text-slate-400 text-xs italic">Aguardando</span>}
+                       </td>
                      </tr>
                    ))}
                  </tbody>
                </table>
+             </div>
+          </div>
+        );
+
+      case 'permutas':
+         return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
+               <div className="flex justify-between mb-4">
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ArrowRightLeft className="text-indigo-500"/> Permutas de Serviço</h3>
+                  <button onClick={() => handleRequest('permuta')} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">Solicitar Permuta</button>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm">
+                   <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Solicitante</th><th className="p-3">Substituto</th><th className="p-3">Datas</th><th className="p-3">Ação</th></tr></thead>
+                   <tbody className="divide-y divide-slate-50">
+                     {permutas.map((p, idx) => (
+                       <tr key={idx} className={p.status === 'Pendente' ? 'bg-indigo-50/50' : ''}>
+                         <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'Pendente' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{p.status}</span></td>
+                         <td className="p-3 font-medium text-red-700">{p.solicitante}</td>
+                         <td className="p-3 font-medium text-green-700">{p.substituto || '---'}</td>
+                         <td className="p-3 text-slate-500">{p.dataSai}</td>
+                         <td className="p-3">
+                            {p.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(p.id, 'permuta')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
+                            {p.status === 'Pendente' && role === 'rt' && <span className="text-slate-400 text-xs italic flex items-center gap-1"><Eye size={12}/> Visualização</span>}
+                            {p.status === 'Pendente' && role === 'user' && <span className="text-slate-400 text-xs italic">Aguardando</span>}
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
             </div>
          );
-      default: return null;
+
+      case 'ferias':
+         return (
+            <div className="space-y-6 animate-fadeIn">
+               <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Palmtree className="text-orange-500"/> Escala de Férias 2026</h3>
+                  <div className="flex gap-2">
+                     <span className="text-xs font-bold px-2 py-1 bg-white border rounded">1º Semestre</span>
+                  </div>
+               </div>
+               <TimelineView vacations={vacations} officers={REAL_OFFICERS} semester={1} userHighlight={user} />
+            </div>
+         );
+
+      case 'efetivo':
+         return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
+              <h3 className="font-bold text-slate-800 mb-4">Efetivo de Oficiais ({REAL_OFFICERS.length})</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3 text-center">#</th><th className="p-3">Nome</th><th className="p-3">Setor</th><th className="p-3">Nascimento</th></tr></thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {REAL_OFFICERS.map(o => (
+                      <tr key={o.id} className="hover:bg-slate-50">
+                        <td className="p-3 text-center font-bold text-slate-400">{o.antiguidade}</td>
+                        <td className="p-3 font-medium text-slate-800">{o.patente} {o.nome}</td>
+                        <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] uppercase font-bold ${o.setor === 'UTI' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{o.setor}</span></td>
+                        <td className="p-3 text-slate-500 font-mono">{o.nascimento}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+         );
+
+      default: return <div>Carregando...</div>;
     }
   };
 
@@ -276,65 +583,103 @@ const MainSystem = ({ user, role, onLogout }) => {
     <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden">
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all flex flex-col z-20 shadow-xl`}>
          <div className="p-4 border-b border-slate-800 flex items-center gap-3 h-16">
-            {sidebarOpen && <span className="font-bold text-lg">SGA-Enf</span>}
+            {sidebarOpen && <span className="font-bold text-lg">SGA-Enf {role === 'admin' ? 'Chefia' : role === 'rt' ? 'RT' : 'Oficial'}</span>}
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto text-slate-400"><Menu size={20}/></button>
          </div>
-         <div className="p-4 bg-slate-800/50 border-b border-slate-800">
-            <p className="font-bold text-sm truncate">{user}</p>
-            <p className="text-[10px] uppercase text-slate-400">{role}</p>
+         
+         <div className={`p-4 border-b border-slate-800 bg-slate-800/50 ${!sidebarOpen && 'flex justify-center'}`}>
+            <div className="flex items-center gap-3">
+               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg border-2 border-slate-700 ${role === 'admin' ? 'bg-blue-600' : role === 'rt' ? 'bg-purple-600' : 'bg-slate-600'}`}>
+                 {user.substring(0,2).toUpperCase()}
+               </div>
+               {sidebarOpen && (
+                 <div>
+                   <p className="font-bold text-sm truncate w-32">{user}</p>
+                   <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                     {role === 'admin' ? 'Administrador' : role === 'rt' ? 'Resp. Técnico' : 'Usuário'}
+                   </p>
+                 </div>
+               )}
+            </div>
          </div>
-         <nav className="flex-1 py-4 px-2 space-y-1">
-            {['dashboard', 'agenda', 'atestados', 'ferias', 'efetivo'].map(id => (
-              <button key={id} onClick={() => setActiveTab(id)} className={`w-full text-left p-3 rounded hover:bg-slate-800 capitalize ${activeTab === id ? 'bg-blue-600' : ''}`}>
-                 {sidebarOpen ? id : id.charAt(0).toUpperCase()}
+
+         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+            {[
+              { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
+              { id: 'agenda', label: 'Minha Agenda', icon: BookOpen },
+              { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (role === 'admin' || role === 'rt') ? pendingAtestados : 0 },
+              { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (role === 'admin' || role === 'rt') ? pendingPermutas : 0 },
+              { id: 'ferias', label: 'Férias', icon: Palmtree },
+              { id: 'efetivo', label: 'Efetivo', icon: Users },
+            ].map(item => (
+              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all group relative ${activeTab === item.id ? 'bg-blue-600 shadow-md text-white' : 'hover:bg-slate-800 text-slate-400'}`}>
+                 <div className="relative">
+                    <item.icon size={20}/>
+                    {item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}
+                 </div>
+                 {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                 {!sidebarOpen && <div className="absolute left-14 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">{item.label}</div>}
               </button>
             ))}
          </nav>
+
          <div className="p-4 border-t border-slate-800">
-           <button onClick={onLogout} className="flex gap-2 text-slate-400 hover:text-white w-full"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
+           <button onClick={onLogout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
          </div>
       </aside>
-      <main className="flex-1 overflow-auto bg-slate-50 p-6">
+
+      <main className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-8">
+         <header className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2>
+              <p className="text-slate-500 text-sm">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p>
+            </div>
+         </header>
          {renderContent()}
       </main>
     </div>
   );
 };
 
-const LoginScreen = ({ onLogin }) => {
-  const [user, setUser] = useState('');
-  
-  // Lista simplificada para login inicial (depois virá da planilha)
-  const officers = BACKUP_OFFICERS;
-
-  return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
-        <Plane size={48} className="mx-auto text-blue-600 mb-4"/>
-        <h1 className="text-2xl font-bold text-slate-800 mb-6">SGA-Enf HACO</h1>
-        <select className="w-full p-3 border rounded-lg mb-4 bg-slate-50 font-medium" value={user} onChange={e => setUser(e.target.value)}>
-           <option value="">Selecione seu Usuário...</option>
-           {officers.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome} ({o.role})</option>)}
-        </select>
-        <button 
-           onClick={() => {
-              const selected = officers.find(o => o.nome === user);
-              if (selected) onLogin(selected.nome, selected.role);
-           }} 
-           disabled={!user} 
-           className="w-full py-3 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300"
-        >
-           ENTRAR
-        </button>
-      </div>
-    </div>
-  );
-};
+const UserDashboard = ({ user, onLogout }) => (
+  <div className="min-h-screen bg-slate-50 flex flex-col">
+     <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+           <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">{user.substring(0,2).toUpperCase()}</div>
+           <div>
+             <h1 className="font-bold text-slate-800">Ten {user}</h1>
+             <p className="text-xs text-slate-500">Área do Oficial</p>
+           </div>
+        </div>
+        <button onClick={onLogout}><LogOut className="text-slate-400 hover:text-red-500" /></button>
+     </header>
+     <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-4">
+        <div className="bg-blue-600 text-white p-6 rounded-xl shadow-lg shadow-blue-500/30">
+           <h2 className="font-bold text-lg mb-1">Bem-vindo, {user}</h2>
+           <p className="opacity-90">Acesse o sistema completo via Desktop para gestão.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+           <button className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50">
+              <Sun className="text-orange-500" size={24} />
+              <span className="font-bold text-sm text-slate-700">Minhas Férias</span>
+           </button>
+           <button className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50">
+              <BookOpen className="text-indigo-500" size={24} />
+              <span className="font-bold text-sm text-slate-700">Agenda</span>
+           </button>
+        </div>
+     </main>
+  </div>
+);
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
 
-  if (!user) return <LoginScreen onLogin={(u, r) => { setUser(u); setRole(r); }} />;
-  return <MainSystem user={user} role={role} onLogout={() => { setUser(null); setRole(null); }} />;
+  const handleLogin = (u, r) => { setUser(u); setRole(r); };
+  const handleLogout = () => { setUser(null); setRole(null); };
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+  if (role === 'admin' || role === 'rt') return <MainSystem user={user} role={role} onLogout={handleLogout} />;
+  return <UserDashboard user={user} onLogout={handleLogout} />;
 }
