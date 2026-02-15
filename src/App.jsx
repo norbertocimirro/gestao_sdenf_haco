@@ -8,21 +8,17 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
-// ATENÇÃO: NÃO COLOQUE O LINK DA PLANILHA AQUI!
-// Você deve ir em Extensões > Apps Script > Implantar > App da Web
-// e colar aqui a URL que termina em "/exec"
-const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
-const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
+// ATENÇÃO: Configure as URLs dos Scripts (Web Apps) aqui
+const API_URL_GESTAO = ""; 
+const API_URL_INDICADORES = ""; 
 
 // --- DADOS REAIS (SNAPSHOT) ---
 
-// 1. EFETIVO COMPLETO
 const REAL_OFFICERS = [
   // CHEFIA
   { id: 2, antiguidade: 2, nome: 'Zanini', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Chefe SDENF', role: 'admin', nascimento: '24/03' },
   { id: 6, antiguidade: 6, nome: 'Cimirro', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Adjunto', role: 'admin', nascimento: '03/02' },
   { id: 11, antiguidade: 11, nome: 'Renata', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', cargo: 'RT Enfermagem', role: 'rt', nascimento: '11/07' },
-  
   // TROPA
   { id: 1, antiguidade: 1, nome: 'Gisele', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '18/06' },
   { id: 3, antiguidade: 3, nome: 'Marasca', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '11/04' },
@@ -47,7 +43,6 @@ const REAL_OFFICERS = [
   { id: 24, antiguidade: 24, nome: 'Jéssica', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '04/07' }
 ];
 
-// 2. FÉRIAS
 const INITIAL_VACATIONS = [
   { id: 1, nome: 'Cimirro', inicio: '2026-03-02', fim: '2026-03-11', tipo: '10 dias', status: 'Confirmado' },
   { id: 2, nome: 'Cimirro', inicio: '2026-06-24', fim: '2026-07-03', tipo: '10 dias', status: 'Confirmado' },
@@ -60,13 +55,12 @@ const INITIAL_VACATIONS = [
   { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
 ];
 
-// 3. INDICADORES UPI
 const INITIAL_UPI_STATS = {
-  leitosOcupados: 8,
+  leitosOcupados: 8, // Este valor será substituído pela contagem real da API
   totalLeitos: 15,
   mediaBraden: 17.1,
   mediaFugulin: 21.3,
-  dataReferencia: '13/02/2026'
+  dataReferencia: 'Carregando...'
 };
 
 const INITIAL_ATESTADOS = [
@@ -77,7 +71,6 @@ const INITIAL_PERMUTAS = [];
 // --- HELPER DATE ---
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
-  // Corrige problema de timezone adicionando hora fixa
   const date = new Date(dateStr + 'T12:00:00');
   return date.toLocaleDateString('pt-BR');
 };
@@ -188,6 +181,10 @@ const AgendaTab = ({ user }) => {
             </select>
             <button type="submit" className="w-full bg-slate-800 text-white font-bold py-2 rounded text-sm hover:bg-slate-700">Adicionar</button>
          </form>
+         <div className="mt-4 p-3 bg-yellow-50 rounded border border-yellow-100 flex gap-2">
+            <Lock size={14} className="text-yellow-600 mt-1 flex-shrink-0"/>
+            <p className="text-xs text-yellow-800">Agenda Pessoal Editável. Salva neste dispositivo.</p>
+         </div>
       </div>
 
       <div className="md:col-span-2 space-y-4">
@@ -197,7 +194,6 @@ const AgendaTab = ({ user }) => {
             <div key={ev.id} className="bg-white p-4 rounded-xl border-l-4 shadow-sm flex justify-between items-start" style={{borderLeftColor: ev.type === 'family' ? '#ec4899' : ev.type === 'personal' ? '#8b5cf6' : '#3b82f6'}}>
                <div className="flex gap-4">
                   <div className="text-center min-w-[50px]">
-                     {/* Fix para data: usando split para evitar timezone */}
                      <div className="text-xs font-bold text-slate-400 uppercase">
                         {new Date(ev.date + 'T12:00:00').toLocaleDateString('pt-BR', {month:'short'})}
                      </div>
@@ -250,8 +246,7 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><CalendarRange size={14}/> Cronograma {semester}º Sem/2026</h3>
       </div>
       <div className="p-4 overflow-x-auto">
-         {/* Aumentado min-w para melhorar visualização */}
-         <div className="min-w-[900px]"> 
+         <div className="min-w-[900px]">
            <div className="grid grid-cols-6 mb-2 text-slate-400 font-bold text-center border-b pb-2">
              {months.map(m => <div key={m}>{m}</div>)}
            </div>
@@ -351,6 +346,7 @@ const MainSystem = ({ user, role, onLogout }) => {
       if (API_URL_INDICADORES) {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
         const data2 = await res2.json();
+        // A chave upiStats contém a contagem real de leitos ocupados
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
@@ -402,7 +398,7 @@ const MainSystem = ({ user, role, onLogout }) => {
       status: 'Pendente', 
       militar: user, 
       inicio: formAtestado.inicio,
-      data: formAtestado.inicio, // para compatibilidade
+      data: formAtestado.inicio, 
       cid: formAtestado.cid || 'Sigiloso'
     };
     
