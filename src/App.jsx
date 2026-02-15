@@ -9,8 +9,8 @@ import {
 
 // --- CONFIGURAÇÃO ---
 // ATENÇÃO: Configure as URLs dos Scripts (Web Apps) aqui
-const API_URL_GESTAO = ""; 
-const API_URL_INDICADORES = ""; 
+const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS (SNAPSHOT) ---
 
