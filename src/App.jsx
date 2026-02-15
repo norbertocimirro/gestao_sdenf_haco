@@ -9,7 +9,8 @@ import {
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
 // URL DA PLANILHA DE GESTÃO (Atestados, Permutas, Oficiais)
-const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+// Atualizado conforme solicitação para o script correto
+const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // URL DA PLANILHA DE INDICADORES (Leitos, Braden, Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
@@ -57,6 +58,7 @@ const INITIAL_VACATIONS = [
   { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
 ];
 
+// Dados iniciais zerados para forçar leitura correta da API
 const INITIAL_UPI_STATS = {
   leitosOcupados: 8, 
   totalLeitos: 15,
