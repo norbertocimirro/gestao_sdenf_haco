@@ -471,7 +471,6 @@ const MainSystem = ({ user, role, onLogout }) => {
                       <div className="bg-blue-600 p-3 rounded-lg"><Activity size={24}/></div>
                       <div>
                          <h3 className="font-bold text-lg">UPI - Tempo Real</h3>
-                         <p className="text-slate-400 text-xs">Atualizado em {upiStats.dataReferencia}</p>
                       </div>
                    </div>
                    <div className="flex gap-8 text-center">
