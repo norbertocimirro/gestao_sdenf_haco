@@ -7,12 +7,14 @@ import {
   Plane, Stethoscope, RefreshCw, Send, X as CloseIcon, Save
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO ---
-// ATENÇÃO: Configure as URLs dos Scripts (Web Apps) aqui
+// --- CONFIGURAÇÃO DE CONEXÃO ---
+// URL DA PLANILHA DE GESTÃO (Atestados, Permutas, Oficiais)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+
+// URL DA PLANILHA DE INDICADORES (Leitos, Braden, Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
-// --- DADOS REAIS (SNAPSHOT) ---
+// --- DADOS REAIS ---
 
 const REAL_OFFICERS = [
   // CHEFIA
@@ -55,13 +57,12 @@ const INITIAL_VACATIONS = [
   { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
 ];
 
-// Dados iniciais zerados para forçar leitura correta da API
 const INITIAL_UPI_STATS = {
   leitosOcupados: 8, 
   totalLeitos: 15,
-  mediaBraden: 0, // Zerado para indicar que virá da API
-  mediaFugulin: 0, // Zerado para indicar que virá da API
-  dataReferencia: 'Aguardando...'
+  mediaBraden: 0,
+  mediaFugulin: 0,
+  dataReferencia: 'Carregando...'
 };
 
 const INITIAL_ATESTADOS = [
@@ -69,7 +70,6 @@ const INITIAL_ATESTADOS = [
 ];
 const INITIAL_PERMUTAS = [];
 
-// --- HELPER DATE ---
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr + 'T12:00:00');
@@ -339,14 +339,25 @@ const MainSystem = ({ user, role, onLogout }) => {
     try {
       if (API_URL_GESTAO) {
         const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
-        const data1 = await res1.json();
+        if (!res1.ok) throw new Error("Erro na API Gestão");
+        // Verifica se a resposta é JSON antes de parsear
+        const text1 = await res1.text();
+        if (text1.trim().startsWith('<')) {
+           throw new Error("API Gestão retornou HTML. Verifique permissões do script.");
+        }
+        const data1 = JSON.parse(text1);
         if (data1.atestados) setAtestados(data1.atestados);
         if (data1.permutas) setPermutas(data1.permutas);
         if (data1.vacations) setVacations(data1.vacations);
       }
       if (API_URL_INDICADORES) {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
-        const data2 = await res2.json();
+        if (!res2.ok) throw new Error("Erro na API Indicadores");
+        const text2 = await res2.text();
+        if (text2.trim().startsWith('<')) {
+           throw new Error("API Indicadores retornou HTML. Verifique permissões do script.");
+        }
+        const data2 = JSON.parse(text2);
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
@@ -357,7 +368,7 @@ const MainSystem = ({ user, role, onLogout }) => {
       }
     } catch(e) {
       console.error(e);
-      if (showFeedback) alert("Erro de conexão. Verifique o console.");
+      if (showFeedback) alert(`Erro de conexão: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -434,29 +445,8 @@ const MainSystem = ({ user, role, onLogout }) => {
   };
 
   const handleRequest = (type) => {
-    const newItem = { 
-      id: Date.now(), 
-      status: 'Pendente', 
-      militar: user, 
-      solicitante: user,
-      data: new Date().toISOString().split('T')[0],
-      dataSai: new Date().toISOString().split('T')[0],
-      dataEntra: new Date().toISOString().split('T')[0]
-    };
-    
-    if (type === 'atestado') {
-       if(API_URL_GESTAO) sendData('saveAtestado', {...newItem, tipo: 'Atestado', cid: '---'});
-       else {
-           setAtestados([{...newItem, tipo: 'Atestado', cid: '---'}, ...atestados]);
-           alert("Solicitação enviada (Local)!");
-       }
-    } else {
-       if(API_URL_GESTAO) sendData('savePermuta', {...newItem, substituto: '---'});
-       else {
-           setPermutas([{...newItem, substituto: '---'}, ...permutas]);
-           alert("Solicitação enviada (Local)!");
-       }
-    }
+    if (type === 'atestado') setShowAtestadoModal(true);
+    if (type === 'permuta') setShowPermutaModal(true);
   };
 
   const renderContent = () => {
@@ -498,6 +488,7 @@ const MainSystem = ({ user, role, onLogout }) => {
                       <div className="bg-blue-600 p-3 rounded-lg"><Activity size={24}/></div>
                       <div>
                          <h3 className="font-bold text-lg">UPI - Tempo Real</h3>
+                         <p className="text-slate-400 text-xs">Atualizado em {upiStats.dataReferencia}</p>
                       </div>
                    </div>
                    <div className="flex gap-8 text-center">
@@ -677,7 +668,6 @@ const MainSystem = ({ user, role, onLogout }) => {
                     {item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}
                  </div>
                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                 {!sidebarOpen && <div className="absolute left-14 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">{item.label}</div>}
               </button>
             ))}
          </nav>
