@@ -4,19 +4,19 @@ import {
   Menu, LogOut, ShieldAlert, ArrowRightLeft, 
   Star, Sun, Palmtree, CalendarRange, Cake, BookOpen, 
   Plus, Trash2, Lock, CheckCircle, Eye, Thermometer, TrendingDown,
-  Plane, Stethoscope, RefreshCw, Send
+  Plane, Stethoscope, RefreshCw, Send, X as CloseIcon, Save
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
-// 1. URL DA PLANILHA DE GESTÃO (Oficiais, Férias, Atestados, Permutas)
-const API_URL_GESTAO = "https://docs.google.com/spreadsheets/d/1C9KR9xWtLMo2PmITmTERWiBg2Bl3bXnC_4JYWy_G29g/edit?usp=sharing"; // Ex: "https://script.google.com/.../exec"
+// ATENÇÃO: NÃO COLOQUE O LINK DA PLANILHA AQUI!
+// Você deve ir em Extensões > Apps Script > Implantar > App da Web
+// e colar aqui a URL que termina em "/exec"
+const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
-// 2. URL DA PLANILHA DE INDICADORES (Leitos, Braden, Fugulin)
-const API_URL_INDICADORES = "https://docs.google.com/spreadsheets/d/1aQ9pD5B-LzgpY-JVniW9ad0Oeda2p-0rYK2pmv--wno/edit?usp=sharing"; // Ex: "https://script.google.com/.../exec"
+// --- DADOS REAIS (SNAPSHOT) ---
 
-// --- DADOS REAIS (SNAPSHOT DA PLANILHA) ---
-
-// 1. EFETIVO COMPLETO (24 OFICIAIS)
+// 1. EFETIVO COMPLETO
 const REAL_OFFICERS = [
   // CHEFIA
   { id: 2, antiguidade: 2, nome: 'Zanini', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Chefe SDENF', role: 'admin', nascimento: '24/03' },
@@ -47,9 +47,9 @@ const REAL_OFFICERS = [
   { id: 24, antiguidade: 24, nome: 'Jéssica', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '04/07' }
 ];
 
-// 2. FÉRIAS REAIS 2026 (BASEADO NAS PLANILHAS)
+// 2. FÉRIAS
 const INITIAL_VACATIONS = [
-  { id: 1, nome: 'Cimirro', inicio: '2026-03-02', fim: '2026-03-11', tipo: '10 dias', status: 'Confirmado' }, // Aniversário Alice 04/03
+  { id: 1, nome: 'Cimirro', inicio: '2026-03-02', fim: '2026-03-11', tipo: '10 dias', status: 'Confirmado' },
   { id: 2, nome: 'Cimirro', inicio: '2026-06-24', fim: '2026-07-03', tipo: '10 dias', status: 'Confirmado' },
   { id: 3, nome: 'Marasca', inicio: '2026-01-26', fim: '2026-02-09', tipo: '15 dias', status: 'Realizado' },
   { id: 4, nome: 'Serafin', inicio: '2026-01-05', fim: '2026-01-19', tipo: '15 dias', status: 'Realizado' },
@@ -60,22 +60,43 @@ const INITIAL_VACATIONS = [
   { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
 ];
 
-// 3. INDICADORES UPI (SNAPSHOT 13/02)
+// 3. INDICADORES UPI
 const INITIAL_UPI_STATS = {
   leitosOcupados: 8,
-  totalLeitos: 15, // Corrigido para 15 conforme solicitado
+  totalLeitos: 15,
   mediaBraden: 17.1,
   mediaFugulin: 21.3,
   dataReferencia: '13/02/2026'
 };
 
-// 4. MOCKS INICIAIS
 const INITIAL_ATESTADOS = [
   { id: 101, militar: 'Cb SEF Pereira', tipo: 'Atestado', cid: 'M54', inicio: '2026-02-10', fim: '2026-02-12', status: 'Homologado' },
 ];
 const INITIAL_PERMUTAS = [];
 
+// --- HELPER DATE ---
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  // Corrige problema de timezone adicionando hora fixa
+  const date = new Date(dateStr + 'T12:00:00');
+  return date.toLocaleDateString('pt-BR');
+};
+
 // --- COMPONENTES ---
+
+const Modal = ({ title, onClose, children }) => (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeIn">
+      <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+        <h3 className="font-bold text-slate-800">{title}</h3>
+        <button onClick={onClose}><CloseIcon size={20} className="text-slate-400 hover:text-slate-600" /></button>
+      </div>
+      <div className="p-6">
+        {children}
+      </div>
+    </div>
+  </div>
+);
 
 const LoginScreen = ({ onLogin }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -123,13 +144,11 @@ const AgendaTab = ({ user }) => {
   const [events, setEvents] = useState([]);
   const [newEvent, setNewEvent] = useState({ date: '', title: '', type: 'work' });
 
-  // Carregar dados iniciais e salvar no LocalStorage
   useEffect(() => {
     const savedAgenda = localStorage.getItem(`agenda_${user}`);
     if (savedAgenda) {
       setEvents(JSON.parse(savedAgenda));
     } else if (user === 'Cimirro') {
-      // Dados padrão para Cimirro se não houver save
       const initialCimirro = [
         { id: 1, date: '2026-03-04', title: 'Aniversário Alice (11 Anos)', type: 'family', details: 'Comprar presente' },
         { id: 2, date: '2026-05-29', title: 'Aniversário Pedro', type: 'family', details: 'Festa na escola?' },
@@ -145,14 +164,14 @@ const AgendaTab = ({ user }) => {
     e.preventDefault();
     const updatedEvents = [...events, { id: Date.now(), ...newEvent }];
     setEvents(updatedEvents);
-    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents)); // Persistir
+    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents));
     setNewEvent({ date: '', title: '', type: 'work' });
   };
 
   const deleteEvent = (id) => {
     const updatedEvents = events.filter(e => e.id !== id);
     setEvents(updatedEvents);
-    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents)); // Persistir
+    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents));
   };
 
   return (
@@ -169,10 +188,6 @@ const AgendaTab = ({ user }) => {
             </select>
             <button type="submit" className="w-full bg-slate-800 text-white font-bold py-2 rounded text-sm hover:bg-slate-700">Adicionar</button>
          </form>
-         <div className="mt-4 p-3 bg-yellow-50 rounded border border-yellow-100 flex gap-2">
-            <Lock size={14} className="text-yellow-600 mt-1 flex-shrink-0"/>
-            <p className="text-xs text-yellow-800">Agenda Pessoal Editável. Salva neste dispositivo.</p>
-         </div>
       </div>
 
       <div className="md:col-span-2 space-y-4">
@@ -182,8 +197,13 @@ const AgendaTab = ({ user }) => {
             <div key={ev.id} className="bg-white p-4 rounded-xl border-l-4 shadow-sm flex justify-between items-start" style={{borderLeftColor: ev.type === 'family' ? '#ec4899' : ev.type === 'personal' ? '#8b5cf6' : '#3b82f6'}}>
                <div className="flex gap-4">
                   <div className="text-center min-w-[50px]">
-                     <div className="text-xs font-bold text-slate-400 uppercase">{new Date(ev.date).toLocaleDateString('pt-BR', {month:'short'})}</div>
-                     <div className="text-xl font-bold text-slate-800">{new Date(ev.date).getDate()}</div>
+                     {/* Fix para data: usando split para evitar timezone */}
+                     <div className="text-xs font-bold text-slate-400 uppercase">
+                        {new Date(ev.date + 'T12:00:00').toLocaleDateString('pt-BR', {month:'short'})}
+                     </div>
+                     <div className="text-xl font-bold text-slate-800">
+                        {new Date(ev.date + 'T12:00:00').getDate()}
+                     </div>
                   </div>
                   <div>
                      <h4 className="font-bold text-slate-800">{ev.title}</h4>
@@ -230,27 +250,30 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><CalendarRange size={14}/> Cronograma {semester}º Sem/2026</h3>
       </div>
       <div className="p-4 overflow-x-auto">
-         <div className="min-w-[600px]">
-           <div className="grid grid-cols-6 mb-2 text-slate-400 font-bold text-center">
+         {/* Aumentado min-w para melhorar visualização */}
+         <div className="min-w-[900px]"> 
+           <div className="grid grid-cols-6 mb-2 text-slate-400 font-bold text-center border-b pb-2">
              {months.map(m => <div key={m}>{m}</div>)}
            </div>
-           <div className="relative space-y-2">
+           <div className="relative space-y-4 pt-2">
              <div className="absolute inset-0 grid grid-cols-6 pointer-events-none border-l border-r border-slate-100">
                {[1,2,3,4,5,6].map(i => <div key={i} className="border-r border-slate-100 h-full"></div>)}
              </div>
              {officersWithVacation.map((name, idx) => {
                const isUser = userHighlight && name.includes(userHighlight);
                return (
-                 <div key={idx} className={`relative flex items-center py-1 z-10 ${isUser ? 'bg-yellow-50' : ''}`}>
-                   <div className="w-24 flex-shrink-0 font-bold text-slate-700 truncate pr-2 border-r border-slate-100 text-[10px]">
-                     {name} {isUser && <Star size={8} className="inline text-yellow-500 fill-yellow-500"/>}
+                 <div key={idx} className={`relative flex items-center py-2 z-10 ${isUser ? 'bg-yellow-50 rounded-lg' : ''}`}>
+                   <div className="w-28 flex-shrink-0 font-bold text-slate-700 truncate pr-2 border-r border-slate-100 text-xs">
+                     {name} {isUser && <Star size={10} className="inline text-yellow-500 fill-yellow-500"/>}
                    </div>
-                   <div className="flex-1 h-3 relative">
+                   <div className="flex-1 h-5 relative">
                      {filteredVacations.filter(v => v.nome === name).map((v, vIdx) => (
                        <div key={vIdx} 
-                            className={`absolute h-3 rounded-full border border-white shadow-sm ${isUser ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                            className={`absolute h-5 rounded-md border border-white shadow-sm flex items-center justify-center text-[9px] text-white font-bold truncate px-1 cursor-help
+                              ${isUser ? 'bg-yellow-500' : 'bg-blue-500 opacity-80'}`}
                             style={{ left: `${getPosition(v.inicio)}%`, width: `${Math.max(getWidth(v.inicio, v.fim), 1.5)}%` }} 
-                            title={`${v.inicio} a ${v.fim}`}>
+                            title={`${v.inicio} a ${v.fim} (${v.tipo})`}>
+                            {new Date(v.inicio + 'T12:00').getDate()}-{new Date(v.fim + 'T12:00').getDate()}
                        </div>
                      ))}
                    </div>
@@ -297,59 +320,57 @@ const MainSystem = ({ user, role, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  // Estado Global vindo da Planilha
+  // MODALS
+  const [showAtestadoModal, setShowAtestadoModal] = useState(false);
+  const [showPermutaModal, setShowPermutaModal] = useState(false);
+  
+  // FORMS
+  const [formAtestado, setFormAtestado] = useState({ dias: '', inicio: '', cid: '' });
+  const [formPermuta, setFormPermuta] = useState({ dataSai: '', substituto: '', dataEntra: '' });
+
+  // DATA
   const [officers, setOfficers] = useState(REAL_OFFICERS);
   const [atestados, setAtestados] = useState(INITIAL_ATESTADOS);
   const [permutas, setPermutas] = useState(INITIAL_PERMUTAS);
   const [vacations, setVacations] = useState(INITIAL_VACATIONS);
   const [upiStats, setUpiStats] = useState(INITIAL_UPI_STATS);
 
-  // Stats
   const pendingAtestados = atestados.filter(a => a.status === 'Pendente').length;
   const pendingPermutas = permutas.filter(p => p.status === 'Pendente').length;
 
-  // Lógica de Atualização Automática (API Google Sheets)
   const refreshData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Gestão
       if (API_URL_GESTAO) {
         const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
         const data1 = await res1.json();
-        if (data1.officers && data1.officers.length > 0) setOfficers(data1.officers);
         if (data1.atestados) setAtestados(data1.atestados);
         if (data1.permutas) setPermutas(data1.permutas);
         if (data1.vacations) setVacations(data1.vacations);
       }
-
-      // 2. Fetch Indicadores
       if (API_URL_INDICADORES) {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
         const data2 = await res2.json();
-        // Assume que a planilha de indicadores retorna um objeto upiStats
-        // Se a planilha de indicadores tiver estrutura diferente, ajustar aqui
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
       if (!API_URL_GESTAO && !API_URL_INDICADORES) {
-          alert("URLs das planilhas não configuradas no código.");
+          alert("Modo Demonstração: Configure o Apps Script para salvar na planilha real.");
       } else {
-          alert("Dados sincronizados com sucesso!");
+          alert("Sincronizado!");
       }
-
     } catch(e) {
-      console.error("Erro na sincronização:", e);
-      alert("Erro ao conectar com as planilhas. Verifique o console.");
+      console.error(e);
+      alert("Erro de conexão. Verifique o console.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Envio de Dados (Apenas para Gestão)
   const sendData = async (action, payload) => {
     if (!API_URL_GESTAO) {
-      alert("Configure a API_URL_GESTAO no código para salvar de verdade!");
-      return;
+      console.warn("API URL não configurada. Salvando apenas localmente.");
+      return; 
     }
     try {
       await fetch(API_URL_GESTAO, {
@@ -358,46 +379,54 @@ const MainSystem = ({ user, role, onLogout }) => {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action, payload })
       });
-      // Atualiza interface localmente (otimista)
-      if (action === 'saveAtestado') setAtestados([payload, ...atestados]);
-      if (action === 'savePermuta') setPermutas([payload, ...permutas]);
-      alert("Salvo com sucesso!");
     } catch (e) {
-      alert("Erro ao salvar.");
+      alert("Erro ao salvar na nuvem.");
     }
   };
 
-  // Actions
   const handleHomologar = (id, type) => {
     if (role !== 'admin') return alert("Apenas Chefe e Adjunto podem homologar.");
     if (type === 'atestado') setAtestados(atestados.map(a => a.id === id ? {...a, status: 'Homologado'} : a));
     if (type === 'permuta') setPermutas(permutas.map(p => p.id === id ? {...p, status: 'Homologado'} : p));
   };
 
-  const handleRequest = (type) => {
+  const handleDelete = (id, type) => {
+    if (type === 'atestado') setAtestados(atestados.filter(a => a.id !== id));
+    if (type === 'permuta') setPermutas(permutas.filter(p => p.id !== id));
+  };
+
+  const submitAtestado = (e) => {
+    e.preventDefault();
     const newItem = { 
       id: Date.now(), 
       status: 'Pendente', 
       militar: user, 
-      solicitante: user,
-      data: new Date().toISOString().split('T')[0],
-      dataSai: new Date().toISOString().split('T')[0]
+      inicio: formAtestado.inicio,
+      data: formAtestado.inicio, // para compatibilidade
+      cid: formAtestado.cid || 'Sigiloso'
     };
     
-    if (type === 'atestado') {
-       // Se tiver API, usa sendData, senão usa state local
-       if(API_URL_GESTAO) sendData('saveAtestado', {...newItem, tipo: 'Atestado', cid: '---'});
-       else {
-           setAtestados([{...newItem, tipo: 'Atestado', cid: '---'}, ...atestados]);
-           alert("Solicitação enviada (Local)!");
-       }
-    } else {
-       if(API_URL_GESTAO) sendData('savePermuta', {...newItem, substituto: '---'});
-       else {
-           setPermutas([{...newItem, substituto: '---'}, ...permutas]);
-           alert("Solicitação enviada (Local)!");
-       }
-    }
+    setAtestados([newItem, ...atestados]);
+    sendData('saveAtestado', newItem);
+    setShowAtestadoModal(false);
+    setFormAtestado({ dias: '', inicio: '', cid: '' });
+    alert("Atestado enviado!");
+  };
+
+  const submitPermuta = (e) => {
+    e.preventDefault();
+    const newItem = {
+      id: Date.now(),
+      status: 'Pendente',
+      solicitante: user,
+      substituto: formPermuta.substituto,
+      dataSai: formPermuta.dataSai
+    };
+    setPermutas([newItem, ...permutas]);
+    sendData('savePermuta', newItem);
+    setShowPermutaModal(false);
+    setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
+    alert("Permuta enviada!");
   };
 
   const renderContent = () => {
@@ -412,42 +441,40 @@ const MainSystem = ({ user, role, onLogout }) => {
                    <Eye className="text-blue-600" />
                    <div>
                       <h4 className="font-bold text-blue-800">Modo RT</h4>
-                      <p className="text-sm text-blue-700">Acesso total para visualização. Homologação restrita à Chefia.</p>
+                      <p className="text-sm text-blue-700">Acesso total para visualização.</p>
                    </div>
                 </div>
              )}
 
              <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2>
-                <button onClick={refreshData} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar Planilhas</button>
+                <button onClick={refreshData} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar</button>
              </div>
 
-             {/* AÇÕES RÁPIDAS (NOVO) */}
              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => handleRequest('atestado')} className="bg-red-50 hover:bg-red-100 border border-red-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
+                <button onClick={() => setShowAtestadoModal(true)} className="bg-red-50 hover:bg-red-100 border border-red-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
                    <div className="bg-red-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ShieldAlert size={20}/></div>
                    <span className="font-bold text-red-800">Novo Atestado</span>
                 </button>
-                <button onClick={() => handleRequest('permuta')} className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
+                <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
                    <div className="bg-indigo-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ArrowRightLeft size={20}/></div>
                    <span className="font-bold text-indigo-800">Nova Permuta</span>
                 </button>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* CARD UPI EM TEMPO REAL (ATUALIZADO) */}
                 <div className="md:col-span-4 bg-slate-800 rounded-xl p-5 text-white shadow-lg flex flex-col md:flex-row items-center justify-between">
                    <div className="flex items-center gap-4 mb-4 md:mb-0">
                       <div className="bg-blue-600 p-3 rounded-lg"><Activity size={24}/></div>
                       <div>
-                         <h3 className="font-bold text-lg">UPI - Leitos & Escalas</h3>
-                         <p className="text-slate-400 text-xs">Dados de {upiStats.dataReferencia}</p>
+                         <h3 className="font-bold text-lg">UPI - Tempo Real</h3>
+                         <p className="text-slate-400 text-xs">Atualizado em {upiStats.dataReferencia}</p>
                       </div>
                    </div>
                    <div className="flex gap-8 text-center">
                       <div>
                          <p className="text-slate-400 text-xs uppercase font-bold">Ocupação</p>
-                         <p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ {upiStats.totalLeitos}</span></p>
+                         <p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ 15</span></p>
                       </div>
                       <div>
                          <p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p>
@@ -486,7 +513,7 @@ const MainSystem = ({ user, role, onLogout }) => {
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
              <div className="flex justify-between mb-4">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShieldAlert className="text-red-500"/> Gestão de Atestados</h3>
-                <button onClick={() => handleRequest('atestado')} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700">Novo Atestado</button>
+                <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700">Novo Atestado</button>
              </div>
              <div className="overflow-x-auto">
                <table className="w-full text-left text-sm">
@@ -496,11 +523,10 @@ const MainSystem = ({ user, role, onLogout }) => {
                      <tr key={idx} className={a.status === 'Pendente' ? 'bg-red-50/50' : ''}>
                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${a.status === 'Pendente' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{a.status}</span></td>
                        <td className="p-3 font-medium">{a.militar}</td>
-                       <td className="p-3 text-slate-500">{a.data || a.inicio}</td>
-                       <td className="p-3">
+                       <td className="p-3 text-slate-500">{formatDate(a.inicio || a.data)}</td>
+                       <td className="p-3 flex gap-2">
                           {a.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(a.id, 'atestado')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
-                          {a.status === 'Pendente' && role === 'rt' && <span className="text-slate-400 text-xs italic flex items-center gap-1"><Eye size={12}/> Visualização</span>}
-                          {a.status === 'Pendente' && role === 'user' && <span className="text-slate-400 text-xs italic">Aguardando</span>}
+                          <button onClick={() => handleDelete(a.id, 'atestado')} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
                        </td>
                      </tr>
                    ))}
@@ -515,7 +541,7 @@ const MainSystem = ({ user, role, onLogout }) => {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
                <div className="flex justify-between mb-4">
                   <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ArrowRightLeft className="text-indigo-500"/> Permutas de Serviço</h3>
-                  <button onClick={() => handleRequest('permuta')} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">Solicitar Permuta</button>
+                  <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">Solicitar Permuta</button>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm">
@@ -526,11 +552,10 @@ const MainSystem = ({ user, role, onLogout }) => {
                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'Pendente' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{p.status}</span></td>
                          <td className="p-3 font-medium text-red-700">{p.solicitante}</td>
                          <td className="p-3 font-medium text-green-700">{p.substituto || '---'}</td>
-                         <td className="p-3 text-slate-500">{p.dataSai}</td>
-                         <td className="p-3">
+                         <td className="p-3 text-slate-500">{formatDate(p.dataSai)}</td>
+                         <td className="p-3 flex gap-2">
                             {p.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(p.id, 'permuta')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
-                            {p.status === 'Pendente' && role === 'rt' && <span className="text-slate-400 text-xs italic flex items-center gap-1"><Eye size={12}/> Visualização</span>}
-                            {p.status === 'Pendente' && role === 'user' && <span className="text-slate-400 text-xs italic">Aguardando</span>}
+                            <button onClick={() => handleDelete(p.id, 'permuta')} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
                          </td>
                        </tr>
                      ))}
@@ -618,7 +643,6 @@ const MainSystem = ({ user, role, onLogout }) => {
                     {item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}
                  </div>
                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                 {!sidebarOpen && <div className="absolute left-14 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">{item.label}</div>}
               </button>
             ))}
          </nav>
@@ -628,7 +652,7 @@ const MainSystem = ({ user, role, onLogout }) => {
          </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-8">
+      <main className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-8 relative">
          <header className="flex justify-between items-center mb-8">
             <div>
               <h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2>
@@ -636,6 +660,59 @@ const MainSystem = ({ user, role, onLogout }) => {
             </div>
          </header>
          {renderContent()}
+
+         {/* MODAL ATESTADO */}
+         {showAtestadoModal && (
+           <Modal title="Novo Atestado" onClose={() => setShowAtestadoModal(false)}>
+              <form onSubmit={submitAtestado} className="space-y-4">
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Militar</label>
+                    <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Data de Início</label>
+                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Qtd Dias</label>
+                    <input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">CID (Opcional)</label>
+                    <input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/>
+                 </div>
+                 <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2"><Send size={18}/> Enviar</button>
+              </form>
+           </Modal>
+         )}
+
+         {/* MODAL PERMUTA */}
+         {showPermutaModal && (
+           <Modal title="Nova Permuta" onClose={() => setShowPermutaModal(false)}>
+              <form onSubmit={submitPermuta} className="space-y-4">
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label>
+                    <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Data da Saída</label>
+                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/>
+                 </div>
+                 <div className="border-t pt-4 mt-4">
+                    <label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label>
+                    <select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}>
+                       <option value="">Selecione...</option>
+                       {officers.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Data da Entrada</label>
+                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/>
+                 </div>
+                 <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2"><Send size={18}/> Solicitar</button>
+              </form>
+           </Modal>
+         )}
       </main>
     </div>
   );
@@ -658,14 +735,15 @@ const UserDashboard = ({ user, onLogout }) => (
            <h2 className="font-bold text-lg mb-1">Bem-vindo, {user}</h2>
            <p className="opacity-90">Acesse o sistema completo via Desktop para gestão.</p>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        {/* Adicionado botões de ação rápida para usuário comum */}
+        <div className="grid grid-cols-2 gap-4 mt-4">
            <button className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50">
-              <Sun className="text-orange-500" size={24} />
-              <span className="font-bold text-sm text-slate-700">Minhas Férias</span>
+              <ShieldAlert className="text-red-500" size={24} />
+              <span className="font-bold text-sm text-slate-700">Novo Atestado</span>
            </button>
            <button className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50">
-              <BookOpen className="text-indigo-500" size={24} />
-              <span className="font-bold text-sm text-slate-700">Agenda</span>
+              <ArrowRightLeft className="text-indigo-500" size={24} />
+              <span className="font-bold text-sm text-slate-700">Nova Permuta</span>
            </button>
         </div>
      </main>
