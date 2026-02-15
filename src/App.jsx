@@ -55,12 +55,13 @@ const INITIAL_VACATIONS = [
   { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
 ];
 
+// Dados iniciais zerados para forçar leitura correta da API
 const INITIAL_UPI_STATS = {
-  leitosOcupados: 8, // Este valor será substituído pela contagem real da API
+  leitosOcupados: 8, 
   totalLeitos: 15,
-  mediaBraden: 17.1,
-  mediaFugulin: 21.3,
-  dataReferencia: 'Carregando...'
+  mediaBraden: 0, // Zerado para indicar que virá da API
+  mediaFugulin: 0, // Zerado para indicar que virá da API
+  dataReferencia: 'Aguardando...'
 };
 
 const INITIAL_ATESTADOS = [
