@@ -8,10 +8,12 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
-// URL DA PLANILHA DE GESTÃO (Atestados, Permutas, Oficiais)
+
+// 1. URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
 
-// URL DA PLANILHA DE INDICADORES (Leitos, Braden, Fugulin)
+// 2. URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
+// Atualizado conforme sua solicitação exata
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
@@ -57,7 +59,6 @@ const INITIAL_VACATIONS = [
   { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
 ];
 
-// Dados iniciais zerados para forçar leitura correta da API
 const INITIAL_UPI_STATS = {
   leitosOcupados: 8, 
   totalLeitos: 15,
@@ -71,7 +72,6 @@ const INITIAL_ATESTADOS = [
 ];
 const INITIAL_PERMUTAS = [];
 
-// --- HELPER DATE ---
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr + 'T12:00:00');
@@ -390,13 +390,15 @@ const MainSystem = ({ user, role, onLogout }) => {
     }
     try {
       // Usando no-cors e text/plain para máxima compatibilidade com Apps Script
+      // Adicionado redirect: 'follow' para evitar erro de CORS em redirecionamento
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
+        redirect: 'follow', 
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
-      // Com no-cors, sucesso é silencioso.
+      console.log('Enviado:', action, payload);
     } catch (e) {
       console.error("Erro no envio:", e);
       alert("Erro ao enviar para a nuvem. Verifique console.");
