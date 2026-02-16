@@ -9,8 +9,7 @@ import {
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
 // URL DA PLANILHA DE GESTÃO (Atestados, Permutas, Oficiais)
-// Atualizado conforme solicitação para o script correto
-const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
+const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
 
 // URL DA PLANILHA DE INDICADORES (Leitos, Braden, Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
@@ -72,6 +71,7 @@ const INITIAL_ATESTADOS = [
 ];
 const INITIAL_PERMUTAS = [];
 
+// --- HELPER DATE ---
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr + 'T12:00:00');
@@ -389,14 +389,17 @@ const MainSystem = ({ user, role, onLogout }) => {
       return; 
     }
     try {
+      // Usando no-cors e text/plain para máxima compatibilidade com Apps Script
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
+      // Com no-cors, sucesso é silencioso.
     } catch (e) {
-      alert("Erro ao salvar na nuvem.");
+      console.error("Erro no envio:", e);
+      alert("Erro ao enviar para a nuvem. Verifique console.");
     }
   };
 
@@ -437,7 +440,7 @@ const MainSystem = ({ user, role, onLogout }) => {
       solicitante: user,
       substituto: formPermuta.substituto,
       dataSai: formPermuta.dataSai,
-      dataEntra: formPermuta.dataEntra // Incluindo dataEntra
+      dataEntra: formPermuta.dataEntra
     };
     setPermutas([newItem, ...permutas]);
     sendData('savePermuta', newItem);
