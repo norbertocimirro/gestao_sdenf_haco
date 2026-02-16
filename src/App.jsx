@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
-// URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
+// 1. URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
 
-// URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
+// 2. URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
@@ -760,9 +760,53 @@ const UserDashboard = ({ user, onLogout }) => {
   const [showAtestadoModal, setShowAtestadoModal] = useState(false);
   const [showPermutaModal, setShowPermutaModal] = useState(false);
   
+  // Novos estados para histórico
+  const [myAtestados, setMyAtestados] = useState([]);
+  const [myPermutas, setMyPermutas] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  
   // Forms states
   const [formAtestado, setFormAtestado] = useState({ dias: '', inicio: '', cid: '' });
   const [formPermuta, setFormPermuta] = useState({ dataSai: '', substituto: '', dataEntra: '' });
+
+  // Função para buscar histórico (mesma lógica do refreshData mas filtrada)
+  const fetchUserHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      if (API_URL_GESTAO) {
+        const res = await fetch(`${API_URL_GESTAO}?action=getData`);
+        if (res.ok) {
+           const text = await res.text();
+           if (!text.trim().startsWith('<')) {
+              const data = JSON.parse(text);
+              if (data.atestados) {
+                // Filtra atestados onde o 'militar' contém o nome do usuário logado
+                const userAtestados = data.atestados.filter(a => 
+                  a.militar && (a.militar === user || a.militar.includes(user))
+                );
+                setMyAtestados(userAtestados.reverse()); // Mais recentes no topo
+              }
+              if (data.permutas) {
+                // Filtra permutas onde 'solicitante' contém o nome do usuário logado
+                const userPermutas = data.permutas.filter(p => 
+                  p.solicitante && (p.solicitante === user || p.solicitante.includes(user))
+                );
+                setMyPermutas(userPermutas.reverse());
+              }
+           }
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao buscar histórico", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Carrega histórico ao entrar
+  useEffect(() => {
+    fetchUserHistory();
+  }, [user]);
 
   const sendData = async (action, payload) => {
     if (!API_URL_GESTAO) return console.warn("API URL não configurada.");
@@ -775,6 +819,8 @@ const UserDashboard = ({ user, onLogout }) => {
         body: JSON.stringify({ action, payload })
       });
       console.log('Dados enviados');
+      // Pequeno delay para dar tempo do Google processar antes de recarregar a lista
+      setTimeout(() => fetchUserHistory(), 1000); 
     } catch (e) {
       console.error("Erro no envio:", e);
       alert("Erro ao enviar. Verifique o console.");
@@ -791,6 +837,10 @@ const UserDashboard = ({ user, onLogout }) => {
       data: formAtestado.inicio, 
       cid: formAtestado.cid || 'Sigiloso'
     };
+    
+    // Atualização otimista local
+    setMyAtestados([newItem, ...myAtestados]);
+    
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
@@ -807,6 +857,10 @@ const UserDashboard = ({ user, onLogout }) => {
       dataSai: formPermuta.dataSai,
       dataEntra: formPermuta.dataEntra
     };
+    
+    // Atualização otimista local
+    setMyPermutas([newItem, ...myPermutas]);
+    
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
@@ -830,7 +884,7 @@ const UserDashboard = ({ user, onLogout }) => {
            <h2 className="font-bold text-lg mb-1">Bem-vindo, {user}</h2>
            <p className="opacity-90">Acesse o sistema completo via Desktop para gestão.</p>
         </div>
-        {/* Botões de Ação Rápida com funcionalidade restaurada */}
+        {/* Botões de Ação Rápida */}
         <div className="grid grid-cols-2 gap-4 mt-4">
            <button onClick={() => setShowAtestadoModal(true)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-colors group">
               <div className="bg-red-100 p-2 rounded-full group-hover:scale-110 transition-transform">
@@ -844,6 +898,72 @@ const UserDashboard = ({ user, onLogout }) => {
               </div>
               <span className="font-bold text-sm text-slate-700">Nova Permuta</span>
            </button>
+        </div>
+
+        {/* NOVA SEÇÃO: MEUS REGISTROS */}
+        <div className="mt-8">
+           <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center justify-between">
+              Meus Registros
+              <button onClick={fetchUserHistory} className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
+                <RefreshCw size={12}/> Atualizar
+              </button>
+           </h3>
+           
+           <div className="space-y-4">
+              {/* Permutas Recentes */}
+              {myPermutas.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-500 uppercase mb-2">Permutas Recentes</h4>
+                  <div className="space-y-2">
+                    {myPermutas.slice(0, 3).map((p, i) => (
+                       <div key={i} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                          <div>
+                             <p className="text-sm font-bold text-slate-700">Troca com {p.substituto}</p>
+                             <p className="text-xs text-slate-500">Saída: {formatDate(p.dataSai)}</p>
+                          </div>
+                          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${
+                             p.status === 'Homologado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                             {p.status}
+                          </span>
+                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Atestados Recentes */}
+              {myAtestados.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-red-500 uppercase mb-2 mt-4">Atestados Recentes</h4>
+                  <div className="space-y-2">
+                    {myAtestados.slice(0, 3).map((a, i) => (
+                       <div key={i} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                          <div>
+                             <p className="text-sm font-bold text-slate-700">{a.dias || '---'} Dias</p>
+                             <p className="text-xs text-slate-500">Início: {formatDate(a.inicio || a.data)}</p>
+                          </div>
+                          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${
+                             a.status === 'Homologado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                             {a.status}
+                          </span>
+                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {!loadingHistory && myAtestados.length === 0 && myPermutas.length === 0 && (
+                 <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-lg bg-slate-50">
+                    Você ainda não possui registros.
+                 </div>
+              )}
+              
+              {loadingHistory && (
+                 <div className="text-center py-4 text-blue-500 text-xs animate-pulse">Carregando histórico...</div>
+              )}
+           </div>
         </div>
      </main>
 
