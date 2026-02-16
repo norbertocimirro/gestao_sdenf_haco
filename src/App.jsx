@@ -8,14 +8,20 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
+// URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+
+// URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
+
 const REAL_OFFICERS = [
+  // CHEFIA
   { id: 2, antiguidade: 2, nome: 'Zanini', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Chefe SDENF', role: 'admin', nascimento: '24/03' },
   { id: 6, antiguidade: 6, nome: 'Cimirro', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'Chefia', cargo: 'Adjunto', role: 'admin', nascimento: '03/02' },
   { id: 11, antiguidade: 11, nome: 'Renata', patente: '2º Ten Enf', quadro: 'Oficiais', setor: 'UTI', cargo: 'RT Enfermagem', role: 'rt', nascimento: '11/07' },
+  // TROPA
   { id: 1, antiguidade: 1, nome: 'Gisele', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '18/06' },
   { id: 3, antiguidade: 3, nome: 'Marasca', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UPI', role: 'user', nascimento: '11/04' },
   { id: 4, antiguidade: 4, nome: 'Serafin', patente: '1º Ten Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '26/02' },
@@ -39,7 +45,18 @@ const REAL_OFFICERS = [
   { id: 24, antiguidade: 24, nome: 'Jéssica', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '04/07' }
 ];
 
-const INITIAL_VACATIONS = [];
+const INITIAL_VACATIONS = [
+  { id: 1, nome: 'Cimirro', inicio: '2026-03-02', fim: '2026-03-11', tipo: '10 dias', status: 'Confirmado' },
+  { id: 2, nome: 'Cimirro', inicio: '2026-06-24', fim: '2026-07-03', tipo: '10 dias', status: 'Confirmado' },
+  { id: 3, nome: 'Marasca', inicio: '2026-01-26', fim: '2026-02-09', tipo: '15 dias', status: 'Realizado' },
+  { id: 4, nome: 'Serafin', inicio: '2026-01-05', fim: '2026-01-19', tipo: '15 dias', status: 'Realizado' },
+  { id: 5, nome: 'Serafin', inicio: '2026-04-06', fim: '2026-04-20', tipo: '15 dias', status: 'Confirmado' },
+  { id: 6, nome: 'Karen Casarin', inicio: '2026-04-22', fim: '2026-05-11', tipo: '20 dias', status: 'Confirmado' },
+  { id: 7, nome: 'Sandri', inicio: '2026-02-18', fim: '2026-02-27', tipo: '10 dias', status: 'Confirmado' },
+  { id: 8, nome: 'Zomer', inicio: '2026-02-10', fim: '2026-02-24', tipo: '15 dias', status: 'Confirmado' },
+  { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
+];
+
 const INITIAL_UPI_STATS = {
   leitosOcupados: 8, 
   totalLeitos: 15,
@@ -47,7 +64,10 @@ const INITIAL_UPI_STATS = {
   mediaFugulin: 0,
   dataReferencia: 'Carregando...'
 };
-const INITIAL_ATESTADOS = [];
+
+const INITIAL_ATESTADOS = [
+  { id: 101, militar: 'Cb SEF Pereira', tipo: 'Atestado', cid: 'M54', inicio: '2026-02-10', dias: '3', fim: '2026-02-12', status: 'Homologado' },
+];
 const INITIAL_PERMUTAS = [];
 
 const formatDate = (dateStr) => {
@@ -66,7 +86,9 @@ const Modal = ({ title, onClose, children }) => (
         <h3 className="font-bold text-slate-800">{title}</h3>
         <button onClick={onClose}><CloseIcon size={20} className="text-slate-400 hover:text-slate-600" /></button>
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-6">
+        {children}
+      </div>
     </div>
   </div>
 );
@@ -87,15 +109,27 @@ const LoginScreen = ({ onLogin }) => {
            <h1 className="text-2xl font-bold text-slate-800">SGA-Enf HACO</h1>
            <p className="text-slate-500">Sistema de Gestão de Enfermagem</p>
         </div>
+        
         <div className="bg-slate-100 p-1 rounded-lg flex mb-4">
            <button onClick={() => setRoleGroup('chefia')} className={`flex-1 py-2 text-sm font-bold rounded ${roleGroup === 'chefia' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
            <button onClick={() => setRoleGroup('tropa')} className={`flex-1 py-2 text-sm font-bold rounded ${roleGroup === 'tropa' ? 'bg-white shadow text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
         </div>
+
         <select className="w-full p-3 border rounded-lg mb-4 bg-slate-50 font-medium" value={user} onChange={e => setUser(e.target.value)}>
            <option value="">Selecione seu nome...</option>
            {filteredOfficers.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome} {o.role === 'rt' ? '(RT)' : ''}</option>)}
         </select>
-        <button onClick={() => { const selectedUser = filteredOfficers.find(o => o.nome === user); if (selectedUser) onLogin(selectedUser.nome, selectedUser.role); }} disabled={!user} className={`w-full py-3 rounded-lg font-bold text-white transition ${user ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}>ACESSAR SISTEMA</button>
+
+        <button 
+           onClick={() => {
+              const selectedUser = filteredOfficers.find(o => o.nome === user);
+              if (selectedUser) onLogin(selectedUser.nome, selectedUser.role);
+           }} 
+           disabled={!user} 
+           className={`w-full py-3 rounded-lg font-bold text-white transition ${user ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}
+        >
+           ACESSAR SISTEMA
+        </button>
       </div>
     </div>
   );
@@ -154,6 +188,7 @@ const AgendaTab = ({ user }) => {
             <p className="text-xs text-yellow-800">Agenda Pessoal Editável. Salva neste dispositivo.</p>
          </div>
       </div>
+
       <div className="md:col-span-2 space-y-4">
          <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen className="text-indigo-500"/> Agenda de {user}</h3>
          {events.length === 0 && <p className="text-slate-400 italic">Nenhum evento agendado.</p>}
@@ -161,10 +196,17 @@ const AgendaTab = ({ user }) => {
             <div key={ev.id} className="bg-white p-4 rounded-xl border-l-4 shadow-sm flex justify-between items-start" style={{borderLeftColor: ev.type === 'family' ? '#ec4899' : ev.type === 'personal' ? '#8b5cf6' : '#3b82f6'}}>
                <div className="flex gap-4">
                   <div className="text-center min-w-[50px]">
-                     <div className="text-xs font-bold text-slate-400 uppercase">{new Date(ev.date + 'T12:00:00').toLocaleDateString('pt-BR', {month:'short'})}</div>
-                     <div className="text-xl font-bold text-slate-800">{new Date(ev.date + 'T12:00:00').getDate()}</div>
+                     <div className="text-xs font-bold text-slate-400 uppercase">
+                        {new Date(ev.date + 'T12:00:00').toLocaleDateString('pt-BR', {month:'short'})}
+                     </div>
+                     <div className="text-xl font-bold text-slate-800">
+                        {new Date(ev.date + 'T12:00:00').getDate()}
+                     </div>
                   </div>
-                  <div><h4 className="font-bold text-slate-800">{ev.title}</h4><p className="text-sm text-slate-500">{ev.type.toUpperCase()}</p></div>
+                  <div>
+                     <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                     <p className="text-sm text-slate-500">{ev.type.toUpperCase()}</p>
+                  </div>
                </div>
                <button onClick={() => deleteEvent(ev.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
             </div>
@@ -175,27 +217,52 @@ const AgendaTab = ({ user }) => {
 };
 
 const TimelineView = ({ vacations, semester, userHighlight }) => {
-  const months = semester === 1 ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'] : ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const months = semester === 1 
+    ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun']
+    : ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const startMonthIndex = semester === 1 ? 0 : 6;
   const year = 2026;
+
   const filteredVacations = vacations.filter(v => {
     const start = new Date(v.inicio);
     return start.getFullYear() === year && start.getMonth() >= startMonthIndex && start.getMonth() < startMonthIndex + 6;
   });
+
   const officersWithVacation = Array.from(new Set(filteredVacations.map(v => v.nome)));
+
+  const getPosition = (dateStr) => {
+    const d = new Date(dateStr);
+    const relMonth = d.getMonth() - startMonthIndex;
+    if (relMonth < 0) return 0;
+    return (relMonth * (100/6)) + (d.getDate() * ((100/6)/30));
+  };
+
+  const getWidth = (startStr, endStr) => {
+    const days = Math.ceil(Math.abs(new Date(endStr) - new Date(startStr)) / 86400000);
+    return days * ((100/6)/30);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden text-xs">
-      <div className="p-3 bg-slate-50 border-b flex justify-between items-center"><h3 className="font-bold text-slate-700 flex items-center gap-2"><CalendarRange size={14}/> Cronograma {semester}º Sem/2026</h3></div>
-      <div className="p-4 overflow-x-auto"><div className="min-w-[900px]">
-           <div className="grid grid-cols-6 mb-2 text-slate-400 font-bold text-center border-b pb-2">{months.map(m => <div key={m}>{m}</div>)}</div>
+      <div className="p-3 bg-slate-50 border-b flex justify-between items-center">
+        <h3 className="font-bold text-slate-700 flex items-center gap-2"><CalendarRange size={14}/> Cronograma {semester}º Sem/2026</h3>
+      </div>
+      <div className="p-4 overflow-x-auto">
+         <div className="min-w-[900px]">
+           <div className="grid grid-cols-6 mb-2 text-slate-400 font-bold text-center border-b pb-2">
+             {months.map(m => <div key={m}>{m}</div>)}
+           </div>
            <div className="relative space-y-4 pt-2">
-             <div className="absolute inset-0 grid grid-cols-6 pointer-events-none border-l border-r border-slate-100">{[1,2,3,4,5,6].map(i => <div key={i} className="border-r border-slate-100 h-full"></div>)}</div>
+             <div className="absolute inset-0 grid grid-cols-6 pointer-events-none border-l border-r border-slate-100">
+               {[1,2,3,4,5,6].map(i => <div key={i} className="border-r border-slate-100 h-full"></div>)}
+             </div>
              {officersWithVacation.map((name, idx) => {
                const isUser = userHighlight && name.includes(userHighlight);
                return (
                  <div key={idx} className={`relative flex items-center py-2 z-10 ${isUser ? 'bg-yellow-50 rounded-lg' : ''}`}>
-                   <div className="w-28 flex-shrink-0 font-bold text-slate-700 truncate pr-2 border-r border-slate-100 text-xs">{name} {isUser && <Star size={10} className="inline text-yellow-500 fill-yellow-500"/>}</div>
+                   <div className="w-28 flex-shrink-0 font-bold text-slate-700 truncate pr-2 border-r border-slate-100 text-xs">
+                     {name} {isUser && <Star size={10} className="inline text-yellow-500 fill-yellow-500"/>}
+                   </div>
                    <div className="flex-1 h-5 relative">
                      {filteredVacations.filter(v => v.nome === name).map((v, vIdx) => {
                        const d = new Date(v.inicio);
@@ -204,8 +271,11 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
                        const left = (relMonth < 0 ? 0 : (relMonth * (100/6)) + (d.getDate() * ((100/6)/30)));
                        const width = days * ((100/6)/30);
                        return (
-                         <div key={vIdx} className={`absolute h-5 rounded-md border border-white shadow-sm flex items-center justify-center text-[9px] text-white font-bold truncate px-1 cursor-help ${isUser ? 'bg-yellow-500' : 'bg-blue-500 opacity-80'}`}
-                            style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }} title={`${v.inicio} a ${v.fim} (${v.tipo})`}>
+                         <div key={vIdx} 
+                            className={`absolute h-5 rounded-md border border-white shadow-sm flex items-center justify-center text-[9px] text-white font-bold truncate px-1 cursor-help
+                              ${isUser ? 'bg-yellow-500' : 'bg-blue-500 opacity-80'}`}
+                            style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }} 
+                            title={`${v.inicio} a ${v.fim} (${v.tipo})`}>
                             {new Date(v.inicio + 'T12:00').getDate()}-{new Date(v.fim + 'T12:00').getDate()}
                          </div>
                      )})}
@@ -214,7 +284,8 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
                )
              })}
            </div>
-      </div></div>
+         </div>
+      </div>
     </div>
   );
 };
@@ -222,16 +293,24 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
 const BirthdayWidget = ({ staff }) => {
   const today = new Date(2026, 1, 15);
   const currentMonth = today.getMonth();
-  const birthdays = staff.filter(p => p.nascimento && parseInt(p.nascimento.split('/')[1]) - 1 === currentMonth).sort((a,b) => parseInt(a.nascimento) - parseInt(b.nascimento));
+  const birthdays = staff.filter(p => p.nascimento && parseInt(p.nascimento.split('/')[1]) - 1 === currentMonth)
+                         .sort((a,b) => parseInt(a.nascimento) - parseInt(b.nascimento));
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
-      <div className="p-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2 text-sm"><Cake size={16} /> Aniversários Fev</h3></div>
+      <div className="p-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex justify-between items-center">
+        <h3 className="font-bold flex items-center gap-2 text-sm"><Cake size={16} /> Aniversários Fev</h3>
+      </div>
       <div className="p-3 flex-1 overflow-y-auto max-h-[250px] space-y-2">
         {birthdays.map(p => (
            <div key={p.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border-b border-slate-50 last:border-0">
-              <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">{p.nascimento.split('/')[0]}</div>
-              <div className="flex-1"><p className="text-sm font-bold text-slate-700">{p.patente} {p.nome}</p><p className="text-[10px] text-slate-400">{p.nascimento}</p></div>
+              <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">
+                 {p.nascimento.split('/')[0]}
+              </div>
+              <div className="flex-1">
+                 <p className="text-sm font-bold text-slate-700">{p.patente} {p.nome}</p>
+                 <p className="text-[10px] text-slate-400">{p.nascimento}</p>
+              </div>
            </div>
         ))}
       </div>
@@ -275,11 +354,15 @@ const MainSystem = ({ user, role, onLogout }) => {
       }
       if (API_URL_INDICADORES) {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
-        const data2 = await res2.json();
+        if (!res2.ok) throw new Error("Erro na API Indicadores");
+        const text2 = await res2.text();
+        if (text2.trim().startsWith('<')) throw new Error("API Indicadores retornou HTML. Verifique permissões.");
+        const data2 = JSON.parse(text2);
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       if (showFeedback) alert("Sincronizado!");
     } catch(e) {
+      console.error(e);
       if (showFeedback) alert(`Erro de conexão: ${e.message}`);
     } finally {
       setLoading(false);
@@ -297,10 +380,9 @@ const MainSystem = ({ user, role, onLogout }) => {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
-      // Delay para garantir que o Google processou
       setTimeout(() => {
         setIsSaving(false);
-        refreshData(false); // Recarrega os dados após salvar
+        refreshData(false); 
       }, 2500); 
     } catch (e) {
       alert("Erro ao salvar.");
@@ -325,15 +407,17 @@ const MainSystem = ({ user, role, onLogout }) => {
     const newItem = { 
       id: Date.now(), 
       status: 'Pendente', 
-      Militar: user, // Key Capitalized para casar com a planilha
-      Inicio: formAtestado.inicio,
-      Dias: formAtestado.dias,
-      Cid: formAtestado.cid || 'Sigiloso',
-      Data: formAtestado.inicio // Redundância para compatibilidade
+      militar: user, 
+      inicio: formAtestado.inicio,
+      data: formAtestado.inicio, 
+      dias: formAtestado.dias, // Chave 'dias' minúscula agora
+      cid: formAtestado.cid || 'Sigiloso'
     };
     setAtestados([newItem, ...atestados]);
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
+    setFormAtestado({ dias: '', inicio: '', cid: '' });
+    alert("Atestado enviado!");
   };
 
   const submitPermuta = (e) => {
@@ -341,99 +425,16 @@ const MainSystem = ({ user, role, onLogout }) => {
     const newItem = {
       id: Date.now(),
       status: 'Pendente',
-      Solicitante: user, // Key Capitalized
-      Substituto: formPermuta.substituto,
-      DataSai: formPermuta.dataSai,
-      DataEntra: formPermuta.dataEntra
+      solicitante: user,
+      substituto: formPermuta.substituto,
+      datasai: formPermuta.dataSai, // Chave minúscula
+      dataentra: formPermuta.dataEntra // Chave minúscula
     };
     setPermutas([newItem, ...permutas]);
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
-  };
-
-  const handleRequest = (type) => {
-    if (type === 'atestado') setShowAtestadoModal(true);
-    if (type === 'permuta') setShowPermutaModal(true);
-  };
-
-  const renderContent = () => {
-    if (loading) return <div className="p-10 text-center text-slate-500">Sincronizando dados...</div>;
-
-    switch(activeTab) {
-      case 'dashboard':
-        return (
-          <div className="space-y-6 animate-fadeIn">
-             {role === 'rt' && <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex gap-3 items-center mb-4"><Eye className="text-blue-600" /><div><h4 className="font-bold text-blue-800">Modo RT</h4><p className="text-sm text-blue-700">Acesso total para visualização.</p></div></div>}
-             <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2><button onClick={() => refreshData(true)} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar</button></div>
-             <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setShowAtestadoModal(true)} className="bg-red-50 hover:bg-red-100 border border-red-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group"><div className="bg-red-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ShieldAlert size={20}/></div><span className="font-bold text-red-800">Novo Atestado</span></button>
-                <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group"><div className="bg-indigo-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ArrowRightLeft size={20}/></div><span className="font-bold text-indigo-800">Nova Permuta</span></button>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-4 bg-slate-800 rounded-xl p-5 text-white shadow-lg flex flex-col md:flex-row items-center justify-between">
-                   <div className="flex items-center gap-4 mb-4 md:mb-0"><div className="bg-blue-600 p-3 rounded-lg"><Activity size={24}/></div><div><h3 className="font-bold text-lg">UPI - Tempo Real</h3><p className="text-slate-400 text-xs">Atualizado em {upiStats.dataReferencia}</p></div></div>
-                   <div className="flex gap-8 text-center">
-                      <div><p className="text-slate-400 text-xs uppercase font-bold">Ocupação</p><p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ 15</span></p></div>
-                      <div><p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p><p className="text-2xl font-bold text-yellow-400 flex items-center gap-1 justify-center">{Number(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/></p></div>
-                      <div><p className="text-slate-400 text-xs uppercase font-bold">Média Fugulin</p><p className="text-2xl font-bold text-green-400 flex items-center gap-1 justify-center">{Number(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/></p></div>
-                   </div>
-                </div>
-             </div>
-          </div>
-        );
-      case 'agenda': return <AgendaTab user={user} />;
-      case 'atestados':
-        return (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
-             <div className="flex justify-between mb-4"><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShieldAlert className="text-red-500"/> Gestão de Atestados</h3><button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700">Novo Atestado</button></div>
-             <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Duração</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead>
-                 <tbody className="divide-y divide-slate-50">
-                   {atestados.map((a, idx) => (
-                     <tr key={idx} className={a.status === 'Pendente' ? 'bg-red-50/50' : ''}>
-                       <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${a.status === 'Pendente' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{a.status}</span></td>
-                       <td className="p-3 font-medium">{a.militar}</td>
-                       <td className="p-3 font-medium">{a.dias || '-'} dias</td>
-                       <td className="p-3 text-slate-500">{formatDate(a.inicio || a.data)}</td>
-                       <td className="p-3 flex gap-2">{a.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(a.id, 'atestado')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}</td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table></div>
-          </div>
-        );
-      case 'permutas':
-         return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
-               <div className="flex justify-between mb-4"><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ArrowRightLeft className="text-indigo-500"/> Permutas de Serviço</h3><button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">Solicitar Permuta</button></div>
-               <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Solicitante</th><th className="p-3">Substituto</th><th className="p-3">Datas</th><th className="p-3">Ação</th></tr></thead>
-                   <tbody className="divide-y divide-slate-50">
-                     {permutas.map((p, idx) => (
-                       <tr key={idx} className={p.status === 'Pendente' ? 'bg-indigo-50/50' : ''}>
-                         <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'Pendente' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{p.status}</span></td>
-                         <td className="p-3 font-medium text-red-700">{p.solicitante}</td>
-                         <td className="p-3 font-medium text-green-700">{p.substituto || '---'}</td>
-                         <td className="p-3 text-slate-500"><div className="flex flex-col text-xs"><span className="text-red-500">S: {formatDate(p.dataSai)}</span><span className="text-green-600">E: {formatDate(p.dataEntra)}</span></div></td>
-                         <td className="p-3 flex gap-2">{p.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(p.id, 'permuta')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}</td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table></div>
-            </div>
-         );
-      case 'ferias': return <div className="space-y-6 animate-fadeIn"><TimelineView vacations={vacations} officers={REAL_OFFICERS} semester={1} userHighlight={user} /></div>;
-      case 'efetivo':
-         return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
-              <h3 className="font-bold text-slate-800 mb-4">Efetivo de Oficiais ({REAL_OFFICERS.length})</h3>
-              <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3 text-center">#</th><th className="p-3">Nome</th><th className="p-3">Setor</th><th className="p-3">Nascimento</th></tr></thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {REAL_OFFICERS.map(o => (<tr key={o.id} className="hover:bg-slate-50"><td className="p-3 text-center font-bold text-slate-400">{o.antiguidade}</td><td className="p-3 font-medium text-slate-800">{o.patente} {o.nome}</td><td className="p-3"><span className={`px-2 py-1 rounded text-[10px] uppercase font-bold ${o.setor === 'UTI' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{o.setor}</span></td><td className="p-3 text-slate-500 font-mono">{o.nascimento}</td></tr>))}
-                  </tbody>
-                </table></div>
-            </div>
-         );
-      default: return <div>Carregando...</div>;
-    }
+    setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
+    alert("Permuta enviada!");
   };
 
   return (
@@ -455,7 +456,7 @@ const MainSystem = ({ user, role, onLogout }) => {
       <main className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-8 relative">
          <header className="flex justify-between items-center mb-8"><div><h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2><p className="text-slate-500 text-sm">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div></header>
          {renderContent()}
-         {/* MODAIS AQUI (Omitidos para brevidade, mas devem estar no código final) */}
+         {/* MODAIS */}
          {showAtestadoModal && (
            <Modal title="Novo Atestado" onClose={() => setShowAtestadoModal(false)}>
               <form onSubmit={submitAtestado} className="space-y-4">
@@ -483,7 +484,6 @@ const MainSystem = ({ user, role, onLogout }) => {
   );
 };
 
-// --- USER DASHBOARD (RESTAURADO COM LÓGICA DE ENVIO E HISTÓRICO) ---
 const UserDashboard = ({ user, onLogout }) => {
   const [showAtestadoModal, setShowAtestadoModal] = useState(false);
   const [showPermutaModal, setShowPermutaModal] = useState(false);
@@ -540,7 +540,6 @@ const UserDashboard = ({ user, onLogout }) => {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
-      // Delay para garantir que o Google processou
       setTimeout(() => {
         setIsSaving(false);
         fetchUserHistory();
@@ -556,12 +555,13 @@ const UserDashboard = ({ user, onLogout }) => {
     const newItem = { 
       id: Date.now(), 
       status: 'Pendente', 
-      Militar: user, 
-      Inicio: formAtestado.inicio,
-      Data: formAtestado.inicio, 
-      Dias: formAtestado.dias,
-      Cid: formAtestado.cid || 'Sigiloso'
+      militar: user, 
+      inicio: formAtestado.inicio,
+      data: formAtestado.inicio, 
+      dias: formAtestado.dias, // Chave em minúscula
+      cid: formAtestado.cid || 'Sigiloso'
     };
+    setMyAtestados([newItem, ...myAtestados]);
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
@@ -572,11 +572,12 @@ const UserDashboard = ({ user, onLogout }) => {
     const newItem = {
       id: Date.now(),
       status: 'Pendente',
-      Solicitante: user,
-      Substituto: formPermuta.substituto,
-      DataSai: formPermuta.dataSai,
-      DataEntra: formPermuta.dataEntra
+      solicitante: user,
+      substituto: formPermuta.substituto,
+      datasai: formPermuta.dataSai, // Chave em minúscula
+      dataentra: formPermuta.dataEntra // Chave em minúscula
     };
+    setMyPermutas([newItem, ...myPermutas]);
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
