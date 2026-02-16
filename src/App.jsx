@@ -8,11 +8,7 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
-
-// 1. URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
-
-// 2. URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
@@ -71,13 +67,18 @@ const INITIAL_ATESTADOS = [
 ];
 const INITIAL_PERMUTAS = [];
 
+// Helper para tratar datas vindas do Google (YYYY-MM-DD ou ISO)
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
-  const date = new Date(dateStr + 'T12:00:00');
+  // Se já vier no formato YYYY-MM-DD do Google, usa split para não ter erro de fuso
+  if (dateStr.length === 10 && dateStr.includes('-')) {
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  }
+  // Fallback para ISO
+  const date = new Date(dateStr);
   return date.toLocaleDateString('pt-BR');
 };
-
-// --- COMPONENTES ---
 
 const Modal = ({ title, onClose, children }) => (
   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -341,11 +342,8 @@ const MainSystem = ({ user, role, onLogout }) => {
       if (API_URL_GESTAO) {
         const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
         if (!res1.ok) throw new Error("Erro na API Gestão");
-        // Verifica se a resposta é JSON antes de parsear
         const text1 = await res1.text();
-        if (text1.trim().startsWith('<')) {
-           throw new Error("API Gestão retornou HTML. Verifique permissões do script.");
-        }
+        if (text1.trim().startsWith('<')) throw new Error("API Gestão retornou HTML. Verifique permissões.");
         const data1 = JSON.parse(text1);
         if (data1.atestados) setAtestados(data1.atestados);
         if (data1.permutas) setPermutas(data1.permutas);
@@ -355,15 +353,13 @@ const MainSystem = ({ user, role, onLogout }) => {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
         if (!res2.ok) throw new Error("Erro na API Indicadores");
         const text2 = await res2.text();
-        if (text2.trim().startsWith('<')) {
-           throw new Error("API Indicadores retornou HTML. Verifique permissões do script.");
-        }
+        if (text2.trim().startsWith('<')) throw new Error("API Indicadores retornou HTML. Verifique permissões.");
         const data2 = JSON.parse(text2);
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
       if (!API_URL_GESTAO && !API_URL_INDICADORES) {
-          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script para salvar na planilha real.");
+          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script.");
       } else {
           if (showFeedback) alert("Sincronizado!");
       }
@@ -375,41 +371,45 @@ const MainSystem = ({ user, role, onLogout }) => {
     }
   };
 
-  // Atualização automática ao entrar no Dashboard
   useEffect(() => {
-    if (activeTab === 'dashboard') {
-      refreshData(false); // Modo silencioso
-    }
+    if (activeTab === 'dashboard') refreshData(false);
   }, [activeTab]);
 
   const sendData = async (action, payload) => {
-    if (!API_URL_GESTAO) {
-      console.warn("API URL não configurada. Salvando apenas localmente.");
-      return; 
-    }
+    if (!API_URL_GESTAO) return console.warn("API URL não configurada.");
+    
     try {
-      // Ajuste para permitir POST em Apps Script sem erro de CORS
+      // Configuração robusta para Apps Script
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' }, // Importante: text/plain
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
-      // Em modo no-cors não podemos ler a resposta, mas o envio ocorre.
-      console.log('Dados enviados para a nuvem');
+      // Com no-cors, não podemos confirmar o sucesso, mas o envio é feito
     } catch (e) {
       console.error("Erro no envio:", e);
-      alert("Erro ao enviar para a nuvem. Verifique console.");
+      alert("Erro ao enviar. Verifique o console.");
     }
   };
 
   const handleHomologar = (id, type) => {
     if (role !== 'admin') return alert("Apenas Chefe e Adjunto podem homologar.");
-    if (type === 'atestado') setAtestados(atestados.map(a => a.id === id ? {...a, status: 'Homologado'} : a));
-    if (type === 'permuta') setPermutas(permutas.map(p => p.id === id ? {...p, status: 'Homologado'} : p));
+    
+    // Atualização local
+    if (type === 'atestado') {
+      setAtestados(atestados.map(a => a.id === id ? {...a, status: 'Homologado'} : a));
+      sendData('updateStatus', { sheet: 'Atestados', id: id, status: 'Homologado' });
+    }
+    if (type === 'permuta') {
+      setPermutas(permutas.map(p => p.id === id ? {...p, status: 'Homologado'} : p));
+      sendData('updateStatus', { sheet: 'Permutas', id: id, status: 'Homologado' });
+    }
   };
 
   const handleDelete = (id, type) => {
+    // Delete visual por enquanto (para deletar na planilha, precisaria de uma ação no backend)
     if (type === 'atestado') setAtestados(atestados.filter(a => a.id !== id));
     if (type === 'permuta') setPermutas(permutas.filter(p => p.id !== id));
   };
@@ -429,7 +429,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
-    alert("Atestado enviado!");
+    alert("Atestado enviado! Pode levar alguns segundos para aparecer na planilha.");
   };
 
   const submitPermuta = (e) => {
@@ -446,7 +446,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
-    alert("Permuta enviada!");
+    alert("Permuta enviada! Pode levar alguns segundos para aparecer na planilha.");
   };
 
   const handleRequest = (type) => {
