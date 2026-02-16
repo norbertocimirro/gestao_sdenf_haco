@@ -66,13 +66,16 @@ const INITIAL_UPI_STATS = {
 };
 
 const INITIAL_ATESTADOS = [
-  { id: 101, militar: 'Cb SEF Pereira', tipo: 'Atestado', cid: 'M54', inicio: '2026-02-10', fim: '2026-02-12', status: 'Homologado' },
+  { id: 101, militar: 'Cb SEF Pereira', tipo: 'Atestado', cid: 'M54', inicio: '2026-02-10', dias: '3', fim: '2026-02-12', status: 'Homologado' },
 ];
 const INITIAL_PERMUTAS = [];
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
-  const date = new Date(dateStr + 'T12:00:00');
+  // Tenta criar data. Se string for YYYY-MM-DD, adiciona hora para evitar fuso.
+  // Se for ISO completa, usa direto.
+  const date = new Date(dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr);
+  if (isNaN(date.getTime())) return dateStr; // Retorna original se inválido
   return date.toLocaleDateString('pt-BR');
 };
 
@@ -340,11 +343,8 @@ const MainSystem = ({ user, role, onLogout }) => {
       if (API_URL_GESTAO) {
         const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
         if (!res1.ok) throw new Error("Erro na API Gestão");
-        // Verifica se a resposta é JSON antes de parsear
         const text1 = await res1.text();
-        if (text1.trim().startsWith('<')) {
-           throw new Error("API Gestão retornou HTML. Verifique permissões do script.");
-        }
+        if (text1.trim().startsWith('<')) throw new Error("API Gestão retornou HTML. Verifique permissões.");
         const data1 = JSON.parse(text1);
         if (data1.atestados) setAtestados(data1.atestados);
         if (data1.permutas) setPermutas(data1.permutas);
@@ -354,15 +354,13 @@ const MainSystem = ({ user, role, onLogout }) => {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
         if (!res2.ok) throw new Error("Erro na API Indicadores");
         const text2 = await res2.text();
-        if (text2.trim().startsWith('<')) {
-           throw new Error("API Indicadores retornou HTML. Verifique permissões do script.");
-        }
+        if (text2.trim().startsWith('<')) throw new Error("API Indicadores retornou HTML. Verifique permissões.");
         const data2 = JSON.parse(text2);
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
       if (!API_URL_GESTAO && !API_URL_INDICADORES) {
-          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script para salvar na planilha real.");
+          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script.");
       } else {
           if (showFeedback) alert("Sincronizado!");
       }
@@ -374,20 +372,13 @@ const MainSystem = ({ user, role, onLogout }) => {
     }
   };
 
-  // Atualização automática ao entrar no Dashboard
   useEffect(() => {
-    if (activeTab === 'dashboard') {
-      refreshData(false); // Modo silencioso
-    }
+    if (activeTab === 'dashboard') refreshData(false);
   }, [activeTab]);
 
   const sendData = async (action, payload) => {
-    if (!API_URL_GESTAO) {
-      console.warn("API URL não configurada. Salvando apenas localmente.");
-      return; 
-    }
+    if (!API_URL_GESTAO) return console.warn("API URL não configurada.");
     try {
-      // Ajuste para permitir POST em Apps Script sem erro de CORS
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
@@ -395,18 +386,15 @@ const MainSystem = ({ user, role, onLogout }) => {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
-      // Em modo no-cors não podemos ler a resposta, mas o envio ocorre.
-      console.log('Dados enviados para a nuvem');
+      console.log('Dados enviados');
     } catch (e) {
       console.error("Erro no envio:", e);
-      alert("Erro ao enviar para a nuvem. Verifique console.");
+      alert("Erro ao enviar. Verifique o console.");
     }
   };
 
   const handleHomologar = (id, type) => {
     if (role !== 'admin') return alert("Apenas Chefe e Adjunto podem homologar.");
-    
-    // Atualização local imediata
     if (type === 'atestado') {
       setAtestados(atestados.map(a => a.id === id ? {...a, status: 'Homologado'} : a));
       sendData('updateStatus', { sheet: 'Atestados', id: id, status: 'Homologado' });
@@ -430,14 +418,14 @@ const MainSystem = ({ user, role, onLogout }) => {
       militar: user, 
       inicio: formAtestado.inicio,
       data: formAtestado.inicio, 
+      dias: formAtestado.dias, // Incluído
       cid: formAtestado.cid || 'Sigiloso'
     };
-    
     setAtestados([newItem, ...atestados]);
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
-    alert("Atestado enviado! Pode levar alguns segundos para aparecer na planilha.");
+    alert("Atestado enviado!");
   };
 
   const submitPermuta = (e) => {
@@ -454,7 +442,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
-    alert("Permuta enviada! Pode levar alguns segundos para aparecer na planilha.");
+    alert("Permuta enviada!");
   };
 
   const handleRequest = (type) => {
@@ -474,16 +462,14 @@ const MainSystem = ({ user, role, onLogout }) => {
                    <Eye className="text-blue-600" />
                    <div>
                       <h4 className="font-bold text-blue-800">Modo RT</h4>
-                      <p className="text-sm text-blue-700">Acesso total para visualização. Homologação restrita à Chefia.</p>
+                      <p className="text-sm text-blue-700">Acesso total para visualização.</p>
                    </div>
                 </div>
              )}
-
              <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2>
                 <button onClick={() => refreshData(true)} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar</button>
              </div>
-
              <div className="grid grid-cols-2 gap-4">
                 <button onClick={() => setShowAtestadoModal(true)} className="bg-red-50 hover:bg-red-100 border border-red-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
                    <div className="bg-red-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ShieldAlert size={20}/></div>
@@ -494,7 +480,6 @@ const MainSystem = ({ user, role, onLogout }) => {
                    <span className="font-bold text-indigo-800">Nova Permuta</span>
                 </button>
              </div>
-
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="md:col-span-4 bg-slate-800 rounded-xl p-5 text-white shadow-lg flex flex-col md:flex-row items-center justify-between">
                    <div className="flex items-center gap-4 mb-4 md:mb-0">
@@ -505,25 +490,11 @@ const MainSystem = ({ user, role, onLogout }) => {
                       </div>
                    </div>
                    <div className="flex gap-8 text-center">
-                      <div>
-                         <p className="text-slate-400 text-xs uppercase font-bold">Ocupação</p>
-                         <p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ 15</span></p>
-                      </div>
-                      <div>
-                         <p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p>
-                         <p className="text-2xl font-bold text-yellow-400 flex items-center gap-1 justify-center">
-                            {Number(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/>
-                         </p>
-                      </div>
-                      <div>
-                         <p className="text-slate-400 text-xs uppercase font-bold">Média Fugulin</p>
-                         <p className="text-2xl font-bold text-green-400 flex items-center gap-1 justify-center">
-                            {Number(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/>
-                         </p>
-                      </div>
+                      <div><p className="text-slate-400 text-xs uppercase font-bold">Ocupação</p><p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ 15</span></p></div>
+                      <div><p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p><p className="text-2xl font-bold text-yellow-400 flex items-center gap-1 justify-center">{Number(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/></p></div>
+                      <div><p className="text-slate-400 text-xs uppercase font-bold">Média Fugulin</p><p className="text-2xl font-bold text-green-400 flex items-center gap-1 justify-center">{Number(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/></p></div>
                    </div>
                 </div>
-
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                    <p className="text-slate-500 text-xs uppercase font-bold">Pendências</p>
                    <h3 className="text-2xl font-bold text-slate-800">{pendingAtestados + pendingPermutas}</h3>
@@ -532,15 +503,11 @@ const MainSystem = ({ user, role, onLogout }) => {
                    <p className="text-slate-500 text-xs uppercase font-bold">Efetivo</p>
                    <h3 className="text-2xl font-bold text-slate-800">{REAL_OFFICERS.length}</h3>
                 </div>
-                <div className="md:col-span-2">
-                   <BirthdayWidget staff={REAL_OFFICERS} />
-                </div>
+                <div className="md:col-span-2"><BirthdayWidget staff={REAL_OFFICERS} /></div>
              </div>
           </div>
         );
-      
       case 'agenda': return <AgendaTab user={user} />;
-      
       case 'atestados':
         return (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
@@ -550,12 +517,13 @@ const MainSystem = ({ user, role, onLogout }) => {
              </div>
              <div className="overflow-x-auto">
                <table className="w-full text-left text-sm">
-                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead>
+                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Duração</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
                    {atestados.map((a, idx) => (
                      <tr key={idx} className={a.status === 'Pendente' ? 'bg-red-50/50' : ''}>
                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${a.status === 'Pendente' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{a.status}</span></td>
                        <td className="p-3 font-medium">{a.militar}</td>
+                       <td className="p-3 font-medium">{a.dias || '-'} dias</td>
                        <td className="p-3 text-slate-500">{formatDate(a.inicio || a.data)}</td>
                        <td className="p-3 flex gap-2">
                           {a.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(a.id, 'atestado')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
@@ -568,7 +536,6 @@ const MainSystem = ({ user, role, onLogout }) => {
              </div>
           </div>
         );
-
       case 'permutas':
          return (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
@@ -602,20 +569,16 @@ const MainSystem = ({ user, role, onLogout }) => {
                </div>
             </div>
          );
-
       case 'ferias':
          return (
             <div className="space-y-6 animate-fadeIn">
                <div className="flex justify-between items-center">
                   <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Palmtree className="text-orange-500"/> Escala de Férias 2026</h3>
-                  <div className="flex gap-2">
-                     <span className="text-xs font-bold px-2 py-1 bg-white border rounded">1º Semestre</span>
-                  </div>
+                  <div className="flex gap-2"><span className="text-xs font-bold px-2 py-1 bg-white border rounded">1º Semestre</span></div>
                </div>
                <TimelineView vacations={vacations} officers={REAL_OFFICERS} semester={1} userHighlight={user} />
             </div>
          );
-
       case 'efetivo':
          return (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
@@ -637,7 +600,6 @@ const MainSystem = ({ user, role, onLogout }) => {
               </div>
             </div>
          );
-
       default: return <div>Carregando...</div>;
     }
   };
@@ -649,104 +611,47 @@ const MainSystem = ({ user, role, onLogout }) => {
             {sidebarOpen && <span className="font-bold text-lg">SGA-Enf {role === 'admin' ? 'Chefia' : role === 'rt' ? 'RT' : 'Oficial'}</span>}
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto text-slate-400"><Menu size={20}/></button>
          </div>
-         
          <div className={`p-4 border-b border-slate-800 bg-slate-800/50 ${!sidebarOpen && 'flex justify-center'}`}>
             <div className="flex items-center gap-3">
-               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg border-2 border-slate-700 ${role === 'admin' ? 'bg-blue-600' : role === 'rt' ? 'bg-purple-600' : 'bg-slate-600'}`}>
-                 {user.substring(0,2).toUpperCase()}
-               </div>
+               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg border-2 border-slate-700 ${role === 'admin' ? 'bg-blue-600' : role === 'rt' ? 'bg-purple-600' : 'bg-slate-600'}`}>{user.substring(0,2).toUpperCase()}</div>
                {sidebarOpen && (
-                 <div>
-                   <p className="font-bold text-sm truncate w-32">{user}</p>
-                   <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
-                     {role === 'admin' ? 'Administrador' : role === 'rt' ? 'Resp. Técnico' : 'Usuário'}
-                   </p>
-                 </div>
+                 <div><p className="font-bold text-sm truncate w-32">{user}</p><p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{role === 'admin' ? 'Administrador' : role === 'rt' ? 'Resp. Técnico' : 'Usuário'}</p></div>
                )}
             </div>
          </div>
-
          <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-            {[
-              { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
-              { id: 'agenda', label: 'Minha Agenda', icon: BookOpen },
-              { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (role === 'admin' || role === 'rt') ? pendingAtestados : 0 },
-              { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (role === 'admin' || role === 'rt') ? pendingPermutas : 0 },
-              { id: 'ferias', label: 'Férias', icon: Palmtree },
-              { id: 'efetivo', label: 'Efetivo', icon: Users },
-            ].map(item => (
+            {[ { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard }, { id: 'agenda', label: 'Minha Agenda', icon: BookOpen }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (role === 'admin' || role === 'rt') ? pendingAtestados : 0 }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (role === 'admin' || role === 'rt') ? pendingPermutas : 0 }, { id: 'ferias', label: 'Férias', icon: Palmtree }, { id: 'efetivo', label: 'Efetivo', icon: Users } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all group relative ${activeTab === item.id ? 'bg-blue-600 shadow-md text-white' : 'hover:bg-slate-800 text-slate-400'}`}>
-                 <div className="relative">
-                    <item.icon size={20}/>
-                    {item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}
-                 </div>
+                 <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}</div>
                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
               </button>
             ))}
          </nav>
-
-         <div className="p-4 border-t border-slate-800">
-           <button onClick={onLogout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
-         </div>
+         <div className="p-4 border-t border-slate-800"><button onClick={onLogout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button></div>
       </aside>
-
       <main className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-8 relative">
          <header className="flex justify-between items-center mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2>
-              <p className="text-slate-500 text-sm">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p>
-            </div>
+            <div><h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2><p className="text-slate-500 text-sm">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div>
          </header>
          {renderContent()}
-
-         {/* MODAL ATESTADO */}
          {showAtestadoModal && (
            <Modal title="Novo Atestado" onClose={() => setShowAtestadoModal(false)}>
               <form onSubmit={submitAtestado} className="space-y-4">
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">Militar</label>
-                    <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">Data de Início</label>
-                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">Qtd Dias</label>
-                    <input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">CID (Opcional)</label>
-                    <input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/>
-                 </div>
+                 <div><label className="block text-xs font-bold text-slate-500">Militar</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" /></div>
+                 <div><label className="block text-xs font-bold text-slate-500">Data de Início</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/></div>
+                 <div><label className="block text-xs font-bold text-slate-500">Qtd Dias</label><input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/></div>
+                 <div><label className="block text-xs font-bold text-slate-500">CID (Opcional)</label><input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/></div>
                  <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2"><Send size={18}/> Enviar</button>
               </form>
            </Modal>
          )}
-
-         {/* MODAL PERMUTA */}
          {showPermutaModal && (
            <Modal title="Nova Permuta" onClose={() => setShowPermutaModal(false)}>
               <form onSubmit={submitPermuta} className="space-y-4">
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label>
-                    <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">Data da Saída</label>
-                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/>
-                 </div>
-                 <div className="border-t pt-4 mt-4">
-                    <label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label>
-                    <select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}>
-                       <option value="">Selecione...</option>
-                       {REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500">Data da Entrada</label>
-                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/>
-                 </div>
+                 <div><label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" /></div>
+                 <div><label className="block text-xs font-bold text-slate-500">Data da Saída</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/></div>
+                 <div className="border-t pt-4 mt-4"><label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label><select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}><option value="">Selecione...</option>{REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}</select></div>
+                 <div><label className="block text-xs font-bold text-slate-500">Data da Entrada</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/></div>
                  <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2"><Send size={18}/> Solicitar</button>
               </form>
            </Modal>
@@ -760,16 +665,13 @@ const UserDashboard = ({ user, onLogout }) => {
   const [showAtestadoModal, setShowAtestadoModal] = useState(false);
   const [showPermutaModal, setShowPermutaModal] = useState(false);
   
-  // Novos estados para histórico
   const [myAtestados, setMyAtestados] = useState([]);
   const [myPermutas, setMyPermutas] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
-  // Forms states
   const [formAtestado, setFormAtestado] = useState({ dias: '', inicio: '', cid: '' });
   const [formPermuta, setFormPermuta] = useState({ dataSai: '', substituto: '', dataEntra: '' });
 
-  // Função para buscar histórico (mesma lógica do refreshData mas filtrada)
   const fetchUserHistory = async () => {
     setLoadingHistory(true);
     try {
@@ -780,14 +682,12 @@ const UserDashboard = ({ user, onLogout }) => {
            if (!text.trim().startsWith('<')) {
               const data = JSON.parse(text);
               if (data.atestados) {
-                // Filtra atestados onde o 'militar' contém o nome do usuário logado
                 const userAtestados = data.atestados.filter(a => 
                   a.militar && (a.militar === user || a.militar.includes(user))
                 );
-                setMyAtestados(userAtestados.reverse()); // Mais recentes no topo
+                setMyAtestados(userAtestados.reverse());
               }
               if (data.permutas) {
-                // Filtra permutas onde 'solicitante' contém o nome do usuário logado
                 const userPermutas = data.permutas.filter(p => 
                   p.solicitante && (p.solicitante === user || p.solicitante.includes(user))
                 );
@@ -803,7 +703,6 @@ const UserDashboard = ({ user, onLogout }) => {
     }
   };
 
-  // Carrega histórico ao entrar
   useEffect(() => {
     fetchUserHistory();
   }, [user]);
@@ -819,7 +718,6 @@ const UserDashboard = ({ user, onLogout }) => {
         body: JSON.stringify({ action, payload })
       });
       console.log('Dados enviados');
-      // Pequeno delay para dar tempo do Google processar antes de recarregar a lista
       setTimeout(() => fetchUserHistory(), 1000); 
     } catch (e) {
       console.error("Erro no envio:", e);
@@ -835,12 +733,10 @@ const UserDashboard = ({ user, onLogout }) => {
       militar: user, 
       inicio: formAtestado.inicio,
       data: formAtestado.inicio, 
+      dias: formAtestado.dias,
       cid: formAtestado.cid || 'Sigiloso'
     };
-    
-    // Atualização otimista local
     setMyAtestados([newItem, ...myAtestados]);
-    
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
@@ -857,10 +753,7 @@ const UserDashboard = ({ user, onLogout }) => {
       dataSai: formPermuta.dataSai,
       dataEntra: formPermuta.dataEntra
     };
-    
-    // Atualização otimista local
     setMyPermutas([newItem, ...myPermutas]);
-    
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
@@ -872,10 +765,7 @@ const UserDashboard = ({ user, onLogout }) => {
      <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center gap-3">
            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">{user.substring(0,2).toUpperCase()}</div>
-           <div>
-             <h1 className="font-bold text-slate-800">Ten {user}</h1>
-             <p className="text-xs text-slate-500">Área do Oficial</p>
-           </div>
+           <div><h1 className="font-bold text-slate-800">Ten {user}</h1><p className="text-xs text-slate-500">Área do Oficial</p></div>
         </div>
         <button onClick={onLogout}><LogOut className="text-slate-400 hover:text-red-500" /></button>
      </header>
@@ -884,55 +774,42 @@ const UserDashboard = ({ user, onLogout }) => {
            <h2 className="font-bold text-lg mb-1">Bem-vindo, {user}</h2>
            <p className="opacity-90">Acesse o sistema completo via Desktop para gestão.</p>
         </div>
-        {/* Botões de Ação Rápida */}
         <div className="grid grid-cols-2 gap-4 mt-4">
            <button onClick={() => setShowAtestadoModal(true)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-colors group">
-              <div className="bg-red-100 p-2 rounded-full group-hover:scale-110 transition-transform">
-                <ShieldAlert className="text-red-500" size={24} />
-              </div>
+              <div className="bg-red-100 p-2 rounded-full group-hover:scale-110 transition-transform"><ShieldAlert className="text-red-500" size={24} /></div>
               <span className="font-bold text-sm text-slate-700">Novo Atestado</span>
            </button>
            <button onClick={() => setShowPermutaModal(true)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-colors group">
-              <div className="bg-indigo-100 p-2 rounded-full group-hover:scale-110 transition-transform">
-                <ArrowRightLeft className="text-indigo-500" size={24} />
-              </div>
+              <div className="bg-indigo-100 p-2 rounded-full group-hover:scale-110 transition-transform"><ArrowRightLeft className="text-indigo-500" size={24} /></div>
               <span className="font-bold text-sm text-slate-700">Nova Permuta</span>
            </button>
         </div>
 
-        {/* NOVA SEÇÃO: MEUS REGISTROS */}
         <div className="mt-8">
            <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center justify-between">
               Meus Registros
-              <button onClick={fetchUserHistory} className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
-                <RefreshCw size={12}/> Atualizar
-              </button>
+              <button onClick={fetchUserHistory} className="text-blue-600 text-xs flex items-center gap-1 hover:underline"><RefreshCw size={12}/> Atualizar</button>
            </h3>
-           
            <div className="space-y-4">
-              {/* Permutas Recentes */}
               {myPermutas.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-indigo-500 uppercase mb-2">Permutas Recentes</h4>
                   <div className="space-y-2">
                     {myPermutas.slice(0, 3).map((p, i) => (
                        <div key={i} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
-                          <div>
-                             <p className="text-sm font-bold text-slate-700">Troca com {p.substituto}</p>
-                             <p className="text-xs text-slate-500">Saída: {formatDate(p.dataSai)}</p>
+                          <div className="text-xs text-slate-600">
+                             <p className="font-bold text-slate-800 mb-1">Troca com {p.substituto}</p>
+                             <div className="flex gap-3">
+                               <span className="text-red-500 font-medium">S: {formatDate(p.dataSai)}</span>
+                               <span className="text-green-600 font-medium">E: {formatDate(p.dataEntra)}</span>
+                             </div>
                           </div>
-                          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${
-                             p.status === 'Homologado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                             {p.status}
-                          </span>
+                          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${p.status === 'Homologado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{p.status}</span>
                        </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Atestados Recentes */}
               {myAtestados.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-red-500 uppercase mb-2 mt-4">Atestados Recentes</h4>
@@ -940,80 +817,38 @@ const UserDashboard = ({ user, onLogout }) => {
                     {myAtestados.slice(0, 3).map((a, i) => (
                        <div key={i} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
                           <div>
-                             <p className="text-sm font-bold text-slate-700">{a.dias || '---'} Dias</p>
+                             <p className="text-sm font-bold text-slate-700">{a.dias || '-'} Dias</p>
                              <p className="text-xs text-slate-500">Início: {formatDate(a.inicio || a.data)}</p>
                           </div>
-                          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${
-                             a.status === 'Homologado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                             {a.status}
-                          </span>
+                          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${a.status === 'Homologado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{a.status}</span>
                        </div>
                     ))}
                   </div>
                 </div>
               )}
-              
-              {!loadingHistory && myAtestados.length === 0 && myPermutas.length === 0 && (
-                 <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-lg bg-slate-50">
-                    Você ainda não possui registros.
-                 </div>
-              )}
-              
-              {loadingHistory && (
-                 <div className="text-center py-4 text-blue-500 text-xs animate-pulse">Carregando histórico...</div>
-              )}
+              {!loadingHistory && myAtestados.length === 0 && myPermutas.length === 0 && <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-lg bg-slate-50">Você ainda não possui registros.</div>}
+              {loadingHistory && <div className="text-center py-4 text-blue-500 text-xs animate-pulse">Carregando histórico...</div>}
            </div>
         </div>
      </main>
-
-     {/* MODAIS DO USUÁRIO */}
      {showAtestadoModal && (
        <Modal title="Novo Atestado" onClose={() => setShowAtestadoModal(false)}>
           <form onSubmit={submitAtestado} className="space-y-4">
-             <div>
-                <label className="block text-xs font-bold text-slate-500">Militar</label>
-                <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
-             </div>
-             <div>
-                <label className="block text-xs font-bold text-slate-500">Data de Início</label>
-                <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/>
-             </div>
-             <div>
-                <label className="block text-xs font-bold text-slate-500">Qtd Dias</label>
-                <input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/>
-             </div>
-             <div>
-                <label className="block text-xs font-bold text-slate-500">CID (Opcional)</label>
-                <input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/>
-             </div>
+             <div><label className="block text-xs font-bold text-slate-500">Militar</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" /></div>
+             <div><label className="block text-xs font-bold text-slate-500">Data de Início</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/></div>
+             <div><label className="block text-xs font-bold text-slate-500">Qtd Dias</label><input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/></div>
+             <div><label className="block text-xs font-bold text-slate-500">CID (Opcional)</label><input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/></div>
              <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2"><Send size={18}/> Enviar</button>
           </form>
        </Modal>
      )}
-
      {showPermutaModal && (
        <Modal title="Nova Permuta" onClose={() => setShowPermutaModal(false)}>
           <form onSubmit={submitPermuta} className="space-y-4">
-             <div>
-                <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label>
-                <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
-             </div>
-             <div>
-                <label className="block text-xs font-bold text-slate-500">Data da Saída</label>
-                <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/>
-             </div>
-             <div className="border-t pt-4 mt-4">
-                <label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label>
-                <select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}>
-                   <option value="">Selecione...</option>
-                   {REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
-                </select>
-             </div>
-             <div>
-                <label className="block text-xs font-bold text-slate-500">Data da Entrada</label>
-                <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/>
-             </div>
+             <div><label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" /></div>
+             <div><label className="block text-xs font-bold text-slate-500">Data da Saída</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/></div>
+             <div className="border-t pt-4 mt-4"><label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label><select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}><option value="">Selecione...</option>{REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}</select></div>
+             <div><label className="block text-xs font-bold text-slate-500">Data da Entrada</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/></div>
              <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2"><Send size={18}/> Solicitar</button>
           </form>
        </Modal>
