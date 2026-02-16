@@ -8,7 +8,10 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
+// URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
+
+// URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
@@ -69,15 +72,11 @@ const INITIAL_PERMUTAS = [];
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
-  // Se já vier no formato YYYY-MM-DD do Google, usa split para não ter erro de fuso
-  if (dateStr.length === 10 && dateStr.includes('-')) {
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-  }
-  // Fallback para ISO
-  const date = new Date(dateStr);
+  const date = new Date(dateStr + 'T12:00:00');
   return date.toLocaleDateString('pt-BR');
 };
+
+// --- COMPONENTES ---
 
 const Modal = ({ title, onClose, children }) => (
   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -341,8 +340,11 @@ const MainSystem = ({ user, role, onLogout }) => {
       if (API_URL_GESTAO) {
         const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
         if (!res1.ok) throw new Error("Erro na API Gestão");
+        // Verifica se a resposta é JSON antes de parsear
         const text1 = await res1.text();
-        if (text1.trim().startsWith('<')) throw new Error("API Gestão retornou HTML. Verifique permissões.");
+        if (text1.trim().startsWith('<')) {
+           throw new Error("API Gestão retornou HTML. Verifique permissões do script.");
+        }
         const data1 = JSON.parse(text1);
         if (data1.atestados) setAtestados(data1.atestados);
         if (data1.permutas) setPermutas(data1.permutas);
@@ -352,13 +354,15 @@ const MainSystem = ({ user, role, onLogout }) => {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
         if (!res2.ok) throw new Error("Erro na API Indicadores");
         const text2 = await res2.text();
-        if (text2.trim().startsWith('<')) throw new Error("API Indicadores retornou HTML. Verifique permissões.");
+        if (text2.trim().startsWith('<')) {
+           throw new Error("API Indicadores retornou HTML. Verifique permissões do script.");
+        }
         const data2 = JSON.parse(text2);
         if (data2.upiStats) setUpiStats(data2.upiStats);
       }
       
       if (!API_URL_GESTAO && !API_URL_INDICADORES) {
-          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script.");
+          if (showFeedback) alert("Modo Demonstração: Configure o Apps Script para salvar na planilha real.");
       } else {
           if (showFeedback) alert("Sincronizado!");
       }
@@ -370,14 +374,20 @@ const MainSystem = ({ user, role, onLogout }) => {
     }
   };
 
+  // Atualização automática ao entrar no Dashboard
   useEffect(() => {
-    if (activeTab === 'dashboard') refreshData(false);
+    if (activeTab === 'dashboard') {
+      refreshData(false); // Modo silencioso
+    }
   }, [activeTab]);
 
   const sendData = async (action, payload) => {
-    if (!API_URL_GESTAO) return console.warn("API URL não configurada.");
-    
+    if (!API_URL_GESTAO) {
+      console.warn("API URL não configurada. Salvando apenas localmente.");
+      return; 
+    }
     try {
+      // Ajuste para permitir POST em Apps Script sem erro de CORS
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
@@ -385,9 +395,11 @@ const MainSystem = ({ user, role, onLogout }) => {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
+      // Em modo no-cors não podemos ler a resposta, mas o envio ocorre.
+      console.log('Dados enviados para a nuvem');
     } catch (e) {
       console.error("Erro no envio:", e);
-      alert("Erro ao enviar. Verifique o console.");
+      alert("Erro ao enviar para a nuvem. Verifique console.");
     }
   };
 
@@ -425,7 +437,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
-    alert("Atestado enviado!");
+    alert("Atestado enviado! Pode levar alguns segundos para aparecer na planilha.");
   };
 
   const submitPermuta = (e) => {
@@ -442,7 +454,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
-    alert("Permuta enviada!");
+    alert("Permuta enviada! Pode levar alguns segundos para aparecer na planilha.");
   };
 
   const handleRequest = (type) => {
@@ -728,7 +740,7 @@ const MainSystem = ({ user, role, onLogout }) => {
                     <label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label>
                     <select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}>
                        <option value="">Selecione...</option>
-                       {officers.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
+                       {REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
                     </select>
                  </div>
                  <div>
@@ -744,7 +756,64 @@ const MainSystem = ({ user, role, onLogout }) => {
   );
 };
 
-const UserDashboard = ({ user, onLogout }) => (
+const UserDashboard = ({ user, onLogout }) => {
+  const [showAtestadoModal, setShowAtestadoModal] = useState(false);
+  const [showPermutaModal, setShowPermutaModal] = useState(false);
+  
+  // Forms states
+  const [formAtestado, setFormAtestado] = useState({ dias: '', inicio: '', cid: '' });
+  const [formPermuta, setFormPermuta] = useState({ dataSai: '', substituto: '', dataEntra: '' });
+
+  const sendData = async (action, payload) => {
+    if (!API_URL_GESTAO) return console.warn("API URL não configurada.");
+    try {
+      await fetch(API_URL_GESTAO, {
+        method: 'POST',
+        mode: 'no-cors',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, payload })
+      });
+      console.log('Dados enviados');
+    } catch (e) {
+      console.error("Erro no envio:", e);
+      alert("Erro ao enviar. Verifique o console.");
+    }
+  };
+
+  const submitAtestado = (e) => {
+    e.preventDefault();
+    const newItem = { 
+      id: Date.now(), 
+      status: 'Pendente', 
+      militar: user, 
+      inicio: formAtestado.inicio,
+      data: formAtestado.inicio, 
+      cid: formAtestado.cid || 'Sigiloso'
+    };
+    sendData('saveAtestado', newItem);
+    setShowAtestadoModal(false);
+    setFormAtestado({ dias: '', inicio: '', cid: '' });
+    alert("Atestado enviado!");
+  };
+
+  const submitPermuta = (e) => {
+    e.preventDefault();
+    const newItem = {
+      id: Date.now(),
+      status: 'Pendente',
+      solicitante: user,
+      substituto: formPermuta.substituto,
+      dataSai: formPermuta.dataSai,
+      dataEntra: formPermuta.dataEntra
+    };
+    sendData('savePermuta', newItem);
+    setShowPermutaModal(false);
+    setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
+    alert("Permuta enviada!");
+  };
+
+  return (
   <div className="min-h-screen bg-slate-50 flex flex-col">
      <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -761,20 +830,76 @@ const UserDashboard = ({ user, onLogout }) => (
            <h2 className="font-bold text-lg mb-1">Bem-vindo, {user}</h2>
            <p className="opacity-90">Acesse o sistema completo via Desktop para gestão.</p>
         </div>
-        {/* Adicionado botões de ação rápida para usuário comum */}
+        {/* Botões de Ação Rápida com funcionalidade restaurada */}
         <div className="grid grid-cols-2 gap-4 mt-4">
-           <button className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50">
-              <ShieldAlert className="text-red-500" size={24} />
+           <button onClick={() => setShowAtestadoModal(true)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-colors group">
+              <div className="bg-red-100 p-2 rounded-full group-hover:scale-110 transition-transform">
+                <ShieldAlert className="text-red-500" size={24} />
+              </div>
               <span className="font-bold text-sm text-slate-700">Novo Atestado</span>
            </button>
-           <button className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50">
-              <ArrowRightLeft className="text-indigo-500" size={24} />
+           <button onClick={() => setShowPermutaModal(true)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-colors group">
+              <div className="bg-indigo-100 p-2 rounded-full group-hover:scale-110 transition-transform">
+                <ArrowRightLeft className="text-indigo-500" size={24} />
+              </div>
               <span className="font-bold text-sm text-slate-700">Nova Permuta</span>
            </button>
         </div>
      </main>
+
+     {/* MODAIS DO USUÁRIO */}
+     {showAtestadoModal && (
+       <Modal title="Novo Atestado" onClose={() => setShowAtestadoModal(false)}>
+          <form onSubmit={submitAtestado} className="space-y-4">
+             <div>
+                <label className="block text-xs font-bold text-slate-500">Militar</label>
+                <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+             </div>
+             <div>
+                <label className="block text-xs font-bold text-slate-500">Data de Início</label>
+                <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/>
+             </div>
+             <div>
+                <label className="block text-xs font-bold text-slate-500">Qtd Dias</label>
+                <input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/>
+             </div>
+             <div>
+                <label className="block text-xs font-bold text-slate-500">CID (Opcional)</label>
+                <input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/>
+             </div>
+             <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2"><Send size={18}/> Enviar</button>
+          </form>
+       </Modal>
+     )}
+
+     {showPermutaModal && (
+       <Modal title="Nova Permuta" onClose={() => setShowPermutaModal(false)}>
+          <form onSubmit={submitPermuta} className="space-y-4">
+             <div>
+                <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label>
+                <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+             </div>
+             <div>
+                <label className="block text-xs font-bold text-slate-500">Data da Saída</label>
+                <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/>
+             </div>
+             <div className="border-t pt-4 mt-4">
+                <label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label>
+                <select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}>
+                   <option value="">Selecione...</option>
+                   {REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
+                </select>
+             </div>
+             <div>
+                <label className="block text-xs font-bold text-slate-500">Data da Entrada</label>
+                <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/>
+             </div>
+             <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2"><Send size={18}/> Solicitar</button>
+          </form>
+       </Modal>
+     )}
   </div>
-);
+)};
 
 export default function App() {
   const [user, setUser] = useState(null);
