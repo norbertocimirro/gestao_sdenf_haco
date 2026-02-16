@@ -13,7 +13,6 @@ import {
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
 
 // 2. URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
-// Atualizado conforme sua solicitação exata
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
@@ -389,16 +388,15 @@ const MainSystem = ({ user, role, onLogout }) => {
       return; 
     }
     try {
-      // Usando no-cors e text/plain para máxima compatibilidade com Apps Script
-      // Adicionado redirect: 'follow' para evitar erro de CORS em redirecionamento
+      // Ajuste para permitir POST em Apps Script sem erro de CORS
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
-        redirect: 'follow', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'text/plain' }, // Importante: text/plain
         body: JSON.stringify({ action, payload })
       });
-      console.log('Enviado:', action, payload);
+      // Em modo no-cors não podemos ler a resposta, mas o envio ocorre.
+      console.log('Dados enviados para a nuvem');
     } catch (e) {
       console.error("Erro no envio:", e);
       alert("Erro ao enviar para a nuvem. Verifique console.");
