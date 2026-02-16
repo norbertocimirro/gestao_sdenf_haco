@@ -67,7 +67,6 @@ const INITIAL_ATESTADOS = [
 ];
 const INITIAL_PERMUTAS = [];
 
-// Helper para tratar datas vindas do Google (YYYY-MM-DD ou ISO)
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   // Se já vier no formato YYYY-MM-DD do Google, usa split para não ter erro de fuso
@@ -379,7 +378,6 @@ const MainSystem = ({ user, role, onLogout }) => {
     if (!API_URL_GESTAO) return console.warn("API URL não configurada.");
     
     try {
-      // Configuração robusta para Apps Script
       await fetch(API_URL_GESTAO, {
         method: 'POST',
         mode: 'no-cors',
@@ -387,7 +385,6 @@ const MainSystem = ({ user, role, onLogout }) => {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, payload })
       });
-      // Com no-cors, não podemos confirmar o sucesso, mas o envio é feito
     } catch (e) {
       console.error("Erro no envio:", e);
       alert("Erro ao enviar. Verifique o console.");
@@ -397,7 +394,7 @@ const MainSystem = ({ user, role, onLogout }) => {
   const handleHomologar = (id, type) => {
     if (role !== 'admin') return alert("Apenas Chefe e Adjunto podem homologar.");
     
-    // Atualização local
+    // Atualização local imediata
     if (type === 'atestado') {
       setAtestados(atestados.map(a => a.id === id ? {...a, status: 'Homologado'} : a));
       sendData('updateStatus', { sheet: 'Atestados', id: id, status: 'Homologado' });
@@ -409,7 +406,6 @@ const MainSystem = ({ user, role, onLogout }) => {
   };
 
   const handleDelete = (id, type) => {
-    // Delete visual por enquanto (para deletar na planilha, precisaria de uma ação no backend)
     if (type === 'atestado') setAtestados(atestados.filter(a => a.id !== id));
     if (type === 'permuta') setPermutas(permutas.filter(p => p.id !== id));
   };
@@ -429,7 +425,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
-    alert("Atestado enviado! Pode levar alguns segundos para aparecer na planilha.");
+    alert("Atestado enviado!");
   };
 
   const submitPermuta = (e) => {
@@ -446,7 +442,7 @@ const MainSystem = ({ user, role, onLogout }) => {
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
-    alert("Permuta enviada! Pode levar alguns segundos para aparecer na planilha.");
+    alert("Permuta enviada!");
   };
 
   const handleRequest = (type) => {
