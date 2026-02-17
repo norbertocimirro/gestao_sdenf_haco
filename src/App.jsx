@@ -8,10 +8,7 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
-// URL DA PLANILHA DE GESTÃO (Salva Atestados e Permutas)
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
-
-// URL DA PLANILHA DE INDICADORES (Lê Leitos, Braden e Fugulin)
 const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 // --- DADOS REAIS ---
@@ -45,17 +42,7 @@ const REAL_OFFICERS = [
   { id: 24, antiguidade: 24, nome: 'Jéssica', patente: 'Asp Of Enf', quadro: 'Oficiais', setor: 'UTI', role: 'user', nascimento: '04/07' }
 ];
 
-const INITIAL_VACATIONS = [
-  { id: 1, nome: 'Cimirro', inicio: '2026-03-02', fim: '2026-03-11', tipo: '10 dias', status: 'Confirmado' },
-  { id: 2, nome: 'Cimirro', inicio: '2026-06-24', fim: '2026-07-03', tipo: '10 dias', status: 'Confirmado' },
-  { id: 3, nome: 'Marasca', inicio: '2026-01-26', fim: '2026-02-09', tipo: '15 dias', status: 'Realizado' },
-  { id: 4, nome: 'Serafin', inicio: '2026-01-05', fim: '2026-01-19', tipo: '15 dias', status: 'Realizado' },
-  { id: 5, nome: 'Serafin', inicio: '2026-04-06', fim: '2026-04-20', tipo: '15 dias', status: 'Confirmado' },
-  { id: 6, nome: 'Karen Casarin', inicio: '2026-04-22', fim: '2026-05-11', tipo: '20 dias', status: 'Confirmado' },
-  { id: 7, nome: 'Sandri', inicio: '2026-02-18', fim: '2026-02-27', tipo: '10 dias', status: 'Confirmado' },
-  { id: 8, nome: 'Zomer', inicio: '2026-02-10', fim: '2026-02-24', tipo: '15 dias', status: 'Confirmado' },
-  { id: 9, nome: 'Luiziane', inicio: '2026-06-01', fim: '2026-06-15', tipo: '15 dias', status: 'Confirmado' },
-];
+const INITIAL_VACATIONS = [];
 
 const INITIAL_UPI_STATS = {
   leitosOcupados: 8, 
@@ -70,11 +57,26 @@ const INITIAL_ATESTADOS = [
 ];
 const INITIAL_PERMUTAS = [];
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr);
-  if (isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString('pt-BR');
+// Helper robusto para datas (evita crash com dados ruins)
+const formatDate = (dateInput) => {
+  if (!dateInput) return '-';
+  try {
+    // Converte para string se for número (ex: data do Excel)
+    const dateStr = String(dateInput);
+    
+    // Se for formato YYYY-MM-DD
+    if (dateStr.length === 10 && dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Tentativa padrão
+    const date = new Date(dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr);
+    if (isNaN(date.getTime())) return dateStr; // Retorna original se falhar
+    return date.toLocaleDateString('pt-BR');
+  } catch (e) {
+    return '-';
+  }
 };
 
 // --- COMPONENTES ---
@@ -140,18 +142,23 @@ const AgendaTab = ({ user }) => {
   const [newEvent, setNewEvent] = useState({ date: '', title: '', type: 'work' });
 
   useEffect(() => {
-    const savedAgenda = localStorage.getItem(`agenda_${user}`);
-    if (savedAgenda) {
-      setEvents(JSON.parse(savedAgenda));
-    } else if (user === 'Cimirro') {
-      const initialCimirro = [
-        { id: 1, date: '2026-03-04', title: 'Aniversário Alice (11 Anos)', type: 'family', details: 'Comprar presente' },
-        { id: 2, date: '2026-05-29', title: 'Aniversário Pedro', type: 'family', details: 'Festa na escola?' },
-        { id: 3, date: '2026-07-05', title: 'Aniversário Fabiane', type: 'family', details: 'Jantar especial' },
-        { id: 4, date: '2026-02-20', title: 'Revisão Renault Symbol', type: 'personal', details: 'Oficina do Beto' }
-      ];
-      setEvents(initialCimirro);
-      localStorage.setItem(`agenda_${user}`, JSON.stringify(initialCimirro));
+    try {
+      const savedAgenda = localStorage.getItem(`agenda_${user}`);
+      if (savedAgenda) {
+        setEvents(JSON.parse(savedAgenda));
+      } else if (user === 'Cimirro') {
+        const initialCimirro = [
+          { id: 1, date: '2026-03-04', title: 'Aniversário Alice (11 Anos)', type: 'family', details: 'Comprar presente' },
+          { id: 2, date: '2026-05-29', title: 'Aniversário Pedro', type: 'family', details: 'Festa na escola?' },
+          { id: 3, date: '2026-07-05', title: 'Aniversário Fabiane', type: 'family', details: 'Jantar especial' },
+          { id: 4, date: '2026-02-20', title: 'Revisão Renault Symbol', type: 'personal', details: 'Oficina do Beto' }
+        ];
+        setEvents(initialCimirro);
+        localStorage.setItem(`agenda_${user}`, JSON.stringify(initialCimirro));
+      }
+    } catch(e) {
+      console.error("Erro ao carregar agenda", e);
+      setEvents([]);
     }
   }, [user]);
 
@@ -223,7 +230,11 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
   const startMonthIndex = semester === 1 ? 0 : 6;
   const year = 2026;
 
-  const filteredVacations = vacations.filter(v => {
+  // Proteção: Garante que vacations seja array
+  const safeVacations = Array.isArray(vacations) ? vacations : [];
+
+  const filteredVacations = safeVacations.filter(v => {
+    if (!v.inicio) return false;
     const start = new Date(v.inicio);
     return start.getFullYear() === year && start.getMonth() >= startMonthIndex && start.getMonth() < startMonthIndex + 6;
   });
@@ -293,8 +304,22 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
 const BirthdayWidget = ({ staff }) => {
   const today = new Date(2026, 1, 15);
   const currentMonth = today.getMonth();
-  const birthdays = staff.filter(p => p.nascimento && parseInt(p.nascimento.split('/')[1]) - 1 === currentMonth)
-                         .sort((a,b) => parseInt(a.nascimento) - parseInt(b.nascimento));
+  
+  // Safe parsing
+  const birthdays = staff.filter(p => {
+      if (!p.nascimento) return false;
+      const parts = String(p.nascimento).split('/');
+      // Tratamento para data que venha como YYYY-MM-DD
+      if (parts.length === 1) { // Provavelmente YYYY-MM-DD
+         const parts2 = String(p.nascimento).split('-');
+         if (parts2.length === 3) return parseInt(parts2[1]) - 1 === currentMonth;
+      }
+      return parseInt(parts[1]) - 1 === currentMonth;
+  }).sort((a,b) => {
+     const dayA = a.nascimento.includes('/') ? a.nascimento.split('/')[0] : a.nascimento.split('-')[2];
+     const dayB = b.nascimento.includes('/') ? b.nascimento.split('/')[0] : b.nascimento.split('-')[2];
+     return parseInt(dayA) - parseInt(dayB);
+  });
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
@@ -302,17 +327,19 @@ const BirthdayWidget = ({ staff }) => {
         <h3 className="font-bold flex items-center gap-2 text-sm"><Cake size={16} /> Aniversários Fev</h3>
       </div>
       <div className="p-3 flex-1 overflow-y-auto max-h-[250px] space-y-2">
-        {birthdays.map(p => (
+        {birthdays.map(p => {
+           let day = p.nascimento.includes('/') ? p.nascimento.split('/')[0] : p.nascimento.split('-')[2];
+           return (
            <div key={p.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border-b border-slate-50 last:border-0">
               <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">
-                 {p.nascimento.split('/')[0]}
+                 {day}
               </div>
               <div className="flex-1">
                  <p className="text-sm font-bold text-slate-700">{p.patente} {p.nome}</p>
                  <p className="text-[10px] text-slate-400">{p.nascimento}</p>
               </div>
            </div>
-        ))}
+        )})}
       </div>
     </div>
   );
@@ -336,34 +363,38 @@ const MainSystem = ({ user, role, onLogout }) => {
   const [vacations, setVacations] = useState(INITIAL_VACATIONS);
   const [upiStats, setUpiStats] = useState(INITIAL_UPI_STATS);
 
-  const pendingAtestados = atestados.filter(a => a.status === 'Pendente').length;
-  const pendingPermutas = permutas.filter(p => p.status === 'Pendente').length;
+  const pendingAtestados = Array.isArray(atestados) ? atestados.filter(a => a.status === 'Pendente').length : 0;
+  const pendingPermutas = Array.isArray(permutas) ? permutas.filter(p => p.status === 'Pendente').length : 0;
 
   const refreshData = async (showFeedback = true) => {
     setLoading(true);
     try {
       if (API_URL_GESTAO) {
         const res1 = await fetch(`${API_URL_GESTAO}?action=getData`);
-        if (!res1.ok) throw new Error("Erro na API Gestão");
-        const text1 = await res1.text();
-        if (text1.trim().startsWith('<')) throw new Error("API Gestão retornou HTML. Verifique permissões.");
-        const data1 = JSON.parse(text1);
-        if (data1.atestados) setAtestados(data1.atestados);
-        if (data1.permutas) setPermutas(data1.permutas);
-        if (data1.vacations) setVacations(data1.vacations);
+        if (res1.ok) {
+            const text1 = await res1.text();
+            if (!text1.trim().startsWith('<')) {
+                const data1 = JSON.parse(text1);
+                if (data1.atestados) setAtestados(data1.atestados);
+                if (data1.permutas) setPermutas(data1.permutas);
+                if (data1.vacations) setVacations(data1.vacations);
+            }
+        }
       }
       if (API_URL_INDICADORES) {
         const res2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
-        if (!res2.ok) throw new Error("Erro na API Indicadores");
-        const text2 = await res2.text();
-        if (text2.trim().startsWith('<')) throw new Error("API Indicadores retornou HTML. Verifique permissões.");
-        const data2 = JSON.parse(text2);
-        if (data2.upiStats) setUpiStats(data2.upiStats);
+        if (res2.ok) {
+             const text2 = await res2.text();
+             if (!text2.trim().startsWith('<')) {
+                const data2 = JSON.parse(text2);
+                if (data2.upiStats) setUpiStats(data2.upiStats);
+             }
+        }
       }
-      if (showFeedback) alert("Sincronizado!");
+      if (showFeedback && API_URL_GESTAO) alert("Sincronizado!");
     } catch(e) {
       console.error(e);
-      if (showFeedback) alert(`Erro de conexão: ${e.message}`);
+      if (showFeedback) alert(`Erro: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -373,6 +404,10 @@ const MainSystem = ({ user, role, onLogout }) => {
 
   const sendData = async (action, payload) => {
     setIsSaving(true);
+    if (!API_URL_GESTAO) {
+        setIsSaving(false);
+        return console.warn("API URL não configurada.");
+    }
     try {
       await fetch(API_URL_GESTAO, {
         method: 'POST',
@@ -402,6 +437,11 @@ const MainSystem = ({ user, role, onLogout }) => {
     }
   };
 
+  const handleDelete = (id, type) => {
+    if (type === 'atestado') setAtestados(atestados.filter(a => a.id !== id));
+    if (type === 'permuta') setPermutas(permutas.filter(p => p.id !== id));
+  };
+
   const submitAtestado = (e) => {
     e.preventDefault();
     const newItem = { 
@@ -410,7 +450,7 @@ const MainSystem = ({ user, role, onLogout }) => {
       militar: user, 
       inicio: formAtestado.inicio,
       data: formAtestado.inicio, 
-      dias: formAtestado.dias, // Chave 'dias' minúscula agora
+      dias: formAtestado.dias, 
       cid: formAtestado.cid || 'Sigiloso'
     };
     setAtestados([newItem, ...atestados]);
@@ -427,8 +467,8 @@ const MainSystem = ({ user, role, onLogout }) => {
       status: 'Pendente',
       solicitante: user,
       substituto: formPermuta.substituto,
-      datasai: formPermuta.dataSai, // Chave minúscula
-      dataentra: formPermuta.dataEntra // Chave minúscula
+      datasai: formPermuta.dataSai,
+      dataentra: formPermuta.dataEntra
     };
     setPermutas([newItem, ...permutas]);
     sendData('savePermuta', newItem);
@@ -437,44 +477,296 @@ const MainSystem = ({ user, role, onLogout }) => {
     alert("Permuta enviada!");
   };
 
+  const handleRequest = (type) => {
+    if (type === 'atestado') setShowAtestadoModal(true);
+    if (type === 'permuta') setShowPermutaModal(true);
+  };
+
+  const renderContent = () => {
+    if (loading) return <div className="p-10 text-center text-slate-500">Sincronizando dados...</div>;
+
+    switch(activeTab) {
+      case 'dashboard':
+        return (
+          <div className="space-y-6 animate-fadeIn">
+             {role === 'rt' && (
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex gap-3 items-center mb-4">
+                   <Eye className="text-blue-600" />
+                   <div>
+                      <h4 className="font-bold text-blue-800">Modo RT</h4>
+                      <p className="text-sm text-blue-700">Acesso total para visualização. Homologação restrita à Chefia.</p>
+                   </div>
+                </div>
+             )}
+
+             <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2>
+                <button onClick={() => refreshData(true)} className="text-blue-600 text-sm flex items-center gap-2 hover:underline"><RefreshCw size={14}/> Sincronizar</button>
+             </div>
+
+             <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setShowAtestadoModal(true)} className="bg-red-50 hover:bg-red-100 border border-red-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
+                   <div className="bg-red-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ShieldAlert size={20}/></div>
+                   <span className="font-bold text-red-800">Novo Atestado</span>
+                </button>
+                <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 p-4 rounded-xl flex items-center justify-center gap-3 transition-colors group">
+                   <div className="bg-indigo-500 text-white p-2 rounded-lg group-hover:scale-110 transition-transform"><ArrowRightLeft size={20}/></div>
+                   <span className="font-bold text-indigo-800">Nova Permuta</span>
+                </button>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-4 bg-slate-800 rounded-xl p-5 text-white shadow-lg flex flex-col md:flex-row items-center justify-between">
+                   <div className="flex items-center gap-4 mb-4 md:mb-0">
+                      <div className="bg-blue-600 p-3 rounded-lg"><Activity size={24}/></div>
+                      <div>
+                         <h3 className="font-bold text-lg">UPI - Tempo Real</h3>
+                         <p className="text-slate-400 text-xs">Atualizado em {upiStats.dataReferencia}</p>
+                      </div>
+                   </div>
+                   <div className="flex gap-8 text-center">
+                      <div>
+                         <p className="text-slate-400 text-xs uppercase font-bold">Ocupação</p>
+                         <p className="text-2xl font-bold text-white">{upiStats.leitosOcupados} <span className="text-sm text-slate-500">/ 15</span></p>
+                      </div>
+                      <div>
+                         <p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p>
+                         <p className="text-2xl font-bold text-yellow-400 flex items-center gap-1 justify-center">
+                            {Number(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/>
+                         </p>
+                      </div>
+                      <div>
+                         <p className="text-slate-400 text-xs uppercase font-bold">Média Fugulin</p>
+                         <p className="text-2xl font-bold text-green-400 flex items-center gap-1 justify-center">
+                            {Number(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/>
+                         </p>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                   <p className="text-slate-500 text-xs uppercase font-bold">Pendências</p>
+                   <h3 className="text-2xl font-bold text-slate-800">{pendingAtestados + pendingPermutas}</h3>
+                </div>
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                   <p className="text-slate-500 text-xs uppercase font-bold">Efetivo</p>
+                   <h3 className="text-2xl font-bold text-slate-800">{REAL_OFFICERS.length}</h3>
+                </div>
+                <div className="md:col-span-2">
+                   <BirthdayWidget staff={REAL_OFFICERS} />
+                </div>
+             </div>
+          </div>
+        );
+      
+      case 'agenda': return <AgendaTab user={user} />;
+      
+      case 'atestados':
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
+             <div className="flex justify-between mb-4">
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShieldAlert className="text-red-500"/> Gestão de Atestados</h3>
+                <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700">Novo Atestado</button>
+             </div>
+             <div className="overflow-x-auto">
+               <table className="w-full text-left text-sm">
+                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Duração</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead>
+                 <tbody className="divide-y divide-slate-50">
+                   {atestados.map((a, idx) => (
+                     <tr key={idx} className={a.status === 'Pendente' ? 'bg-red-50/50' : ''}>
+                       <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${a.status === 'Pendente' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{a.status}</span></td>
+                       <td className="p-3 font-medium">{a.militar}</td>
+                       <td className="p-3 font-medium">{a.dias || '-'} dias</td>
+                       <td className="p-3 text-slate-500">{formatDate(a.inicio || a.data)}</td>
+                       <td className="p-3 flex gap-2">
+                          {a.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(a.id, 'atestado')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
+                          <button onClick={() => handleDelete(a.id, 'atestado')} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+          </div>
+        );
+
+      case 'permutas':
+         return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
+               <div className="flex justify-between mb-4">
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ArrowRightLeft className="text-indigo-500"/> Permutas de Serviço</h3>
+                  <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">Solicitar Permuta</button>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm">
+                   <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Solicitante</th><th className="p-3">Substituto</th><th className="p-3">Datas</th><th className="p-3">Ação</th></tr></thead>
+                   <tbody className="divide-y divide-slate-50">
+                     {permutas.map((p, idx) => (
+                       <tr key={idx} className={p.status === 'Pendente' ? 'bg-indigo-50/50' : ''}>
+                         <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'Pendente' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{p.status}</span></td>
+                         <td className="p-3 font-medium text-red-700">{p.solicitante}</td>
+                         <td className="p-3 font-medium text-green-700">{p.substituto || '---'}</td>
+                         <td className="p-3 text-slate-500">
+                           <div className="flex flex-col text-xs">
+                             <span className="text-red-500">S: {formatDate(p.datasai)}</span>
+                             <span className="text-green-600">E: {formatDate(p.dataentra)}</span>
+                           </div>
+                         </td>
+                         <td className="p-3 flex gap-2">
+                            {p.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(p.id, 'permuta')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
+                            <button onClick={() => handleDelete(p.id, 'permuta')} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+         );
+
+      case 'ferias':
+         return (
+            <div className="space-y-6 animate-fadeIn">
+               <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Palmtree className="text-orange-500"/> Escala de Férias 2026</h3>
+                  <div className="flex gap-2">
+                     <span className="text-xs font-bold px-2 py-1 bg-white border rounded">1º Semestre</span>
+                  </div>
+               </div>
+               <TimelineView vacations={vacations} officers={REAL_OFFICERS} semester={1} userHighlight={user} />
+            </div>
+         );
+
+      case 'efetivo':
+         return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
+              <h3 className="font-bold text-slate-800 mb-4">Efetivo de Oficiais ({REAL_OFFICERS.length})</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3 text-center">#</th><th className="p-3">Nome</th><th className="p-3">Setor</th><th className="p-3">Nascimento</th></tr></thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {REAL_OFFICERS.map(o => (
+                      <tr key={o.id} className="hover:bg-slate-50">
+                        <td className="p-3 text-center font-bold text-slate-400">{o.antiguidade}</td>
+                        <td className="p-3 font-medium text-slate-800">{o.patente} {o.nome}</td>
+                        <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] uppercase font-bold ${o.setor === 'UTI' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{o.setor}</span></td>
+                        <td className="p-3 text-slate-500 font-mono">{o.nascimento}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+         );
+
+      default: return <div>Carregando...</div>;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden">
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all flex flex-col z-20 shadow-xl`}>
-         <div className="p-4 border-b border-slate-800 flex items-center gap-3 h-16">{sidebarOpen && <span className="font-bold text-lg">SGA-Enf {role === 'admin' ? 'Chefia' : role === 'rt' ? 'RT' : 'Oficial'}</span>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto text-slate-400"><Menu size={20}/></button></div>
-         <div className={`p-4 border-b border-slate-800 bg-slate-800/50 ${!sidebarOpen && 'flex justify-center'}`}>
-            <div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg border-2 border-slate-700 ${role === 'admin' ? 'bg-blue-600' : role === 'rt' ? 'bg-purple-600' : 'bg-slate-600'}`}>{user.substring(0,2).toUpperCase()}</div>{sidebarOpen && (<div><p className="font-bold text-sm truncate w-32">{user}</p><p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{role === 'admin' ? 'Administrador' : role === 'rt' ? 'Resp. Técnico' : 'Usuário'}</p></div>)}</div>
+         <div className="p-4 border-b border-slate-800 flex items-center gap-3 h-16">
+            {sidebarOpen && <span className="font-bold text-lg">SGA-Enf {role === 'admin' ? 'Chefia' : role === 'rt' ? 'RT' : 'Oficial'}</span>}
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto text-slate-400"><Menu size={20}/></button>
          </div>
+         
+         <div className={`p-4 border-b border-slate-800 bg-slate-800/50 ${!sidebarOpen && 'flex justify-center'}`}>
+            <div className="flex items-center gap-3">
+               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg border-2 border-slate-700 ${role === 'admin' ? 'bg-blue-600' : role === 'rt' ? 'bg-purple-600' : 'bg-slate-600'}`}>
+                 {user.substring(0,2).toUpperCase()}
+               </div>
+               {sidebarOpen && (
+                 <div>
+                   <p className="font-bold text-sm truncate w-32">{user}</p>
+                   <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                     {role === 'admin' ? 'Administrador' : role === 'rt' ? 'Resp. Técnico' : 'Usuário'}
+                   </p>
+                 </div>
+               )}
+            </div>
+         </div>
+
          <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-            {[ { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard }, { id: 'agenda', label: 'Minha Agenda', icon: BookOpen }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (role === 'admin' || role === 'rt') ? pendingAtestados : 0 }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (role === 'admin' || role === 'rt') ? pendingPermutas : 0 }, { id: 'ferias', label: 'Férias', icon: Palmtree }, { id: 'efetivo', label: 'Efetivo', icon: Users } ].map(item => (
+            {[
+              { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
+              { id: 'agenda', label: 'Minha Agenda', icon: BookOpen },
+              { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (role === 'admin' || role === 'rt') ? pendingAtestados : 0 },
+              { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (role === 'admin' || role === 'rt') ? pendingPermutas : 0 },
+              { id: 'ferias', label: 'Férias', icon: Palmtree },
+              { id: 'efetivo', label: 'Efetivo', icon: Users },
+            ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all group relative ${activeTab === item.id ? 'bg-blue-600 shadow-md text-white' : 'hover:bg-slate-800 text-slate-400'}`}>
-                 <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}</div>{sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                 <div className="relative">
+                    <item.icon size={20}/>
+                    {item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white border-2 border-slate-900">{item.badge}</span>}
+                 </div>
+                 {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
               </button>
             ))}
          </nav>
-         <div className="p-4 border-t border-slate-800"><button onClick={onLogout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button></div>
+
+         <div className="p-4 border-t border-slate-800">
+           <button onClick={onLogout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
+         </div>
       </aside>
+
       <main className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-8 relative">
-         <header className="flex justify-between items-center mb-8"><div><h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2><p className="text-slate-500 text-sm">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div></header>
+         <header className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</h2>
+              <p className="text-slate-500 text-sm">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p>
+            </div>
+         </header>
          {renderContent()}
-         {/* MODAIS */}
+
+         {/* MODAL ATESTADO */}
          {showAtestadoModal && (
            <Modal title="Novo Atestado" onClose={() => setShowAtestadoModal(false)}>
               <form onSubmit={submitAtestado} className="space-y-4">
-                 <div><label className="block text-xs font-bold text-slate-500">Militar</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" /></div>
-                 <div><label className="block text-xs font-bold text-slate-500">Data de Início</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/></div>
-                 <div><label className="block text-xs font-bold text-slate-500">Qtd Dias</label><input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/></div>
-                 <div><label className="block text-xs font-bold text-slate-500">CID (Opcional)</label><input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/></div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Militar</label>
+                    <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Data de Início</label>
+                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Qtd Dias</label>
+                    <input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">CID (Opcional)</label>
+                    <input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/>
+                 </div>
                  <button type="submit" disabled={isSaving} className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : <Send size={18}/>} {isSaving ? "Enviando..." : "Enviar"}</button>
               </form>
            </Modal>
          )}
+
+         {/* MODAL PERMUTA */}
          {showPermutaModal && (
            <Modal title="Nova Permuta" onClose={() => setShowPermutaModal(false)}>
               <form onSubmit={submitPermuta} className="space-y-4">
-                 <div><label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" /></div>
-                 <div><label className="block text-xs font-bold text-slate-500">Data da Saída</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/></div>
-                 <div className="border-t pt-4 mt-4"><label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label><select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}><option value="">Selecione...</option>{REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}</select></div>
-                 <div><label className="block text-xs font-bold text-slate-500">Data da Entrada</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/></div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Data da Saída</label>
+                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/>
+                 </div>
+                 <div className="border-t pt-4 mt-4">
+                    <label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label>
+                    <select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}>
+                       <option value="">Selecione...</option>
+                       {REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500">Data da Entrada</label>
+                    <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/>
+                 </div>
                  <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : <Send size={18}/>} {isSaving ? "Enviando..." : "Solicitar"}</button>
               </form>
            </Modal>
