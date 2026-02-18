@@ -4,7 +4,8 @@ import {
   Menu, LogOut, ShieldAlert, ArrowRightLeft, 
   Star, Sun, Palmtree, CalendarRange, Cake, BookOpen, 
   Plus, Trash2, Lock, CheckCircle, Eye, Thermometer, TrendingDown,
-  Plane, Stethoscope, RefreshCw, Send, X as CloseIcon, Save, Loader2
+  Plane, Stethoscope, RefreshCw, Send, X as CloseIcon, Save, Loader2,
+  Paperclip, ExternalLink
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -43,40 +44,26 @@ const REAL_OFFICERS = [
 ];
 
 const INITIAL_VACATIONS = [];
-
-const INITIAL_UPI_STATS = {
-  leitosOcupados: 8, 
-  totalLeitos: 15,
-  mediaBraden: 0,
-  mediaFugulin: 0,
-  dataReferencia: 'Carregando...'
-};
-
-const INITIAL_ATESTADOS = [
-  { id: 101, militar: 'Cb SEF Pereira', tipo: 'Atestado', cid: 'M54', inicio: '2026-02-10', dias: '3', fim: '2026-02-12', status: 'Homologado' },
-];
+const INITIAL_UPI_STATS = { leitosOcupados: 8, totalLeitos: 15, mediaBraden: 0, mediaFugulin: 0, dataReferencia: 'Carregando...' };
+const INITIAL_ATESTADOS = [];
 const INITIAL_PERMUTAS = [];
 
-// Helper robusto para datas (evita crash com dados ruins)
-const formatDate = (dateInput) => {
-  if (!dateInput) return '-';
-  try {
-    // Converte para string se for número (ex: data do Excel)
-    const dateStr = String(dateInput);
-    
-    // Se for formato YYYY-MM-DD
-    if (dateStr.length === 10 && dateStr.includes('-')) {
-      const [year, month, day] = dateStr.split('-');
-      return `${day}/${month}/${year}`;
-    }
-    
-    // Tentativa padrão
-    const date = new Date(dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr);
-    if (isNaN(date.getTime())) return dateStr; // Retorna original se falhar
-    return date.toLocaleDateString('pt-BR');
-  } catch (e) {
-    return '-';
-  }
+// Helper para data
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString('pt-BR');
+};
+
+// Helper seguro para números (Corrige NaN)
+const safeParseFloat = (value) => {
+  if (value === undefined || value === null || value === '') return 0;
+  if (typeof value === 'number') return value;
+  // Troca vírgula por ponto se for string e tenta converter
+  const cleanValue = String(value).replace(',', '.');
+  const num = parseFloat(cleanValue);
+  return isNaN(num) ? 0 : num;
 };
 
 // --- COMPONENTES ---
@@ -88,12 +75,46 @@ const Modal = ({ title, onClose, children }) => (
         <h3 className="font-bold text-slate-800">{title}</h3>
         <button onClick={onClose}><CloseIcon size={20} className="text-slate-400 hover:text-slate-600" /></button>
       </div>
-      <div className="p-6">
-        {children}
-      </div>
+      <div className="p-6">{children}</div>
     </div>
   </div>
 );
+
+const FileUpload = ({ onFileSelect }) => {
+  const handleChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 6 * 1024 * 1024) {
+        alert("O arquivo excede o limite de 6MB.");
+        e.target.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onFileSelect({
+          name: file.name,
+          type: file.type,
+          base64: reader.result.split(',')[1] 
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1">
+        <Paperclip size={12}/> Anexo (Foto/PDF máx 6MB)
+      </label>
+      <input 
+        type="file" 
+        accept="image/*,application/pdf"
+        onChange={handleChange}
+        className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+      />
+    </div>
+  );
+};
 
 const LoginScreen = ({ onLogin }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -142,23 +163,18 @@ const AgendaTab = ({ user }) => {
   const [newEvent, setNewEvent] = useState({ date: '', title: '', type: 'work' });
 
   useEffect(() => {
-    try {
-      const savedAgenda = localStorage.getItem(`agenda_${user}`);
-      if (savedAgenda) {
-        setEvents(JSON.parse(savedAgenda));
-      } else if (user === 'Cimirro') {
-        const initialCimirro = [
-          { id: 1, date: '2026-03-04', title: 'Aniversário Alice (11 Anos)', type: 'family', details: 'Comprar presente' },
-          { id: 2, date: '2026-05-29', title: 'Aniversário Pedro', type: 'family', details: 'Festa na escola?' },
-          { id: 3, date: '2026-07-05', title: 'Aniversário Fabiane', type: 'family', details: 'Jantar especial' },
-          { id: 4, date: '2026-02-20', title: 'Revisão Renault Symbol', type: 'personal', details: 'Oficina do Beto' }
-        ];
-        setEvents(initialCimirro);
-        localStorage.setItem(`agenda_${user}`, JSON.stringify(initialCimirro));
-      }
-    } catch(e) {
-      console.error("Erro ao carregar agenda", e);
-      setEvents([]);
+    const savedAgenda = localStorage.getItem(`agenda_${user}`);
+    if (savedAgenda) {
+      setEvents(JSON.parse(savedAgenda));
+    } else if (user === 'Cimirro') {
+      const initialCimirro = [
+        { id: 1, date: '2026-03-04', title: 'Aniversário Alice (11 Anos)', type: 'family', details: 'Comprar presente' },
+        { id: 2, date: '2026-05-29', title: 'Aniversário Pedro', type: 'family', details: 'Festa na escola?' },
+        { id: 3, date: '2026-07-05', title: 'Aniversário Fabiane', type: 'family', details: 'Jantar especial' },
+        { id: 4, date: '2026-02-20', title: 'Revisão Renault Symbol', type: 'personal', details: 'Oficina do Beto' }
+      ];
+      setEvents(initialCimirro);
+      localStorage.setItem(`agenda_${user}`, JSON.stringify(initialCimirro));
     }
   }, [user]);
 
@@ -230,10 +246,7 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
   const startMonthIndex = semester === 1 ? 0 : 6;
   const year = 2026;
 
-  // Proteção: Garante que vacations seja array
-  const safeVacations = Array.isArray(vacations) ? vacations : [];
-
-  const filteredVacations = safeVacations.filter(v => {
+  const filteredVacations = (Array.isArray(vacations) ? vacations : []).filter(v => {
     if (!v.inicio) return false;
     const start = new Date(v.inicio);
     return start.getFullYear() === year && start.getMonth() >= startMonthIndex && start.getMonth() < startMonthIndex + 6;
@@ -304,13 +317,10 @@ const TimelineView = ({ vacations, semester, userHighlight }) => {
 const BirthdayWidget = ({ staff }) => {
   const today = new Date(2026, 1, 15);
   const currentMonth = today.getMonth();
-  
-  // Safe parsing
   const birthdays = staff.filter(p => {
       if (!p.nascimento) return false;
       const parts = String(p.nascimento).split('/');
-      // Tratamento para data que venha como YYYY-MM-DD
-      if (parts.length === 1) { // Provavelmente YYYY-MM-DD
+      if (parts.length === 1) { 
          const parts2 = String(p.nascimento).split('-');
          if (parts2.length === 3) return parseInt(parts2[1]) - 1 === currentMonth;
       }
@@ -356,6 +366,7 @@ const MainSystem = ({ user, role, onLogout }) => {
   
   const [formAtestado, setFormAtestado] = useState({ dias: '', inicio: '', cid: '' });
   const [formPermuta, setFormPermuta] = useState({ dataSai: '', substituto: '', dataEntra: '' });
+  const [fileData, setFileData] = useState(null); // Estado para o arquivo
 
   const [officers, setOfficers] = useState(REAL_OFFICERS);
   const [atestados, setAtestados] = useState(INITIAL_ATESTADOS);
@@ -387,7 +398,14 @@ const MainSystem = ({ user, role, onLogout }) => {
              const text2 = await res2.text();
              if (!text2.trim().startsWith('<')) {
                 const data2 = JSON.parse(text2);
-                if (data2.upiStats) setUpiStats(data2.upiStats);
+                // Valida e aplica os dados de indicadores
+                if (data2.upiStats) {
+                   setUpiStats({
+                     ...data2.upiStats,
+                     mediaBraden: safeParseFloat(data2.upiStats.mediaBraden),
+                     mediaFugulin: safeParseFloat(data2.upiStats.mediaFugulin)
+                   });
+                }
              }
         }
       }
@@ -399,8 +417,11 @@ const MainSystem = ({ user, role, onLogout }) => {
       setLoading(false);
     }
   };
-
-  useEffect(() => { if (activeTab === 'dashboard') refreshData(false); }, [activeTab]);
+  
+  // Atualização inicial apenas
+  useEffect(() => {
+    refreshData(false);
+  }, []);
 
   const sendData = async (action, payload) => {
     setIsSaving(true);
@@ -451,12 +472,14 @@ const MainSystem = ({ user, role, onLogout }) => {
       inicio: formAtestado.inicio,
       data: formAtestado.inicio, 
       dias: formAtestado.dias, 
-      cid: formAtestado.cid || 'Sigiloso'
+      cid: formAtestado.cid || 'Sigiloso',
+      file: fileData // Inclui arquivo se houver
     };
     setAtestados([newItem, ...atestados]);
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
+    setFileData(null);
     alert("Atestado enviado!");
   };
 
@@ -468,16 +491,19 @@ const MainSystem = ({ user, role, onLogout }) => {
       solicitante: user,
       substituto: formPermuta.substituto,
       datasai: formPermuta.dataSai,
-      dataentra: formPermuta.dataEntra
+      dataentra: formPermuta.dataEntra,
+      file: fileData // Inclui arquivo se houver
     };
     setPermutas([newItem, ...permutas]);
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
+    setFileData(null);
     alert("Permuta enviada!");
   };
 
   const handleRequest = (type) => {
+    setFileData(null);
     if (type === 'atestado') setShowAtestadoModal(true);
     if (type === 'permuta') setShowPermutaModal(true);
   };
@@ -532,13 +558,13 @@ const MainSystem = ({ user, role, onLogout }) => {
                       <div>
                          <p className="text-slate-400 text-xs uppercase font-bold">Média Braden</p>
                          <p className="text-2xl font-bold text-yellow-400 flex items-center gap-1 justify-center">
-                            {Number(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/>
+                            {safeParseFloat(upiStats.mediaBraden).toFixed(1)} <Thermometer size={14}/>
                          </p>
                       </div>
                       <div>
                          <p className="text-slate-400 text-xs uppercase font-bold">Média Fugulin</p>
                          <p className="text-2xl font-bold text-green-400 flex items-center gap-1 justify-center">
-                            {Number(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/>
+                            {safeParseFloat(upiStats.mediaFugulin).toFixed(1)} <TrendingDown size={14}/>
                          </p>
                       </div>
                    </div>
@@ -570,7 +596,7 @@ const MainSystem = ({ user, role, onLogout }) => {
              </div>
              <div className="overflow-x-auto">
                <table className="w-full text-left text-sm">
-                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Duração</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead>
+                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Militar</th><th className="p-3">Duração</th><th className="p-3">Data</th><th className="p-3">Anexo</th><th className="p-3">Ação</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
                    {atestados.map((a, idx) => (
                      <tr key={idx} className={a.status === 'Pendente' ? 'bg-red-50/50' : ''}>
@@ -578,6 +604,11 @@ const MainSystem = ({ user, role, onLogout }) => {
                        <td className="p-3 font-medium">{a.militar}</td>
                        <td className="p-3 font-medium">{a.dias || '-'} dias</td>
                        <td className="p-3 text-slate-500">{formatDate(a.inicio || a.data)}</td>
+                       <td className="p-3">
+                         {a.anexo && a.anexo.startsWith('http') ? 
+                           <a href={a.anexo} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"><Paperclip size={12}/> Ver</a> 
+                           : <span className="text-slate-300 text-xs">-</span>}
+                       </td>
                        <td className="p-3 flex gap-2">
                           {a.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(a.id, 'atestado')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
                           <button onClick={() => handleDelete(a.id, 'atestado')} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
@@ -599,7 +630,7 @@ const MainSystem = ({ user, role, onLogout }) => {
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm">
-                   <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Solicitante</th><th className="p-3">Substituto</th><th className="p-3">Datas</th><th className="p-3">Ação</th></tr></thead>
+                   <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Status</th><th className="p-3">Solicitante</th><th className="p-3">Substituto</th><th className="p-3">Datas</th><th className="p-3">Anexo</th><th className="p-3">Ação</th></tr></thead>
                    <tbody className="divide-y divide-slate-50">
                      {permutas.map((p, idx) => (
                        <tr key={idx} className={p.status === 'Pendente' ? 'bg-indigo-50/50' : ''}>
@@ -611,6 +642,11 @@ const MainSystem = ({ user, role, onLogout }) => {
                              <span className="text-red-500">S: {formatDate(p.datasai)}</span>
                              <span className="text-green-600">E: {formatDate(p.dataentra)}</span>
                            </div>
+                         </td>
+                         <td className="p-3">
+                           {p.anexo && p.anexo.startsWith('http') ? 
+                             <a href={p.anexo} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"><Paperclip size={12}/> Ver</a> 
+                             : <span className="text-slate-300 text-xs">-</span>}
                          </td>
                          <td className="p-3 flex gap-2">
                             {p.status === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(p.id, 'permuta')} className="text-blue-600 font-bold text-xs hover:underline">Homologar</button>}
@@ -740,6 +776,7 @@ const MainSystem = ({ user, role, onLogout }) => {
                     <label className="block text-xs font-bold text-slate-500">CID (Opcional)</label>
                     <input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/>
                  </div>
+                 <FileUpload onFileSelect={setFileData} />
                  <button type="submit" disabled={isSaving} className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : <Send size={18}/>} {isSaving ? "Enviando..." : "Enviar"}</button>
               </form>
            </Modal>
@@ -750,7 +787,8 @@ const MainSystem = ({ user, role, onLogout }) => {
            <Modal title="Nova Permuta" onClose={() => setShowPermutaModal(false)}>
               <form onSubmit={submitPermuta} className="space-y-4">
                  <div>
-                    <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label><input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
+                    <label className="block text-xs font-bold text-slate-500">Solicitante (Sai)</label>
+                    <input type="text" value={user} disabled className="w-full p-2 bg-slate-100 rounded border border-slate-300 text-slate-500" />
                  </div>
                  <div>
                     <label className="block text-xs font-bold text-slate-500">Data da Saída</label>
@@ -767,6 +805,7 @@ const MainSystem = ({ user, role, onLogout }) => {
                     <label className="block text-xs font-bold text-slate-500">Data da Entrada</label>
                     <input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/>
                  </div>
+                 <FileUpload onFileSelect={setFileData} />
                  <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : <Send size={18}/>} {isSaving ? "Enviando..." : "Solicitar"}</button>
               </form>
            </Modal>
@@ -787,6 +826,7 @@ const UserDashboard = ({ user, onLogout }) => {
   
   const [formAtestado, setFormAtestado] = useState({ dias: '', inicio: '', cid: '' });
   const [formPermuta, setFormPermuta] = useState({ dataSai: '', substituto: '', dataEntra: '' });
+  const [fileData, setFileData] = useState(null);
 
   const fetchUserHistory = async () => {
     setLoadingHistory(true);
@@ -850,13 +890,15 @@ const UserDashboard = ({ user, onLogout }) => {
       militar: user, 
       inicio: formAtestado.inicio,
       data: formAtestado.inicio, 
-      dias: formAtestado.dias, // Chave em minúscula
-      cid: formAtestado.cid || 'Sigiloso'
+      dias: formAtestado.dias, 
+      cid: formAtestado.cid || 'Sigiloso',
+      file: fileData
     };
     setMyAtestados([newItem, ...myAtestados]);
     sendData('saveAtestado', newItem);
     setShowAtestadoModal(false);
     setFormAtestado({ dias: '', inicio: '', cid: '' });
+    setFileData(null);
   };
 
   const submitPermuta = (e) => {
@@ -866,13 +908,15 @@ const UserDashboard = ({ user, onLogout }) => {
       status: 'Pendente',
       solicitante: user,
       substituto: formPermuta.substituto,
-      datasai: formPermuta.dataSai, // Chave em minúscula
-      dataentra: formPermuta.dataEntra // Chave em minúscula
+      datasai: formPermuta.dataSai,
+      dataentra: formPermuta.dataEntra,
+      file: fileData
     };
     setMyPermutas([newItem, ...myPermutas]);
     sendData('savePermuta', newItem);
     setShowPermutaModal(false);
     setFormPermuta({ dataSai: '', substituto: '', dataEntra: '' });
+    setFileData(null);
   };
 
   return (
@@ -953,6 +997,7 @@ const UserDashboard = ({ user, onLogout }) => {
              <div><label className="block text-xs font-bold text-slate-500">Data de Início</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.inicio} onChange={e => setFormAtestado({...formAtestado, inicio: e.target.value})}/></div>
              <div><label className="block text-xs font-bold text-slate-500">Qtd Dias</label><input type="number" required className="w-full p-2 rounded border border-slate-300" value={formAtestado.dias} onChange={e => setFormAtestado({...formAtestado, dias: e.target.value})}/></div>
              <div><label className="block text-xs font-bold text-slate-500">CID (Opcional)</label><input type="text" className="w-full p-2 rounded border border-slate-300" value={formAtestado.cid} onChange={e => setFormAtestado({...formAtestado, cid: e.target.value})}/></div>
+             <FileUpload onFileSelect={setFileData} />
              <button type="submit" disabled={isSaving} className="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 flex justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : <Send size={18}/>} {isSaving ? "Enviando..." : "Enviar"}</button>
           </form>
        </Modal>
@@ -964,6 +1009,7 @@ const UserDashboard = ({ user, onLogout }) => {
              <div><label className="block text-xs font-bold text-slate-500">Data da Saída</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataSai} onChange={e => setFormPermuta({...formPermuta, dataSai: e.target.value})}/></div>
              <div className="border-t pt-4 mt-4"><label className="block text-xs font-bold text-slate-500">Substituto (Entra)</label><select className="w-full p-2 rounded border border-slate-300 bg-white" required value={formPermuta.substituto} onChange={e => setFormPermuta({...formPermuta, substituto: e.target.value})}><option value="">Selecione...</option>{REAL_OFFICERS.map(o => <option key={o.id} value={o.nome}>{o.patente} {o.nome}</option>)}</select></div>
              <div><label className="block text-xs font-bold text-slate-500">Data da Entrada</label><input type="date" required className="w-full p-2 rounded border border-slate-300" value={formPermuta.dataEntra} onChange={e => setFormPermuta({...formPermuta, dataEntra: e.target.value})}/></div>
+             <FileUpload onFileSelect={setFileData} />
              <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 flex justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : <Send size={18}/>} {isSaving ? "Enviando..." : "Solicitar"}</button>
           </form>
        </Modal>
