@@ -14,7 +14,6 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 
 // --- HELPERS DE DADOS ---
 
-// Busca valores na linha da planilha ignorando maiúsculas/minúsculas e espaços
 const getVal = (obj, searchTerms) => {
   if (!obj) return "";
   const keys = Object.keys(obj);
@@ -25,7 +24,6 @@ const getVal = (obj, searchTerms) => {
   return foundKey ? obj[foundKey] : "";
 };
 
-// Converte string de data para objeto Date (Suporta Brasil e ISO)
 const parseDate = (dateStr) => {
   if (!dateStr) return null;
   const s = String(dateStr).trim();
@@ -70,7 +68,7 @@ const safeParseFloat = (value) => {
 // --- COMPONENTES ---
 
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 font-sans">
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeIn border border-slate-200">
       <div className="p-4 border-b flex justify-between items-center bg-slate-50">
         <h3 className="font-bold text-slate-800">{title}</h3>
@@ -86,7 +84,7 @@ const FileUpload = ({ onFileSelect }) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 6 * 1024 * 1024) {
-        alert("O arquivo excede o limite de 6MB.");
+        alert("O ficheiro excede o limite de 6MB.");
         e.target.value = "";
         return;
       }
@@ -111,13 +109,15 @@ const LoginScreen = ({ onLogin, officersList, isLoading }) => {
   
   const filtered = roleGroup === 'chefia' 
     ? officersList.filter(o => {
-        const r = getVal(o, ['role']).toLowerCase();
-        const n = getVal(o, ['nome']);
-        return r === 'admin' || r === 'rt' || n === 'Cimirro' || n === 'Zanini';
+        const r = String(getVal(o, ['role'])).toLowerCase();
+        const n = String(getVal(o, ['nome']));
+        // Chefia se: role admin/rt OU se for Cimirro/Zanini manualmente
+        return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini');
       }) 
     : officersList.filter(o => {
-        const r = getVal(o, ['role']).toLowerCase();
-        return r !== 'admin' && r !== 'rt';
+        const r = String(getVal(o, ['role'])).toLowerCase();
+        const n = String(getVal(o, ['nome']));
+        return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini');
       });
 
   return (
@@ -128,7 +128,7 @@ const LoginScreen = ({ onLogin, officersList, isLoading }) => {
               <Plane size={32} className="text-white"/>
            </div>
            <h1 className="text-2xl font-bold text-slate-800">SGA-Enf HACO</h1>
-           <p className="text-slate-500 text-sm">Gestão de Enfermagem</p>
+           <p className="text-slate-500 text-sm tracking-tight">Gestão de Enfermagem</p>
         </div>
         
         <div className="bg-slate-100 p-1 rounded-xl flex mb-6">
@@ -138,29 +138,96 @@ const LoginScreen = ({ onLogin, officersList, isLoading }) => {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Militar</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1 tracking-wider">Militar</label>
             <select className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none" value={user} onChange={e => setUser(e.target.value)}>
-               <option value="">{isLoading ? "A carregar militares..." : "Selecione..."}</option>
+               <option value="">{isLoading ? "A carregar..." : "Selecione o seu nome..."}</option>
                {filtered.map((o, idx) => (
                  <option key={idx} value={getVal(o, ['nome'])}>
                    {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
                  </option>
                ))}
-               {!isLoading && filtered.length === 0 && <option value="">Nenhum militar encontrado na planilha.</option>}
             </select>
           </div>
 
           <button 
              onClick={() => {
                 const selectedUser = officersList.find(o => getVal(o, ['nome']) === user);
-                if (selectedUser) onLogin(getVal(selectedUser, ['nome']), getVal(selectedUser, ['role']) || 'user');
+                if (selectedUser) {
+                   const nome = getVal(selectedUser, ['nome']);
+                   let role = getVal(selectedUser, ['role']) || 'user';
+                   
+                   // DIFERENCIAÇÃO MANUAL: Garante acesso admin para nomes específicos
+                   if (nome.includes('Cimirro') || nome.includes('Zanini')) {
+                      role = 'admin';
+                   }
+                   
+                   onLogin(nome, role);
+                }
              }} 
              disabled={!user || isLoading} 
              className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30' : 'bg-slate-300 cursor-not-allowed'}`}
           >
-             {isLoading ? "SINCRONIZANDO..." : "ACESSAR SISTEMA"}
+             {isLoading ? "A SINCRONIZAR..." : "ACESSAR SISTEMA"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const AgendaTab = ({ user }) => {
+  const [events, setEvents] = useState([]);
+  const [newEvent, setNewEvent] = useState({ date: '', title: '', type: 'work' });
+
+  useEffect(() => {
+    const savedAgenda = localStorage.getItem(`agenda_${user}`);
+    if (savedAgenda) setEvents(JSON.parse(savedAgenda));
+  }, [user]);
+
+  const addEvent = (e) => {
+    e.preventDefault();
+    const updatedEvents = [...events, { id: Date.now(), ...newEvent }];
+    setEvents(updatedEvents);
+    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents));
+    setNewEvent({ date: '', title: '', type: 'work' });
+  };
+
+  const deleteEvent = (id) => {
+    const updatedEvents = events.filter(e => e.id !== id);
+    setEvents(updatedEvents);
+    localStorage.setItem(`agenda_${user}`, JSON.stringify(updatedEvents));
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-fit">
+         <h3 className="font-bold text-slate-700 mb-4 flex gap-2"><Plus size={18}/> Novo Evento</h3>
+         <form onSubmit={addEvent} className="space-y-3">
+            <input type="date" className="w-full p-2 border rounded text-sm" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} required />
+            <input type="text" placeholder="Título" className="w-full p-2 border rounded text-sm" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} required />
+            <select className="w-full p-2 border rounded text-sm bg-white" value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value})}>
+               <option value="work">Trabalho</option>
+               <option value="family">Família</option>
+               <option value="personal">Pessoal</option>
+            </select>
+            <button type="submit" className="w-full bg-slate-800 text-white font-bold py-2 rounded text-sm hover:bg-slate-700">Adicionar</button>
+         </form>
+      </div>
+
+      <div className="md:col-span-2 space-y-4">
+         <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen className="text-indigo-500"/> Agenda de {user}</h3>
+         {events.sort((a,b) => new Date(a.date) - new Date(b.date)).map(ev => (
+            <div key={ev.id} className="bg-white p-4 rounded-xl border-l-4 shadow-sm flex justify-between items-start" style={{borderLeftColor: ev.type === 'family' ? '#ec4899' : ev.type === 'personal' ? '#8b5cf6' : '#3b82f6'}}>
+               <div className="flex gap-4">
+                  <div className="text-center min-w-[50px]">
+                     <div className="text-xs font-bold text-slate-400 uppercase">{new Date(ev.date + 'T12:00:00').toLocaleDateString('pt-BR', {month:'short'})}</div>
+                     <div className="text-xl font-bold text-slate-800">{new Date(ev.date + 'T12:00:00').getDate()}</div>
+                  </div>
+                  <div><h4 className="font-bold text-slate-800">{ev.title}</h4><p className="text-sm text-slate-500">{ev.type.toUpperCase()}</p></div>
+               </div>
+               <button onClick={() => deleteEvent(ev.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
+            </div>
+         ))}
       </div>
     </div>
   );
@@ -213,9 +280,9 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
              });
           }
       }
-      if (showFeedback) alert("Sincronizado!");
+      if (showFeedback) alert("Dados sincronizados com o Banco de Dados!");
     } catch(e) {
-      if (showFeedback) alert(`Erro: ${e.message}`);
+      if (showFeedback) alert(`Erro de conexão: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -240,18 +307,18 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
   };
 
   const handleHomologar = (id, type) => {
-    if (role !== 'admin') return alert("Ação restrita.");
+    if (role !== 'admin') return alert("Ação restrita à Chefia.");
     sendData('updateStatus', { sheet: type === 'atestado' ? 'Atestados' : 'Permutas', id: id, status: 'Homologado' });
   };
 
   const renderContent = () => {
-    if (loading) return <div className="p-20 text-center text-slate-400 flex flex-col items-center gap-4"><Loader2 className="animate-spin text-blue-600" size={40}/>Sincronizando com Banco de Dados...</div>;
+    if (loading) return <div className="p-20 text-center text-slate-400 flex flex-col items-center gap-4"><Loader2 className="animate-spin text-blue-600" size={40}/>Lendo dados da Planilha...</div>;
     
     switch(activeTab) {
       case 'dashboard':
         return (
           <div className="space-y-6 animate-fadeIn">
-             <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-slate-800">Painel Geral</h2><button onClick={() => refreshData(true)} className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-blue-600 text-sm font-bold flex items-center gap-2 hover:bg-slate-50 transition-all"><RefreshCw size={14}/> Sincronizar</button></div>
+             <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-slate-800">Painel de Comando</h2><button onClick={() => refreshData(true)} className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-blue-600 text-sm font-bold flex items-center gap-2 hover:bg-slate-50 transition-all"><RefreshCw size={14}/> Sincronizar</button></div>
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="md:col-span-4 bg-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between border border-slate-700">
                    <div className="flex items-center gap-4 mb-4 md:mb-0"><div className="bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-500/20"><Activity size={28}/></div><div><h3 className="font-bold text-xl">Monitoramento UPI</h3><p className="text-slate-400 text-xs">Atualizado em {upiStats.dataReferencia}</p></div></div>
@@ -292,7 +359,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
         );
       case 'efetivo':
          return (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fadeIn">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users className="text-blue-600"/> Efetivo de Oficiais ({globalOfficers.length})</h3>
                 <div className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase flex items-center gap-2 border border-red-100 shadow-sm"><AlertCircle size={14}/> Alertas: Idade $\ge 45$ | Serviço $\ge 7$</div>
@@ -335,7 +402,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
     <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden">
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl`}>
          <div className="p-5 border-b border-slate-800 flex items-center gap-3 h-20">{sidebarOpen && <span className="font-bold text-lg tracking-tight">SGA-Enf HACO</span>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto text-slate-400 hover:text-white transition-colors"><Menu size={20}/></button></div>
-         <div className={`p-5 border-b border-slate-800 bg-slate-800/30 ${!sidebarOpen && 'flex justify-center'}`}><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-lg bg-blue-600 border border-blue-400/30">{user.substring(0,2).toUpperCase()}</div>{sidebarOpen && (<div><p className="font-bold text-sm truncate w-32">{user}</p><p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">{role}</p></div>)}</div></div>
+         <div className={`p-5 border-b border-slate-800 bg-slate-800/50 ${!sidebarOpen && 'flex justify-center'}`}><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-lg bg-blue-600 border border-blue-400/30`}>{user.substring(0,2).toUpperCase()}</div>{sidebarOpen && (<div><p className="font-bold text-sm truncate w-32">{user}</p><p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest capitalize">{role}</p></div>)}</div></div>
          <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
             {[ { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: pendingAtestados }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: pendingPermutas }, { id: 'efetivo', label: 'Efetivo', icon: Users }, { id: 'agenda', label: 'Minha Agenda', icon: BookOpen } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all relative group ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
@@ -470,7 +537,6 @@ export default function App() {
       const res = await fetch(`${API_URL_GESTAO}?action=getData`);
       if (res.ok) {
         const data = await res.json();
-        // Aqui está a chave: se data.officers vier vazio, o estado 'officers' ficará vazio.
         setOfficers(data.officers || []);
       }
     } catch (e) { console.error("Erro carga militares", e); }
