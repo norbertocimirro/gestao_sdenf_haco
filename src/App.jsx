@@ -45,7 +45,6 @@ const formatDate = (dateInput) => {
   return date.toLocaleDateString('pt-BR');
 };
 
-// Cálculo detalhado: Anos, Meses e Dias
 const calculateDetailedTime = (dateInput) => {
   const date = parseDate(dateInput);
   if (!date) return { y: 0, m: 0, d: 0 };
@@ -111,6 +110,44 @@ const FileUpload = ({ onFileSelect }) => {
     <div className="mt-2 p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl">
       <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-1 tracking-widest"><Paperclip size={12}/> Anexo (Foto/PDF)</label>
       <input type="file" accept="image/*,application/pdf" onChange={handleChange} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
+    </div>
+  );
+};
+
+const BirthdayWidget = ({ staff }) => {
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  
+  const birthdays = staff.filter(p => {
+    const d = parseDate(getVal(p, ['nasc']));
+    return d && d.getMonth() === currentMonth;
+  }).sort((a, b) => {
+    const dayA = parseDate(getVal(a, ['nasc'])).getDate();
+    const dayB = parseDate(getVal(b, ['nasc'])).getDate();
+    return dayA - dayB;
+  });
+
+  return (
+    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+      <div className="p-5 bg-gradient-to-br from-pink-500 to-rose-600 text-white flex justify-between items-center">
+        <h3 className="font-black flex items-center gap-2 text-xs uppercase tracking-widest"><Cake size={18} /> Aniversários do Mês</h3>
+      </div>
+      <div className="p-5 flex-1 overflow-y-auto max-h-[300px] space-y-3">
+        {birthdays.map((p, i) => {
+           const d = parseDate(getVal(p, ['nasc']));
+           return (
+           <div key={i} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl border border-transparent hover:border-slate-100 transition-all">
+              <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center text-sm font-black shadow-sm">
+                 {d.getDate()}
+              </div>
+              <div className="flex-1">
+                 <p className="text-sm font-black text-slate-800 tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{getVal(p, ['setor'])}</p>
+              </div>
+           </div>
+        )})}
+        {birthdays.length === 0 && <p className="text-center py-10 text-slate-400 text-xs font-bold uppercase">Nenhum aniversariante</p>}
+      </div>
     </div>
   );
 };
@@ -307,6 +344,9 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 group hover:border-red-200 transition-all"><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 group-hover:text-red-500">Atestados Pendentes</p><h3 className="text-4xl font-black text-red-600">{pendingAtestados}</h3></div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 group hover:border-indigo-200 transition-all"><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 group-hover:text-indigo-500">Permutas Pendentes</p><h3 className="text-4xl font-black text-indigo-600">{pendingPermutas}</h3></div>
+                <div className="md:col-span-2 row-span-2">
+                   <BirthdayWidget staff={globalOfficers} />
+                </div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 md:col-span-2 flex items-center justify-between group hover:border-blue-200 transition-all"><div className="flex flex-col"><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 group-hover:text-blue-500">Efetivo Cadastrado</p><h3 className="text-4xl font-black text-slate-800">{globalOfficers.length}</h3></div><div className="bg-slate-50 p-4 rounded-2xl text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50 transition-all"><Users size={32}/></div></div>
              </div>
           </div>
@@ -335,7 +375,6 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
           </div>
         );
       case 'efetivo':
-         // Ordena por antiguidade
          const sortedOfficers = [...globalOfficers].sort((a,b) => {
             const antA = parseInt(getVal(a, ['antiguidade'])) || 999;
             const antB = parseInt(getVal(b, ['antiguidade'])) || 999;
@@ -353,7 +392,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-black tracking-[0.15em]">
-                    <tr><th className="p-5 text-center w-16">Ant.</th><th className="p-5">Posto/Nome</th><th className="p-5">Setor</th><th className="p-5 text-center">Nascimento</th><th className="p-5 text-center">Idade Detalhada</th><th className="p-5 text-center">Tempo de Serviço</th><th className="p-5 text-right">Gerir</th></tr>
+                    <tr><th className="p-5 text-center w-16">Ant.</th><th className="p-5">Posto/Nome</th><th className="p-5">Setor</th><th className="p-5 text-center">Nascimento</th><th className="p-5 text-center">Idade Detalhada</th><th className="p-5 text-center">Data de Praça</th><th className="p-5 text-center">Tempo de Serviço</th><th className="p-5 text-right">Gerir</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {sortedOfficers.map((o, idx) => {
@@ -376,6 +415,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                              <span className="text-[9px] uppercase">{idade.m}m {idade.d}d</span>
                            </div>
                         </td>
+                        <td className="p-5 text-center text-slate-400 font-mono text-xs font-bold">{formatDate(ingresso)}</td>
                         <td className={`p-5 text-center font-bold text-xs ${alertaServico ? 'text-red-600 bg-red-50' : 'text-slate-600'}`}>
                            <div className="flex flex-col">
                              <span className="text-base font-black">{servico.y}a</span>
@@ -393,6 +433,30 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                   </tbody>
                 </table>
               </div>
+            </div>
+         );
+      case 'permutas':
+         return (
+            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-8 animate-fadeIn">
+               <div className="flex justify-between items-center mb-8">
+                  <h3 className="font-black text-slate-800 text-xl flex items-center gap-3 uppercase tracking-tighter"><ArrowRightLeft className="text-indigo-500" size={24}/> Permutas de Serviço</h3>
+                  <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 transition-all active:scale-95">Nova Solicitação</button>
+               </div>
+               <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-black tracking-widest"><tr><th className="p-5">Status</th><th className="p-5">Solicitante</th><th className="p-5">Substituto</th><th className="p-5">Saída</th><th className="p-5">Entrada</th><th className="p-5 text-center">Anexo</th><th className="p-5 text-right">Ação</th></tr></thead>
+                   <tbody className="divide-y divide-slate-100">
+                     {permutas.map((p, idx) => (
+                       <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                         <td className="p-5"><span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${getVal(p, ['status']) === 'Pendente' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{getVal(p, ['status'])}</span></td>
+                         <td className="p-5 font-bold text-slate-800">{getVal(p, ['solicitante'])}</td>
+                         <td className="p-5 font-bold text-slate-600">{getVal(p, ['substituto'])}</td>
+                         <td className="p-5 text-red-500 font-mono text-xs font-bold">{formatDate(getVal(p, ['datasai', 'sai']))}</td>
+                         <td className="p-5 text-green-600 font-mono text-xs font-bold">{formatDate(getVal(p, ['dataentra', 'entra']))}</td>
+                         <td className="p-5 text-center">{getVal(p, ['anexo']) ? <a href={getVal(p, ['anexo'])} target="_blank" className="text-blue-600 inline-block bg-blue-50 p-2.5 rounded-xl hover:bg-blue-100 transition-all"><Paperclip size={16}/></a> : '-'}</td>
+                         <td className="p-5 text-right">{getVal(p, ['status']) === 'Pendente' && role === 'admin' && <button onClick={() => handleHomologar(getVal(p, ['id']), 'permuta')} className="text-blue-600 font-black uppercase text-[10px] tracking-widest hover:underline">Homologar</button>}</td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table></div>
             </div>
          );
       case 'agenda': return <AgendaTab user={user} />;
@@ -432,7 +496,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                     <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Patente</label><input type="text" placeholder="Ex: 1º Ten Enf" className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold" value={formOfficer.patente} onChange={e => setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
                     <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Antiguidade</label><input type="number" required className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold" value={formOfficer.antiguidade} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
                     <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Nascimento</label><input type="date" className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold" value={formOfficer.nascimento} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
-                    <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Ingresso</label><input type="date" className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold" value={formOfficer.ingresso} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
+                    <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Ingresso (Praça)</label><input type="date" className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold" value={formOfficer.ingresso} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
                     <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Setor</label><select className="w-full p-4 rounded-2xl border border-slate-200 bg-white font-bold" value={formOfficer.setor} onChange={e => setFormOfficer({...formOfficer, setor: e.target.value})}><option value="UPI">UPI</option><option value="UTI">UTI</option><option value="Chefia">Chefia</option></select></div>
                     <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Acesso</label><select className="w-full p-4 rounded-2xl border border-slate-200 bg-white font-bold" value={formOfficer.role} onChange={e => setFormOfficer({...formOfficer, role: e.target.value})}><option value="user">Usuário</option><option value="rt">Resp. Técnico</option><option value="admin">Administrador</option></select></div>
                  </div>
