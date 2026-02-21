@@ -15,7 +15,7 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
-// --- HELPERS DE SEGURANÇA ---
+// --- HELPERS DE SEGURANÇA E LEITURA ---
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -99,7 +99,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) return (
         <div className="min-h-screen bg-slate-100 p-8 flex flex-col items-center justify-center font-sans">
-          <div className="bg-white p-8 rounded-3xl shadow-xl border border-red-200 text-center"><AlertCircle size={64} className="text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Erro de Interface</h1><button onClick={() => {localStorage.removeItem('sga_data_cache'); window.location.reload();}} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Limpar Cache e Recarregar</button></div>
+          <div className="bg-white p-8 rounded-3xl shadow-xl border border-red-200 text-center"><AlertCircle size={64} className="text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Erro de Interface</h1><p className="text-slate-500 mb-4 text-sm">{this.state.error?.toString()}</p><button onClick={() => {localStorage.removeItem('sga_app_cache'); window.location.reload();}} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Limpar Cache e Recarregar</button></div>
         </div>
       );
     return this.props.children;
@@ -131,7 +131,7 @@ const BirthdayWidget = ({ staff }) => {
   return (
     <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full font-sans">
       <div className="p-4 bg-gradient-to-br from-pink-500 to-rose-600 text-white flex justify-between items-center">
-        <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest"><Cake size={16} /> Aniversariantes do Mês</h3>
+        <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest"><Cake size={14} /> Aniversariantes do Mês</h3>
       </div>
       <div className="p-3 flex-1 overflow-y-auto max-h-[250px] space-y-2">
         {birthdays.map((p, i) => (
@@ -148,7 +148,7 @@ const BirthdayWidget = ({ staff }) => {
 
 // --- ECRÃ DE LOGIN ---
 
-const LoginScreen = ({ onLogin, appData, isSyncing }) => {
+const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
   const [user, setUser] = useState('');
   
@@ -168,9 +168,8 @@ const LoginScreen = ({ onLogin, appData, isSyncing }) => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      <div className="absolute top-4 right-4 flex items-center gap-2">
-         {isSyncing && <span className="flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-3 py-1.5 rounded-full"><Loader2 size={12} className="animate-spin"/> Sincronizando</span>}
-      </div>
+      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
+      
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
         <div className="text-center mb-8">
            <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
@@ -180,6 +179,13 @@ const LoginScreen = ({ onLogin, appData, isSyncing }) => {
            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
         </div>
         
+        {syncError && (
+           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
+              <span>⚠️ Falha na Leitura</span>
+              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
+           </div>
+        )}
+
         <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
            <button onClick={() => setRoleGroup('chefia')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
            <button onClick={() => setRoleGroup('tropa')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
@@ -188,11 +194,17 @@ const LoginScreen = ({ onLogin, appData, isSyncing }) => {
         <div className="space-y-4">
           <div className="relative">
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
-            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
-               <option value="">{isSyncing && list.length === 0 ? "A carregar dados..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
+            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
+               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
+               {filtered.map((o, idx) => (
+                 <option key={idx} value={getVal(o, ['nome'])}>
+                   {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
+                 </option>
+               ))}
+               {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
           </div>
+
           <button 
              onClick={() => {
                 const selectedUser = list.find(o => getVal(o, ['nome']) === user);
@@ -203,7 +215,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing }) => {
                    onLogin(nome, role);
                 }
              }} 
-             disabled={!user} 
+             disabled={!user || isSyncing} 
              className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}
           >
              Entrar no Sistema
@@ -288,7 +300,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     try {
       await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload }) });
       setTimeout(() => { setIsSaving(false); setShowOfficerModal(false); syncData(true); }, 1500); 
-    } catch (e) { setIsSaving(false); alert("Falha na gravação. Verifique a internet."); }
+    } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
   const handleToggleExpediente = (local) => {
@@ -315,8 +327,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const SortableHeader = ({ label, sortKey, align = 'left' }) => {
     const isActive = sortConfig.key === sortKey;
     return (
-      <th className="p-3 md:p-4 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort(sortKey)}>
-        <div className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''} ${isActive ? 'text-blue-600 font-black' : 'text-slate-400'}`}>
+      <th className={`p-3 md:p-4 cursor-pointer hover:bg-slate-100 transition-colors select-none ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`} onClick={() => handleSort(sortKey)}>
+        <div className={`inline-flex items-center gap-1 ${isActive ? 'text-blue-600 font-black' : 'text-slate-400'}`}>
           {label} {isActive ? (sortConfig.direction === 'asc' ? <ChevronUp size={12}/> : <ChevronDown size={12}/>) : <ChevronsUpDown size={12} className="opacity-40"/>}
         </div>
       </th>
@@ -343,18 +355,18 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                 </div>
                 <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
-                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                 </div>
                 <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo</p>
-                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{appData.officers.length}</h3>
+                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{(appData.officers||[]).length}</h3>
                 </div>
                 <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[250px]"><BirthdayWidget staff={appData.officers}/></div>
             </div>
           </div>
         );
       case 'efetivo':
-         const sortedOfficers = [...appData.officers].sort((a,b) => {
+         const sortedOfficers = [...(appData.officers||[])].sort((a,b) => {
             const { key, direction } = sortConfig;
             let valA, valB;
             if (key === 'antiguidade') {
@@ -381,7 +393,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                 <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça / Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
+                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
                   </thead><tbody className="divide-y divide-slate-50">
                     {sortedOfficers.map((o, i) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
@@ -408,7 +420,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Gestão de Atestados</h3>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    {appData.atestados.map((a, i) => (
+                    {(appData.atestados||[]).map((a, i) => (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
                         <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase">{getVal(a,['militar'])}</td>
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
@@ -417,7 +429,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                         <td className="p-4 text-right">{getVal(a,['status']) === 'Pendente' && <button onClick={()=>sendData('updateStatus',{sheet:'Atestados',id:getVal(a,['id']),status:'Homologado'})} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all">Homologar</button>}</td>
                       </tr>
                     ))}
-                    {appData.atestados.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Sem registos recentes</td></tr>}
+                    {(appData.atestados||[]).length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Sem registos recentes</td></tr>}
                   </tbody>
                 </table></div>
             </div>
@@ -428,7 +440,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Permutas Solicitadas</h3>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S / E)</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
-                   {appData.permutas.map((p, idx) => (
+                   {(appData.permutas||[]).map((p, idx) => (
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
@@ -437,7 +449,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => sendData('updateStatus',{sheet:'Permutas',id:getVal(p,['id']),status:'Homologado'})} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all">Homologar</button>}</td>
                      </tr>
                    ))}
-                   {appData.permutas.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta registada</td></tr>}
+                   {(appData.permutas||[]).length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta registada</td></tr>}
                  </tbody>
                </table></div>
             </div>
@@ -451,7 +463,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">SGA-Enf</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: appData.atestados.filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: appData.permutas.filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo Oficiais', icon: Users } ].map(item => (
+            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo Oficiais', icon: Users } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
@@ -462,18 +474,18 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          </div>
       </aside>
       <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50">
-         <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''}/></button></header>
+         <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Nome de Guerra</label><input type="text" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nome || ''} onChange={e => setFormOfficer({...formOfficer, nome: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Patente</label><input type="text" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.patente || ''} onChange={e => setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
+                    <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Nome de Guerra</label><input type="text" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nome || ''} onChange={e => setFormOfficer({...formOfficer, nome: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Patente</label><input type="text" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.patente || ''} onChange={e => setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
                     
                     <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
                       <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
@@ -495,7 +507,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                       </div>
                     </div>
                  </div>
-                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all mt-4">{isSaving ? "Processando..." : "Gravar na Planilha"}</button>
+                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all mt-4">{isSaving ? "A Processar..." : "Gravar Dados"}</button>
               </form>
            </Modal>
          )}
@@ -504,14 +516,14 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   );
 };
 
-// --- APP ENTRY COM CACHE OTISMITA ---
+// --- APP ENTRY COM LEITURA SEGURA (SEM JSON() ESTRITO) ---
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
   
-  // O Segredo da Velocidade e da Prevenção de Tela Branca: Estado Central com Cache
   const [appData, setAppData] = useState(() => {
     try {
       const cached = localStorage.getItem('sga_app_cache');
@@ -520,18 +532,33 @@ export default function App() {
     return { officers: [], atestados: [], permutas: [], upi: {leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
   });
 
+  const fetchSafeJSON = async (url) => {
+     try {
+       const res = await fetch(url);
+       const text = await res.text();
+       if (text.trim().startsWith('<')) throw new Error("Acesso negado (CORS/HTML)");
+       return JSON.parse(text);
+     } catch (e) {
+       console.warn("Fetch falhou:", e);
+       return null;
+     }
+  };
+
   const syncData = async (showFeedback = false) => {
     setIsSyncing(true);
+    setSyncError("");
     try {
       const [resG, resI] = await Promise.all([
-        fetch(`${API_URL_GESTAO}?action=getData`).then(r => r.json()),
-        fetch(`${API_URL_INDICADORES}?action=getData`).then(r => r.json()).catch(() => ({}))
+        fetchSafeJSON(`${API_URL_GESTAO}?action=getData`),
+        fetchSafeJSON(`${API_URL_INDICADORES}?action=getData`)
       ]);
       
+      if (!resG) throw new Error("A Planilha não retornou dados válidos.");
+
       const newData = {
-        officers: Array.isArray(resG?.officers) ? resG.officers : [],
-        atestados: Array.isArray(resG?.atestados) ? resG.atestados : [],
-        permutas: Array.isArray(resG?.permutas) ? resG.permutas : [],
+        officers: Array.isArray(resG.officers) ? resG.officers : [],
+        atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
+        permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         upi: {
           leitosOcupados: getVal(resI?.upiStats || {}, ['ocupado', 'leito']) || 0,
           mediaBraden: safeParseFloat(getVal(resI?.upiStats || {}, ['braden'])),
@@ -542,9 +569,10 @@ export default function App() {
       
       setAppData(newData);
       localStorage.setItem('sga_app_cache', JSON.stringify(newData));
-      if (showFeedback) alert("Sincronização Concluída!");
+      if (showFeedback) alert("Sistema Atualizado!");
     } catch(e) {
-      if (showFeedback) alert("Falha ao comunicar com o Google Sheets.");
+      setSyncError(e.message);
+      if (showFeedback) alert("Falha na sincronização.");
     } finally {
       setIsSyncing(false);
     }
@@ -557,7 +585,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       {!user ? (
-        <LoginScreen onLogin={handleLogin} officersList={appData.officers} isLoading={isSyncing} />
+        <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={syncData} />
       ) : role === 'admin' || role === 'rt' ? (
         <MainSystem user={user} role={role} onLogout={() => setUser(null)} globalOfficers={appData.officers} appData={appData} syncData={syncData} isSyncing={isSyncing} />
       ) : (
