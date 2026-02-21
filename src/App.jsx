@@ -15,7 +15,7 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
-// --- HELPERS DE SEGURANÇA (BLINDAGEM) ---
+// --- HELPERS DE SEGURANÇA ---
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -102,13 +102,8 @@ class ErrorBoundary extends React.Component {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error, errorInfo) {
-    console.error("Erro Crítico Capturado:", error, errorInfo);
-    this.setState({ errorInfo });
-  }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { this.setState({ errorInfo }); }
   render() {
     if (this.state.hasError) {
       return (
@@ -116,12 +111,11 @@ class ErrorBoundary extends React.Component {
           <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-2xl border border-red-200 text-center">
             <AlertCircle size={64} className="text-red-500 mx-auto mb-4" />
             <h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Falha Crítica Evitada</h1>
-            <p className="text-slate-600 mb-6 text-sm">O sistema encontrou um dado inválido na planilha. Tire print desta tela para análise.</p>
+            <p className="text-slate-600 mb-6 text-sm">O sistema encontrou um dado inválido na planilha.</p>
             <div className="bg-red-50 p-4 rounded-xl text-left overflow-auto max-h-64 border border-red-100 mb-6">
               <p className="font-bold text-red-700 text-xs mb-2">{this.state.error && this.state.error.toString()}</p>
-              <pre className="text-[10px] text-red-600">{this.state.errorInfo && this.state.errorInfo.componentStack}</pre>
             </div>
-            <button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Recarregar Sistema</button>
+            <button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800">Recarregar Sistema</button>
           </div>
         </div>
       );
@@ -147,7 +141,6 @@ const Modal = ({ title, onClose, children }) => (
 const BirthdayWidget = ({ staff }) => {
   const list = Array.isArray(staff) ? staff : [];
   const currentMonth = new Date().getMonth();
-  
   const birthdays = list.filter(p => {
     const d = parseDate(getVal(p, ['nasc']));
     return d && d.getMonth() === currentMonth;
@@ -176,7 +169,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ÁREA DO OFICIAL ---
+// --- ÁREA DO OFICIAL (USER) ---
 
 const UserDashboard = ({ user, onLogout }) => {
   const [data, setData] = useState({ atestados: [], permutas: [], officers: [] });
@@ -250,7 +243,7 @@ const UserDashboard = ({ user, onLogout }) => {
 
 // --- PAINEL CHEFIA (ADMIN) ---
 
-const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => {
+const MainSystem = ({ user, role, onLogout, globalOfficers, setGlobalOfficers }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -259,32 +252,37 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
   const [data, setData] = useState({ atestados: [], permutas: [], upi: {leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} });
   
-  // Estado para controlo de ordenação nas colunas
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
+  // OTIMIZAÇÃO: Busca em Paralelo (Promise.all)
   const refreshData = async (showFeedback = true) => {
     setLoading(true);
     try {
-      await refreshGlobal(); 
-      const r1 = await fetch(`${API_URL_GESTAO}?action=getData`);
-      const d1 = await r1.json();
+      const [resGestao, resInd] = await Promise.all([
+        fetch(`${API_URL_GESTAO}?action=getData`).then(r => r.json()),
+        fetch(`${API_URL_INDICADORES}?action=getData`).then(r => r.json()).catch(() => ({}))
+      ]);
+
       setData(prev => ({ 
         ...prev, 
-        atestados: Array.isArray(d1?.atestados) ? d1.atestados : [], 
-        permutas: Array.isArray(d1?.permutas) ? d1.permutas : [] 
+        atestados: Array.isArray(resGestao?.atestados) ? resGestao.atestados : [], 
+        permutas: Array.isArray(resGestao?.permutas) ? resGestao.permutas : [] 
       }));
       
-      const r2 = await fetch(`${API_URL_INDICADORES}?action=getData`);
-      const d2 = await r2.json();
-      if (d2?.upiStats) {
+      // Atualiza a lista global sem precisar de uma função externa separada
+      if (Array.isArray(resGestao?.officers)) {
+          setGlobalOfficers(resGestao.officers);
+      }
+      
+      if (resInd?.upiStats) {
          setData(prev => ({ ...prev, upi: {
-           leitosOcupados: getVal(d2.upiStats, ['ocupado']) || 0,
-           mediaBraden: safeParseFloat(getVal(d2.upiStats, ['braden'])),
-           mediaFugulin: safeParseFloat(getVal(d2.upiStats, ['fugulin'])),
-           dataReferencia: getVal(d2.upiStats, ['data']) || '--'
+           leitosOcupados: getVal(resInd.upiStats, ['ocupado']) || 0,
+           mediaBraden: safeParseFloat(getVal(resInd.upiStats, ['braden'])),
+           mediaFugulin: safeParseFloat(getVal(resInd.upiStats, ['fugulin'])),
+           dataReferencia: getVal(resInd.upiStats, ['data']) || '--'
          }}));
       }
-      if (showFeedback) alert("Banco de Dados Atualizado!");
+      if (showFeedback) alert("Banco de Dados Atualizado (Turbo)!");
     } catch(e) { console.error(e); } finally { setLoading(false); }
   };
   
@@ -323,16 +321,12 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
     sendData('saveOfficer', payload);
   };
 
-  // Função para lidar com clique na ordenação
   const handleSort = (key) => {
     let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
     setSortConfig({ key, direction });
   };
 
-  // Componente de Cabeçalho com Ordenação
   const SortableHeader = ({ label, sortKey, align = 'left' }) => {
     const isActive = sortConfig.key === sortKey;
     return (
@@ -346,7 +340,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
   };
 
   const renderContent = () => {
-    if (loading) return <div className="p-20 flex flex-col items-center justify-center gap-4 text-slate-400"><Loader2 className="animate-spin text-blue-600" size={40}/> <p className="font-black text-[10px] uppercase tracking-widest">A Sincronizar Informação...</p></div>;
+    if (loading) return <div className="p-20 flex flex-col items-center justify-center gap-4 text-slate-400"><Loader2 className="animate-spin text-blue-600" size={40}/> <p className="font-black text-[10px] uppercase tracking-widest">A Carregar Dados em Paralelo...</p></div>;
     
     switch(activeTab) {
       case 'dashboard':
@@ -380,7 +374,6 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
           </div>
         );
       case 'efetivo':
-         // Lógica de Ordenação Atualizada
          const sortedOfficers = [...(globalOfficers||[])].sort((a,b) => {
             const { key, direction } = sortConfig;
             let valA, valB;
@@ -576,7 +569,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
   );
 };
 
-// --- APP ENTRY COM LOGIN ---
+// --- APP ENTRY ---
 
 const LoginScreen = ({ onLogin, officersList, isLoading }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -616,13 +609,13 @@ const LoginScreen = ({ onLogin, officersList, isLoading }) => {
           <div className="relative">
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
             <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
-               <option value="">{isLoading ? "A sincronizar base de dados..." : "Escolha o seu nome..."}</option>
+               <option value="">{isLoading ? "A sincronizar dados..." : "Escolha o seu nome..."}</option>
                {filtered.map((o, idx) => (
                  <option key={idx} value={getVal(o, ['nome'])}>
                    {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
                  </option>
                ))}
-               {!isLoading && filtered.length === 0 && <option value="" disabled>Nenhum registo encontrado nesta categoria.</option>}
+               {!isLoading && filtered.length === 0 && <option value="" disabled>Nenhum registo encontrado.</option>}
             </select>
           </div>
 
@@ -672,7 +665,7 @@ export default function App() {
       {!user ? (
         <LoginScreen onLogin={handleLogin} officersList={officers} isLoading={loading} />
       ) : role === 'admin' || role === 'rt' ? (
-        <MainSystem user={user} role={role} onLogout={() => setUser(null)} globalOfficers={officers} refreshGlobal={fetchOfficers} />
+        <MainSystem user={user} role={role} onLogout={() => setUser(null)} globalOfficers={officers} setGlobalOfficers={setOfficers} refreshGlobal={fetchOfficers} />
       ) : (
         <UserDashboard user={user} onLogout={() => setUser(null)} />
       )}
