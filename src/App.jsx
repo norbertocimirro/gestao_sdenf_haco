@@ -4,7 +4,8 @@ import {
   Menu, LogOut, ShieldAlert, ArrowRightLeft, 
   Star, Cake, BookOpen, Plus, Trash2, Edit3, 
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
-  Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square
+  Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
+  ChevronUp, ChevronDown, ChevronsUpDown
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -14,7 +15,7 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
-// --- HELPERS DE SEGURANÇA (BLINDAGEM CONTRA TELA BRANCA) ---
+// --- HELPERS DE SEGURANÇA (BLINDAGEM) ---
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -51,7 +52,6 @@ const formatDate = (dateInput) => {
   return date ? date.toLocaleDateString('pt-BR') : "-";
 };
 
-// NOVO HELPER: Formata a data para preencher os inputs de edição corretamente (YYYY-MM-DD)
 const formatDateForInput = (dateInput) => {
   const date = parseDate(dateInput);
   if (!date) return "";
@@ -96,7 +96,7 @@ const safeParseFloat = (value) => {
   return isNaN(num) ? 0 : num;
 };
 
-// --- ERROR BOUNDARY (DIAGNÓSTICO DE TELA BRANCA) ---
+// --- ERROR BOUNDARY ---
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -203,21 +203,16 @@ const UserDashboard = ({ user, onLogout }) => {
   const handleSend = async (action, payload) => {
     setIsSaving(true);
     try {
-      await fetch(API_URL_GESTAO, { 
-        method: 'POST', 
-        mode: 'no-cors', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, payload }) 
-      });
+      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload }) });
       setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false }); fetchData(); }, 2000);
-    } catch(e) { setIsSaving(false); alert("Erro de rede. Verifique a conexão."); }
+    } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-md">HA</div>
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-md text-xl">HA</div>
           <div><h1 className="font-black text-slate-800 text-sm uppercase tracking-tighter">Ten {user}</h1><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Painel Individual</p></div>
         </div>
         <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-400 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
@@ -247,7 +242,6 @@ const UserDashboard = ({ user, onLogout }) => {
         </div>
       </main>
 
-      {/* Modais de Formulário User */}
       {modals.atestado && <Modal title="Anexar Atestado" onClose={()=>setModals({...modals, atestado:false})}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias,data:form.inicio});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 focus:ring-red-500 outline-none" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 focus:ring-red-500 outline-none" onChange={e=>setForm({...form,dias:e.target.value})}/></div><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
       {modals.permuta && <Modal title="Pedir Permuta" onClose={()=>setModals({...modals, permuta:false})}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(data.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Retorno</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e=>setForm({...form,entra:e.target.value})}/></div><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
     </div>
@@ -264,6 +258,9 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
   const [showOfficerModal, setShowOfficerModal] = useState(false);
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
   const [data, setData] = useState({ atestados: [], permutas: [], upi: {leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} });
+  
+  // Estado para controlo de ordenação nas colunas
+  const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
   const refreshData = async (showFeedback = true) => {
     setLoading(true);
@@ -326,6 +323,28 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
     sendData('saveOfficer', payload);
   };
 
+  // Função para lidar com clique na ordenação
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Componente de Cabeçalho com Ordenação
+  const SortableHeader = ({ label, sortKey, align = 'left' }) => {
+    const isActive = sortConfig.key === sortKey;
+    return (
+      <th className="p-3 md:p-4 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort(sortKey)}>
+        <div className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''} ${isActive ? 'text-blue-600 font-black' : 'text-slate-400'}`}>
+          {label}
+          {isActive ? (sortConfig.direction === 'asc' ? <ChevronUp size={12}/> : <ChevronDown size={12}/>) : <ChevronsUpDown size={12} className="opacity-40"/>}
+        </div>
+      </th>
+    );
+  };
+
   const renderContent = () => {
     if (loading) return <div className="p-20 flex flex-col items-center justify-center gap-4 text-slate-400"><Loader2 className="animate-spin text-blue-600" size={40}/> <p className="font-black text-[10px] uppercase tracking-widest">A Sincronizar Informação...</p></div>;
     
@@ -334,8 +353,6 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-                
-                {/* STATUS UPI CARD COMPACTO */}
                 <div className="md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
@@ -348,39 +365,67 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{data.upi.mediaFugulin.toFixed(1)}</p></div>
                    </div>
                 </div>
-
-                {/* KPIS */}
                 <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-red-200 transition-all">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-2 group-hover:text-red-500 transition-colors">Pendentes</p>
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-red-500 transition-colors">Pendentes</p>
                   <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(data.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (data.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                 </div>
                 <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-blue-200 transition-all">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-2 group-hover:text-blue-600 transition-colors">Efetivo</p>
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-blue-600 transition-colors">Efetivo</p>
                   <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(globalOfficers||[]).length}</h3>
                 </div>
-                
-                {/* ANIVERSÁRIOS E GRÁFICO */}
-                <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[250px]">
+                <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[300px]">
                    <BirthdayWidget staff={globalOfficers}/>
                 </div>
-                <div className="md:col-span-2 bg-slate-50 rounded-3xl border border-slate-200 p-6 flex items-center justify-center text-slate-400 font-bold text-xs uppercase tracking-widest min-h-[150px]">
-                   [ Gráficos Futuros ]
-                </div>
-
             </div>
           </div>
         );
       case 'efetivo':
-         const sorted = [...(globalOfficers||[])].sort((a,b) => (parseInt(getVal(a,['antiguidade'])) || 999) - (parseInt(getVal(b,['antiguidade'])) || 999));
+         // Lógica de Ordenação Atualizada
+         const sortedOfficers = [...(globalOfficers||[])].sort((a,b) => {
+            const { key, direction } = sortConfig;
+            let valA, valB;
+
+            if (key === 'antiguidade') {
+                valA = parseInt(getVal(a, ['antiguidade'])) || 9999;
+                valB = parseInt(getVal(b, ['antiguidade'])) || 9999;
+                return direction === 'asc' ? valA - valB : valB - valA;
+            } else if (key === 'nome') {
+                valA = String(getVal(a, ['nome'])).toLowerCase();
+                valB = String(getVal(b, ['nome'])).toLowerCase();
+            } else if (key === 'expediente') {
+                valA = String(getVal(a, ['expediente'])).toLowerCase();
+                valB = String(getVal(b, ['expediente'])).toLowerCase();
+            } else if (key === 'idade') {
+                valA = parseDate(getVal(a, ['nasc']))?.getTime() || 9999999999999;
+                valB = parseDate(getVal(b, ['nasc']))?.getTime() || 9999999999999;
+            } else if (key === 'ingresso') {
+                valA = parseDate(getVal(a, ['ingres']))?.getTime() || 9999999999999;
+                valB = parseDate(getVal(b, ['ingres']))?.getTime() || 9999999999999;
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+         });
+
          return (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Quadro de Oficiais</h3>
                 <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md shadow-blue-500/20 transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
-              <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100"><tr><th className="p-3 md:p-4 text-center">Ant.</th><th className="p-3 md:p-4">Posto/Nome</th><th className="p-3 md:p-4">Alocação</th><th className="p-3 md:p-4 text-center">Idade</th><th className="p-3 md:p-4 text-center">Praça / Serviço</th><th className="p-3 md:p-4 text-right">Ação</th></tr></thead>
+              <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
+                  <tr>
+                    <SortableHeader label="Ant." sortKey="antiguidade" align="center" />
+                    <SortableHeader label="Posto/Nome" sortKey="nome" />
+                    <SortableHeader label="Alocação" sortKey="expediente" />
+                    <SortableHeader label="Idade" sortKey="idade" align="center" />
+                    <SortableHeader label="Praça / Serviço" sortKey="ingresso" align="center" />
+                    <th className="p-3 md:p-4 text-right">Ação</th>
+                  </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {sorted.map((o, i) => {
+                    {sortedOfficers.map((o, i) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
                       const tServico = calculateDetailedTime(getVal(o, ['ingres']));
                       const expedientes = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== "");
@@ -411,8 +456,8 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                                  nome: getVal(o,['nome']), 
                                  patente: getVal(o,['patente','posto']), 
                                  antiguidade: getVal(o,['antiguidade']), 
-                                 nascimento: formatDateForInput(getVal(o,['nasc'])), // Correção aqui!
-                                 ingresso: formatDateForInput(getVal(o,['ingres'])), // Correção aqui!
+                                 nascimento: formatDateForInput(getVal(o,['nasc'])), 
+                                 ingresso: formatDateForInput(getVal(o,['ingres'])), 
                                  role: getVal(o,['role']), 
                                  expediente: expArr, 
                                  servico: getVal(o,['servico']) 
@@ -424,7 +469,7 @@ const MainSystem = ({ user, role, onLogout, globalOfficers, refreshGlobal }) => 
                         </td>
                       </tr>
                     )})}
-                    {sorted.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhum oficial cadastrado</td></tr>}
+                    {sortedOfficers.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhum oficial cadastrado</td></tr>}
                   </tbody>
                 </table></div>
             </div>
@@ -594,7 +639,7 @@ const LoginScreen = ({ onLogin, officersList, isLoading }) => {
              disabled={!user || isLoading} 
              className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}
           >
-             {isLoading ? "Agiuarde..." : "Aceder ao Sistema"}
+             {isLoading ? "Aguarde..." : "Aceder ao Sistema"}
           </button>
         </div>
       </div>
