@@ -4,8 +4,7 @@ import {
   Menu, LogOut, ShieldAlert, ArrowRightLeft, 
   Star, Cake, BookOpen, Plus, Trash2, Edit3, 
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
-  Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
-  ChevronUp, ChevronDown, ChevronsUpDown, Image as ImageIcon, FileText
+  Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -84,7 +83,10 @@ const calculateDetailedTime = (dateInput) => {
   const validM = Math.max(0, isNaN(m) ? 0 : m);
   const validD = Math.max(0, isNaN(d) ? 0 : d);
 
-  return { y: validY, m: validM, d: validD, display: `${validY}a ${validM}m ${validD}d` };
+  return { 
+    y: validY, m: validM, d: validD,
+    display: `${validY}a ${validM}m ${validD}d`
+  };
 };
 
 const safeParseFloat = (value) => {
@@ -131,7 +133,7 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200; // Resolução suficiente para documentos
+        const MAX_WIDTH = 1200; 
         const MAX_HEIGHT = 1200;
         let width = img.width;
         let height = img.height;
@@ -147,7 +149,6 @@ const compressImage = (file) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Comprime para JPEG com 70% de qualidade (Reduz fotos de 10MB para ~300KB)
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         const base64 = dataUrl.split(',')[1];
         
@@ -174,12 +175,10 @@ const FileUpload = ({ onFileSelect }) => {
 
     try {
       if (file.type.startsWith('image/')) {
-        // Se for foto, comprime inteligentemente
         const compressedFile = await compressImage(file);
         onFileSelect(compressedFile);
         setFileName(`✅ Imagem otimizada (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        // Se for PDF, verifica se tem menos de 10MB
         if (file.size > 10 * 1024 * 1024) {
           alert("O PDF excede o limite de 10MB. Envie um ficheiro mais leve.");
           e.target.value = "";
@@ -248,7 +247,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ÁREA DE LOGIN ---
+// --- ECRÃ DE LOGIN ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -334,7 +333,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [modals, setModals] = useState({ atestado: false, permuta: false });
   const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
-  const [fileData, setFileData] = useState(null); // Estado do arquivo anexado
+  const [fileData, setFileData] = useState(null);
 
   const atestadosFiltrados = (appData.atestados || []).filter(a => String(getVal(a, ['militar'])).includes(user)).reverse();
   const permutasFiltradas = (appData.permutas || []).filter(p => String(getVal(p, ['solicitante'])).includes(user)).reverse();
@@ -351,7 +350,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
       setTimeout(() => { 
         setIsSaving(false); 
         setModals({ atestado: false, permuta: false }); 
-        setFileData(null); // Limpa o anexo
+        setFileData(null); 
         syncData(); 
       }, 1500);
     } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
@@ -386,7 +385,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
                   <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest">
                     <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
                     {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
-                    {getVal(item,['anexo']) && <a href={getVal(item,['anexo'])} target="_blank" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={8}/> Anexo</a>}
+                    {getVal(item,['anexo']) && <a href={getVal(item,['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={8}/> Anexo</a>}
                   </div>
                 </div>
                 <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${getVal(item,['status'])==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{getVal(item,['status'])}</span>
@@ -411,28 +410,14 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showOfficerModal, setShowOfficerModal] = useState(false);
-  const [showAtestadoModal, setShowAtestadoModal] = useState(false);
-  const [showPermutaModal, setShowPermutaModal] = useState(false);
-  
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
-  const [formAtestado, setFormAtestado] = useState({});
-  const [formPermuta, setFormPermuta] = useState({});
-  const [fileData, setFileData] = useState(null);
-
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
   const sendData = async (action, payload) => {
     setIsSaving(true);
     try {
       await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload }) });
-      setTimeout(() => { 
-          setIsSaving(false); 
-          setShowOfficerModal(false); 
-          setShowAtestadoModal(false);
-          setShowPermutaModal(false);
-          setFileData(null);
-          syncData(true); 
-      }, 1500); 
+      setTimeout(() => { setIsSaving(false); setShowOfficerModal(false); syncData(true); }, 1500); 
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
@@ -486,20 +471,20 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p></div>
                    </div>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
-                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-red-200 transition-all">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-red-500 transition-colors">Pendentes</p>
+                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo</p>
-                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{appData.officers.length}</h3>
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-blue-200 transition-all">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-blue-600 transition-colors">Efetivo</p>
+                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{(appData.officers||[]).length}</h3>
                 </div>
                 <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[250px]"><BirthdayWidget staff={appData.officers}/></div>
             </div>
           </div>
         );
       case 'efetivo':
-         const sortedOfficers = [...appData.officers].sort((a,b) => {
+         const sortedOfficers = [...(appData.officers||[])].sort((a,b) => {
             const { key, direction } = sortConfig;
             let valA, valB;
             if (key === 'antiguidade') {
@@ -526,7 +511,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                 <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça / Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
+                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
                   </thead><tbody className="divide-y divide-slate-50">
                     {sortedOfficers.map((o, i) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
@@ -543,6 +528,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                         <td className="p-3 md:p-4 text-right"><div className="flex gap-2 justify-end opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => { const expArr = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== ""); setFormOfficer({ ...o, nome: getVal(o,['nome']), patente: getVal(o,['patente','posto']), antiguidade: getVal(o,['antiguidade']), nascimento: formatDateForInput(getVal(o,['nasc'])), ingresso: formatDateForInput(getVal(o,['ingres'])), role: getVal(o,['role']), expediente: expArr, servico: getVal(o,['servico']) }); setShowOfficerModal(true); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"><Edit3 size={14}/></button><button onClick={() => { if(window.confirm(`Remover ${getVal(o,['nome'])}?`)) sendData('deleteOfficer', { nome: getVal(o,['nome']) }); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></td>
                       </tr>
                     )})}
+                    {sortedOfficers.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhum oficial cadastrado</td></tr>}
                   </tbody>
                 </table></div>
             </div>
@@ -550,23 +536,20 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       case 'atestados':
          return (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Gestão de Atestados</h3>
-                 <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançar Atestado</button>
-               </div>
+               <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Gestão de Atestados</h3>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    {appData.atestados.map((a, i) => (
+                    {(appData.atestados||[]).map((a, i) => (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
                         <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase">{getVal(a,['militar'])}</td>
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
                         <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
-                        <td className="p-4 text-center">{getVal(a, ['anexo']) ? <a href={getVal(a, ['anexo'])} target="_blank" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-block rounded-lg transition-colors"><Paperclip size={14}/></a> : '-'}</td>
+                        <td className="p-4 text-center">{getVal(a, ['anexo']) ? <a href={getVal(a, ['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                         <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black tracking-widest uppercase ${getVal(a,['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{getVal(a,['status'])}</span></td>
                         <td className="p-4 text-right">{getVal(a,['status']) === 'Pendente' && <button onClick={()=>sendData('updateStatus',{sheet:'Atestados',id:getVal(a,['id']),status:'Homologado'})} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all">Homologar</button>}</td>
                       </tr>
                     ))}
-                    {appData.atestados.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Sem registos recentes</td></tr>}
+                    {(appData.atestados||[]).length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Sem registos recentes</td></tr>}
                   </tbody>
                 </table></div>
             </div>
@@ -574,23 +557,20 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       case 'permutas':
          return (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Permutas Solicitadas</h3>
-                 <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançar Permuta</button>
-               </div>
+               <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Permutas Solicitadas</h3>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S / E)</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
-                   {appData.permutas.map((p, idx) => (
+                   {(appData.permutas||[]).map((p, idx) => (
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
-                       <td className="p-4 text-center">{getVal(p, ['anexo']) ? <a href={getVal(p, ['anexo'])} target="_blank" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-block rounded-lg transition-colors"><Paperclip size={14}/></a> : '-'}</td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4 text-center">{getVal(p, ['anexo']) ? <a href={getVal(p, ['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => sendData('updateStatus',{sheet:'Permutas',id:getVal(p,['id']),status:'Homologado'})} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all">Homologar</button>}</td>
                      </tr>
                    ))}
-                   {appData.permutas.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta registada</td></tr>}
+                   {(appData.permutas||[]).length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta registada</td></tr>}
                  </tbody>
                </table></div>
             </div>
@@ -604,7 +584,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">SGA-Enf</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: appData.atestados.filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: appData.permutas.filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo Oficiais', icon: Users } ].map(item => (
+            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo Oficiais', icon: Users } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
@@ -618,16 +598,15 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
-         {/* Modais de Gestão (Admin) */}
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Nome de Guerra</label><input type="text" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nome || ''} onChange={e => setFormOfficer({...formOfficer, nome: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Patente</label><input type="text" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.patente || ''} onChange={e => setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
+                    <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Nome de Guerra</label><input type="text" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={formOfficer.nome || ''} onChange={e => setFormOfficer({...formOfficer, nome: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Patente</label><input type="text" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.patente || ''} onChange={e => setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
+                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
                     
                     <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
                       <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
@@ -653,10 +632,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
               </form>
            </Modal>
          )}
-
-         {/* Lançamento direto pela Chefia */}
-         {showAtestadoModal && <Modal title="Lançar Atestado" onClose={() => setShowAtestadoModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar Atestado"}</button></form></Modal>}
-         {showPermutaModal && <Modal title="Lançar Permuta" onClose={() => setShowPermutaModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Entrada</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar Permuta"}</button></form></Modal>}
       </main>
     </div>
   );
@@ -699,7 +674,7 @@ export default function App() {
         fetchSafeJSON(`${API_URL_INDICADORES}?action=getData`)
       ]);
       
-      if (!resG) throw new Error("Falha na sincronização. O Google Sheets não enviou os dados.");
+      if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
 
       const newData = {
         officers: Array.isArray(resG.officers) ? resG.officers : [],
