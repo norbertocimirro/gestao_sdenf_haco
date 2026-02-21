@@ -30,6 +30,7 @@ const parseDate = (dateStr) => {
   if (!dateStr) return null;
   const s = String(dateStr).trim();
   if (!s || s === "-" || s.toLowerCase().includes("invalid")) return null;
+
   try {
     if (s.includes('/')) {
       const parts = s.split('/');
@@ -120,6 +121,7 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
+// MOTOR DE COMPRESSÃO DE IMAGENS
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -156,14 +158,14 @@ const FileUpload = ({ onFileSelect }) => {
     try {
       if (file.type.startsWith('image/')) {
         const compressedFile = await compressImage(file);
-        onFileSelect(compressedFile); setFileName(`✅ Imagem otimizada (${file.name})`);
+        onFileSelect(compressedFile); setFileName(`✅ Imagem pronta (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) { alert("PDF excede 10MB."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
+        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB. Envie um mais leve."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
         const reader = new FileReader();
         reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
         reader.readAsDataURL(file);
-      } else { alert("Apenas PDF ou Imagens."); e.target.value = ""; setFileName(""); }
-    } catch (err) { alert("Erro ao processar."); setFileName(""); } 
+      } else { alert("Apenas PDF ou Imagens (Fotos)."); e.target.value = ""; setFileName(""); }
+    } catch (err) { alert("Erro ao processar ficheiro."); setFileName(""); } 
     finally { setIsProcessing(false); }
   };
 
@@ -171,7 +173,7 @@ const FileUpload = ({ onFileSelect }) => {
     <div className="mt-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl relative overflow-hidden transition-all hover:bg-slate-100">
       <div className="flex items-center gap-3 mb-2"><Paperclip size={16} className="text-slate-500"/><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Anexar Documento / Foto</label></div>
       <input type="file" accept="image/*,application/pdf" onChange={handleChange} disabled={isProcessing} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
-      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Comprimindo...</div>}
+      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Comprimindo arquivo...</div>}
       {fileName && !isProcessing && <div className="mt-3 text-[10px] font-bold text-green-600 bg-green-50 p-2 rounded-lg">{fileName}</div>}
     </div>
   );
@@ -203,48 +205,83 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ECRÃ DE LOGIN ---
+// --- ÁREA DE LOGIN ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
   const [user, setUser] = useState('');
   
   const list = Array.isArray(appData?.officers) ? appData.officers : [];
+
   const filtered = roleGroup === 'chefia' 
-    ? list.filter(o => { const r = String(getVal(o, ['role'])).toLowerCase(); const n = String(getVal(o, ['nome'])); return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini'); }) 
-    : list.filter(o => { const r = String(getVal(o, ['role'])).toLowerCase(); const n = String(getVal(o, ['nome'])); return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini'); });
+    ? list.filter(o => {
+        const r = String(getVal(o, ['role'])).toLowerCase();
+        const n = String(getVal(o, ['nome']));
+        return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini');
+      }) 
+    : list.filter(o => {
+        const r = String(getVal(o, ['role'])).toLowerCase();
+        const n = String(getVal(o, ['nome']));
+        return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini');
+      });
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
+      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando...</div>}
+      
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
         <div className="text-center mb-8">
-           <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30"><Plane size={32} className="text-white transform -rotate-12"/></div>
+           <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
+              <Plane size={32} className="text-white transform -rotate-12"/>
+           </div>
            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">SGA-Enf HACO</h1>
            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
         </div>
-        {syncError && (<div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between"><span>⚠️ Falha na Leitura</span><button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button></div>)}
+        
+        {syncError && (
+           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
+              <span>⚠️ Falha na Leitura</span>
+              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
+           </div>
+        )}
+
         <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
            <button onClick={() => setRoleGroup('chefia')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
            <button onClick={() => setRoleGroup('tropa')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
         </div>
+
         <div className="space-y-4">
           <div className="relative">
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
             <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
+               <option value="">{isSyncing && list.length === 0 ? "A ler dados..." : "Escolha o seu nome..."}</option>
                {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
                {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
           </div>
-          <button onClick={() => { const selectedUser = list.find(o => getVal(o, ['nome']) === user); if (selectedUser) { const nome = getVal(selectedUser, ['nome']); let role = getVal(selectedUser, ['role']) || 'user'; if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin'; onLogin(nome, role); } }} disabled={!user || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Entrar no Sistema</button>
+
+          <button 
+             onClick={() => {
+                const selectedUser = list.find(o => getVal(o, ['nome']) === user);
+                if (selectedUser) {
+                   const nome = getVal(selectedUser, ['nome']);
+                   let role = getVal(selectedUser, ['role']) || 'user';
+                   if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin';
+                   onLogin(nome, role);
+                }
+             }} 
+             disabled={!user || isSyncing} 
+             className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}
+          >
+             Entrar no Sistema
+          </button>
         </div>
       </div>
     </div>
   );
 };
 
-// --- ÁREA DO OFICIAL (USER) ---
+// --- ÁREA DO OFICIAL (TROPA) ---
 
 const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [isSaving, setIsSaving] = useState(false);
@@ -259,8 +296,8 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
     setIsSaving(true);
     try {
       await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
-      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false }); setFileData(null); syncData(true); }, 1500);
-    } catch(e) { setIsSaving(false); alert("Erro ao enviar."); }
+      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false }); setFileData(null); syncData(); }, 1500);
+    } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
   };
 
   const closeModals = () => { setModals({ atestado: false, permuta: false }); setFileData(null); }
@@ -282,27 +319,29 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
         </div>
         <div className="pt-4"><h3 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-3 flex justify-between items-center">Meus Registros <button onClick={()=>syncData(true)} className="p-2 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button></h3>
           <div className="space-y-2">
-            {[...permutasFiltradas, ...atestadosFiltrados].map((item, i) => (
+            {[...permutasFiltradas, ...atestadosFiltrados].map((item, i) => {
+              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link']);
+              return (
               <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
                 <div className="text-xs">
                   <p className="font-black text-slate-800 uppercase text-[10px] mb-1">{getVal(item,['substituto']) ? `Troca: ${getVal(item,['substituto'])}` : `Afastamento: ${getVal(item,['dias'])}d`}</p>
                   <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
                     <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
                     {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
-                    {getVal(item,['anexo']) && <a href={getVal(item,['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
+                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={8}/> Anexo</a>}
                   </div>
                 </div>
                 <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${getVal(item,['status'])==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{getVal(item,['status'])}</span>
               </div>
-            ))}
+            )})}
             {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos recentes</p>}
           </div>
         </div>
       </main>
 
-      {/* MODAIS USER COM UPLOAD DE ARQUIVO */}
-      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias,data:form.inicio});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
-      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Retorno</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
+      {/* MODAIS USER */}
+      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id: Date.now().toString(), status:'Pendente', militar:user, inicio:form.inicio, dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData} /><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
+      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id: Date.now().toString(), status:'Pendente', solicitante:user, substituto:form.sub, datasai:form.sai, dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Retorno</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData} /><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
     </div>
   );
 };
@@ -313,13 +352,15 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
+  const [isSaving, setIsSaving] = useState(false);
+  const [homologandoId, setHomologandoId] = useState(null); 
+  
   const [showOfficerModal, setShowOfficerModal] = useState(false);
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
   
-  const [isSaving, setIsSaving] = useState(false);
-  const [homologandoId, setHomologandoId] = useState(null); // Estado visual do botão homologar
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
+  // Disparo genérico para salvar dados simples
   const sendData = async (action, payload) => {
     setIsSaving(true);
     try {
@@ -328,18 +369,19 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
+  // Disparo Visual Seguro para o Botão Homologar
   const handleHomologar = async (id, sheetName) => {
     if (!id) {
-       alert("Este registo é muito antigo e não possui ID no sistema. Aprove diretamente na Folha de Cálculo.");
+       alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' ou aprove diretamente na planilha.");
        return;
     }
-    setHomologandoId(id);
+    setHomologandoId(id); // Trava o botão visualmente
     try {
       await fetch(API_URL_GESTAO, { 
         method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify({ action: 'updateStatus', payload: { sheet: sheetName, id: id, status: 'Homologado' } }) 
       });
-      setTimeout(() => { setHomologandoId(null); syncData(true); }, 1500);
+      setTimeout(() => { setHomologandoId(null); syncData(true); }, 2000);
     } catch(e) { setHomologandoId(null); alert("Erro de conexão ao homologar."); }
   };
 
@@ -393,13 +435,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p></div>
                    </div>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
-                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-red-200 transition-all">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-red-500 transition-colors">Pendentes</p>
+                  <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo</p>
-                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{(appData.officers||[]).length}</h3>
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-blue-200 transition-all">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-blue-600 transition-colors">Efetivo</p>
+                  <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.officers||[]).length}</h3>
                 </div>
                 <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[250px]"><BirthdayWidget staff={appData.officers}/></div>
             </div>
@@ -433,7 +475,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                 <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça / Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
+                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
                   </thead><tbody className="divide-y divide-slate-50">
                     {sortedOfficers.map((o, i) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
@@ -461,16 +503,19 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Gestão de Atestados</h3>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    {(appData.atestados||[]).map((a, i) => (
+                    {(appData.atestados||[]).map((a, i) => {
+                      const anexoUrl = getVal(a, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
+                      const idRegisto = getVal(a, ['id', 'identificador']);
+                      return (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
                         <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase">{getVal(a,['militar'])}</td>
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
                         <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
-                        <td className="p-4 text-center">{getVal(a, ['anexo']) ? <a href={getVal(a, ['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
+                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                         <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black tracking-widest uppercase ${getVal(a,['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{getVal(a,['status'])}</span></td>
-                        <td className="p-4 text-right">{getVal(a,['status']) === 'Pendente' && <button onClick={()=>handleHomologar(getVal(a,['id']), 'Atestados')} disabled={homologandoId === getVal(a,['id'])} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300">{homologandoId === getVal(a,['id']) ? 'Processando...' : 'Homologar'}</button>}</td>
+                        <td className="p-4 text-right">{getVal(a,['status']) === 'Pendente' && <button onClick={()=>handleHomologar(idRegisto, 'Atestados')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
                       </tr>
-                    ))}
+                    )})}
                     {(appData.atestados||[]).length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Sem registos recentes</td></tr>}
                   </tbody>
                 </table></div>
@@ -482,16 +527,19 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Permutas Solicitadas</h3>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S / E)</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
-                   {(appData.permutas||[]).map((p, idx) => (
+                   {(appData.permutas||[]).map((p, idx) => {
+                     const anexoUrl = getVal(p, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
+                     const idRegisto = getVal(p, ['id', 'identificador']);
+                     return (
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
                        <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
-                       <td className="p-4 text-center">{getVal(p, ['anexo']) ? <a href={getVal(p, ['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
+                       <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
-                       <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(getVal(p,['id']), 'Permutas')} disabled={homologandoId === getVal(p,['id'])} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300">{homologandoId === getVal(p,['id']) ? 'Processando...' : 'Homologar'}</button>}</td>
+                       <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
                      </tr>
-                   ))}
+                   )})}
                    {(appData.permutas||[]).length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta registada</td></tr>}
                  </tbody>
                </table></div>
@@ -560,84 +608,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 };
 
 // --- APP ENTRY COM LOGIN E CACHE ---
-
-const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
-  const [roleGroup, setRoleGroup] = useState('chefia');
-  const [user, setUser] = useState('');
-  
-  const list = Array.isArray(appData?.officers) ? appData.officers : [];
-
-  const filtered = roleGroup === 'chefia' 
-    ? list.filter(o => {
-        const r = String(getVal(o, ['role'])).toLowerCase();
-        const n = String(getVal(o, ['nome']));
-        return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini');
-      }) 
-    : list.filter(o => {
-        const r = String(getVal(o, ['role'])).toLowerCase();
-        const n = String(getVal(o, ['nome']));
-        return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini');
-      });
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
-      
-      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
-        <div className="text-center mb-8">
-           <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
-              <Plane size={32} className="text-white transform -rotate-12"/>
-           </div>
-           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">SGA-Enf HACO</h1>
-           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
-        </div>
-        
-        {syncError && (
-           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
-              <span>⚠️ Falha na Leitura</span>
-              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
-           </div>
-        )}
-
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
-           <button onClick={() => setRoleGroup('chefia')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
-           <button onClick={() => setRoleGroup('tropa')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="relative">
-            <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
-            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (
-                 <option key={idx} value={getVal(o, ['nome'])}>
-                   {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
-                 </option>
-               ))}
-               {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
-            </select>
-          </div>
-
-          <button 
-             onClick={() => {
-                const selectedUser = list.find(o => getVal(o, ['nome']) === user);
-                if (selectedUser) {
-                   const nome = getVal(selectedUser, ['nome']);
-                   let role = getVal(selectedUser, ['role']) || 'user';
-                   if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin';
-                   onLogin(nome, role);
-                }
-             }} 
-             disabled={!user || isSyncing} 
-             className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}
-          >
-             Entrar no Sistema
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export default function App() {
   const [user, setUser] = useState(null);
