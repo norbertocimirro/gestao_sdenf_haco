@@ -16,7 +16,7 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
-// --- HELPERS DE SEGURANÇA E BUSCA PROFUNDA ---
+// --- HELPERS DE SEGURANÇA E LEITURA ---
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -25,26 +25,6 @@ const getVal = (obj, searchTerms) => {
     searchTerms.some(term => String(k).toLowerCase().includes(term.toLowerCase()))
   );
   return foundKey ? obj[foundKey] : "";
-};
-
-// NOVO RADAR DE DADOS: Vasculha toda a resposta da API, em qualquer nível, para achar o Braden e o Fugulin
-const findDeepValue = (obj, searchTerms) => {
-  let found = null;
-  const search = (item) => {
-    if (!item || typeof item !== 'object') return;
-    for (const key of Object.keys(item)) {
-      if (searchTerms.some(t => String(key).toLowerCase().includes(t.toLowerCase()))) {
-        found = item[key];
-        return;
-      }
-    }
-    for (const key of Object.keys(item)) {
-      search(item[key]);
-      if (found !== null) return;
-    }
-  };
-  search(obj);
-  return found;
 };
 
 const parseDate = (dateStr) => {
@@ -115,6 +95,49 @@ const safeParseFloat = (value) => {
   if (!match) return 0;
   const num = parseFloat(match[0].replace(',', '.'));
   return isNaN(num) ? 0 : num;
+};
+
+// --- LEITOR DIRETO DO GOOGLE SHEETS (BYPASS API) ---
+// Lê a Coluna D e F diretamente do link fornecido pelo Tenente Cimirro
+const fetchIndicadoresDireto = async () => {
+  try {
+    const url = "https://docs.google.com/spreadsheets/d/1aQ9pD5B-LzgpY-JVniW9ad0Oeda2p-0rYK2pmv--wno/gviz/tq?tqx=out:json";
+    const res = await fetch(url);
+    const text = await res.text();
+    // Extrai o JSON escondido na resposta do Google Visualization
+    const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+    const data = JSON.parse(jsonStr);
+    const rows = data.table.rows;
+    
+    if (!rows || rows.length === 0) return {};
+    
+    let braden = 0, fugulin = 0, dataRef = '--';
+    
+    // Vasculha de baixo para cima para encontrar o último preenchido
+    for (let i = rows.length - 1; i >= 0; i--) {
+        const row = rows[i];
+        if (row && row.c) {
+            // Coluna D (índice 3) = Braden
+            if (!braden && row.c[3] && row.c[3].v !== null) braden = safeParseFloat(row.c[3].v);
+            // Coluna F (índice 5) = Fugulin
+            if (!fugulin && row.c[5] && row.c[5].v !== null) fugulin = safeParseFloat(row.c[5].v);
+            // Coluna A (índice 0) = Data
+            if (dataRef === '--' && row.c[0] && row.c[0].v !== null) {
+                dataRef = row.c[0].f || String(row.c[0].v);
+            }
+        }
+        if (braden && fugulin) break; // Para a busca quando encontrar os dois
+    }
+    
+    return {
+       braden: braden || 0,
+       fugulin: fugulin || 0,
+       dataReferencia: dataRef
+    };
+  } catch (e) {
+    console.error("Falha ao ler dados do link direto:", e);
+    return {};
+  }
 };
 
 // --- MÉTODOS DE INTELIGÊNCIA (ABSENTEÍSMO E VIGOR) ---
@@ -213,7 +236,6 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
-// MOTOR DE COMPRESSÃO DE IMAGENS ALTA DEFINIÇÃO
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -291,8 +313,8 @@ const BirthdayWidget = ({ staff }) => {
               <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
               <div className="flex-1">
                  <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
-                 {/* CORREÇÃO DO CARTÃO: Agora prioriza mostrar a aba 'expediente' ou 'alocação' */}
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente', 'alocacao', 'setor']) || 'Sem Expediente'}</p>
+                 {/* CORREÇÃO APLICADA: Puxa o 'expediente' diretamente */}
+                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{p.expediente || getVal(p, ['expediente', 'setor']) || 'Sem Expediente'}</p>
               </div>
            </div>
         ))}
@@ -402,44 +424,42 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
-  const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
+  const [mesFiltro, setMesFiltro] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const handleMonthChange = (direcao) => {
+  const handleMudarMes = (direcao) => {
      let dataBase = new Date();
-     if (filtroMesAtual) {
-        const [ano, mes] = filtroMesAtual.split('-');
+     if (mesFiltro) {
+        const [ano, mes] = mesFiltro.split('-');
         dataBase = new Date(ano, parseInt(mes) - 1, 1);
      }
      dataBase.setMonth(dataBase.getMonth() + direcao);
-     setFiltroMesAtual(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  const obterNomeMes = (mesFiltro) => {
-     if (!mesFiltro) return "TODOS OS REGISTOS";
-     const [ano, mes] = mesFiltro.split('-');
-     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
-     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  const obterNomeMes = (referencia) => {
+     if (!referencia) return "TODOS OS REGISTOS";
+     const [ano, mes] = referencia.split('-');
+     const d = new Date(ano, parseInt(mes) - 1, 1);
+     return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
   const atestadosFiltrados = (appData.atestados || []).filter(a => {
      if (!String(getVal(a, ['militar'])).includes(user)) return false;
-     if (!filtroMesAtual) return true;
+     if (!mesFiltro) return true;
      const d = parseDate(getVal(a,['inicio', 'data']));
      if (!d) return false;
-     const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-     return itemMonth === filtroMesAtual;
+     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
   }).reverse();
 
   const permutasFiltradas = (appData.permutas || []).filter(p => {
      if (!String(getVal(p, ['solicitante'])).includes(user)) return false;
-     if (!filtroMesAtual) return true;
+     if (!mesFiltro) return true;
      const d = parseDate(getVal(p,['sai', 'datasai']));
      if (!d) return false;
-     const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-     return itemMonth === filtroMesAtual;
+     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
   }).reverse();
 
   const handleSend = async (action, payload) => {
@@ -491,14 +511,14 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
              </h3>
              <div className="flex items-center gap-2">
                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                    <button onClick={() => handleMonthChange(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
+                    <button onClick={() => handleMudarMes(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
                     <div className="w-28 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">
-                      {obterNomeMes(filtroMesAtual)}
+                      {obterNomeMes(mesFiltro)}
                     </div>
-                    <button onClick={() => handleMonthChange(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
+                    <button onClick={() => handleMudarMes(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
                  </div>
-                 {filtroMesAtual && (
-                    <button onClick={() => setFiltroMesAtual('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                 {mesFiltro && (
+                    <button onClick={() => setMesFiltro('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                  )}
              </div>
            </div>
@@ -554,25 +574,24 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
-  // CORREÇÃO: Variável do Filtro perfeitamente nomeada
-  const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
+  const [mesFiltro, setMesFiltro] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
   const handleMudarMes = (direcao) => {
      let dataBase = new Date();
-     if (filtroMesAtual) {
-        const [ano, mes] = filtroMesAtual.split('-');
+     if (mesFiltro) {
+        const [ano, mes] = mesFiltro.split('-');
         dataBase = new Date(ano, parseInt(mes) - 1, 1);
      }
      dataBase.setMonth(dataBase.getMonth() + direcao);
-     setFiltroMesAtual(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  const obterNomeMes = (referenciaFiltro) => {
-     if (!referenciaFiltro) return "TODOS OS REGISTOS";
-     const [ano, mes] = referenciaFiltro.split('-');
+  const obterNomeMes = (referencia) => {
+     if (!referencia) return "TODOS OS REGISTOS";
+     const [ano, mes] = referencia.split('-');
      const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
      return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
@@ -662,7 +681,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 
-                {/* STATUS UPI CARD COMPACTO */}
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
@@ -676,7 +694,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
-                {/* Sub-grid da esquerda: KPIs de Gestão */}
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
@@ -696,7 +713,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
-                {/* Sub-grid da direita: Aniversários */}
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
                    <BirthdayWidget staff={appData.officers}/>
                 </div>
@@ -788,13 +804,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'atestados':
-         // CORREÇÃO: Utilizando a variável certa "filtroMesAtual"
          const atestadosListFiltrados = (appData.atestados||[]).filter(a => {
-            if (!filtroMesAtual) return true;
+            if (!mesFiltro) return true;
             const d = parseDate(getVal(a,['inicio', 'data']));
             if (!d) return false;
-            const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return itemMonth === filtroMesAtual;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
          });
 
          return (
@@ -806,12 +820,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
                       <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
                       <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {obterNomeMes(filtroMesAtual)}
+                        {obterNomeMes(mesFiltro)}
                       </div>
                       <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
                     </div>
-                    {filtroMesAtual && (
-                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    {mesFiltro && (
+                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                     )}
                     <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Atestado</button>
                  </div>
@@ -839,13 +853,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'permutas':
-         // CORREÇÃO: Utilizando a variável certa "filtroMesAtual"
          const permutasListFiltradas = (appData.permutas||[]).filter(p => {
-            if (!filtroMesAtual) return true;
+            if (!mesFiltro) return true;
             const d = parseDate(getVal(p,['sai', 'datasai']));
             if (!d) return false;
-            const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return itemMonth === filtroMesAtual;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
          });
 
          return (
@@ -857,12 +869,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
                       <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
                       <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {obterNomeMes(filtroMesAtual)}
+                        {obterNomeMes(mesFiltro)}
                       </div>
                       <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
                     </div>
-                    {filtroMesAtual && (
-                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    {mesFiltro && (
+                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                     )}
                     <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Permuta</button>
                  </div>
@@ -876,7 +888,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
@@ -997,22 +1009,29 @@ export default function App() {
     setIsSyncing(true);
     setSyncError("");
     try {
-      const [resG, resI] = await Promise.all([
+      // PROCESSO PARALELO COM O NOVO LEITOR DIRETO DO BRADEN/FUGULIN
+      const [resG, resI, resDireto] = await Promise.all([
         fetchSafeJSON(`${API_URL_GESTAO}?action=getData`),
-        fetchSafeJSON(`${API_URL_INDICADORES}?action=getData`)
+        fetchSafeJSON(`${API_URL_INDICADORES}?action=getData`),
+        fetchIndicadoresDireto() 
       ]);
       
       if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
+
+      const novaMediaBraden = resDireto.braden || safeParseFloat(getVal(resI?.upiStats || resI || {}, ['braden']));
+      const novaMediaFugulin = resDireto.fugulin || safeParseFloat(getVal(resI?.upiStats || resI || {}, ['fugulin', 'fugulim', 'complexidade']));
+      let novaDataRef = resDireto.dataReferencia !== '--' ? resDireto.dataReferencia : getVal(resI?.upiStats || resI || {}, ['data', 'ref']);
+      if (novaDataRef === '--' || !novaDataRef) novaDataRef = new Date().toLocaleDateString('pt-BR');
 
       const newData = {
         officers: Array.isArray(resG.officers) ? resG.officers : [],
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         upi: {
-          leitosOcupados: findDeepValue(resI, ['ocupado', 'leito', 'censo', 'paciente']) || 0,
-          mediaBraden: safeParseFloat(findDeepValue(resI, ['braden', 'risco'])),
-          mediaFugulin: safeParseFloat(findDeepValue(resI, ['fugulin', 'fugulim', 'complexidade'])),
-          dataReferencia: findDeepValue(resI, ['data', 'ref', 'atualizacao']) || '--'
+          leitosOcupados: getVal(resI?.upiStats || resI || {}, ['ocupado', 'leito']) || 0,
+          mediaBraden: novaMediaBraden,
+          mediaFugulin: novaMediaFugulin,
+          dataReferencia: novaDataRef
         }
       };
       
