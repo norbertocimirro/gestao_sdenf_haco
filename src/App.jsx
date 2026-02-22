@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
+// Agora apenas UMA conexão é necessária, o backend faz tudo!
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
-const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRibag95GfPnazUNWC-EdA8VUFYecZHg9Pp1hl5OlR3kofF-HbElRYCGcdv0/exec"; 
 
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
@@ -95,49 +95,6 @@ const safeParseFloat = (value) => {
   if (!match) return 0;
   const num = parseFloat(match[0].replace(',', '.'));
   return isNaN(num) ? 0 : num;
-};
-
-// --- LEITOR DIRETO DO GOOGLE SHEETS (BYPASS API) ---
-// Lê a Coluna D e F diretamente do link fornecido pelo Tenente Cimirro
-const fetchIndicadoresDireto = async () => {
-  try {
-    const url = "https://docs.google.com/spreadsheets/d/1aQ9pD5B-LzgpY-JVniW9ad0Oeda2p-0rYK2pmv--wno/gviz/tq?tqx=out:json";
-    const res = await fetch(url);
-    const text = await res.text();
-    // Extrai o JSON escondido na resposta do Google Visualization
-    const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    const data = JSON.parse(jsonStr);
-    const rows = data.table.rows;
-    
-    if (!rows || rows.length === 0) return {};
-    
-    let braden = 0, fugulin = 0, dataRef = '--';
-    
-    // Vasculha de baixo para cima para encontrar o último preenchido
-    for (let i = rows.length - 1; i >= 0; i--) {
-        const row = rows[i];
-        if (row && row.c) {
-            // Coluna D (índice 3) = Braden
-            if (!braden && row.c[3] && row.c[3].v !== null) braden = safeParseFloat(row.c[3].v);
-            // Coluna F (índice 5) = Fugulin
-            if (!fugulin && row.c[5] && row.c[5].v !== null) fugulin = safeParseFloat(row.c[5].v);
-            // Coluna A (índice 0) = Data
-            if (dataRef === '--' && row.c[0] && row.c[0].v !== null) {
-                dataRef = row.c[0].f || String(row.c[0].v);
-            }
-        }
-        if (braden && fugulin) break; // Para a busca quando encontrar os dois
-    }
-    
-    return {
-       braden: braden || 0,
-       fugulin: fugulin || 0,
-       dataReferencia: dataRef
-    };
-  } catch (e) {
-    console.error("Falha ao ler dados do link direto:", e);
-    return {};
-  }
 };
 
 // --- MÉTODOS DE INTELIGÊNCIA (ABSENTEÍSMO E VIGOR) ---
@@ -275,7 +232,7 @@ const FileUpload = ({ onFileSelect }) => {
         const compressedFile = await compressImage(file);
         onFileSelect(compressedFile); setFileName(`✅ Imagem otimizada (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB. Envie um mais leve."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
+        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
         const reader = new FileReader();
         reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
         reader.readAsDataURL(file);
@@ -313,8 +270,8 @@ const BirthdayWidget = ({ staff }) => {
               <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
               <div className="flex-1">
                  <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
-                 {/* CORREÇÃO APLICADA: Puxa o 'expediente' diretamente */}
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{p.expediente || getVal(p, ['expediente', 'setor']) || 'Sem Expediente'}</p>
+                 {/* CORREÇÃO DO CARD: Prioridade máxima para puxar Expediente! */}
+                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente']) || getVal(p, ['setor', 'alocacao']) || 'Sem Expediente'}</p>
               </div>
            </div>
         ))}
@@ -681,6 +638,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 
+                {/* STATUS UPI CARD COMPACTO */}
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
@@ -694,6 +652,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
+                {/* Sub-grid da esquerda: KPIs de Gestão */}
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
@@ -713,6 +672,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
+                {/* Sub-grid da direita: Aniversários */}
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
                    <BirthdayWidget staff={appData.officers}/>
                 </div>
@@ -808,7 +768,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             if (!mesFiltro) return true;
             const d = parseDate(getVal(a,['inicio', 'data']));
             if (!d) return false;
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+            const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return itemMonth === mesFiltro;
          });
 
          return (
@@ -857,7 +818,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             if (!mesFiltro) return true;
             const d = parseDate(getVal(p,['sai', 'datasai']));
             if (!d) return false;
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+            const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return itemMonth === mesFiltro;
          });
 
          return (
@@ -1009,29 +971,21 @@ export default function App() {
     setIsSyncing(true);
     setSyncError("");
     try {
-      // PROCESSO PARALELO COM O NOVO LEITOR DIRETO DO BRADEN/FUGULIN
-      const [resG, resI, resDireto] = await Promise.all([
-        fetchSafeJSON(`${API_URL_GESTAO}?action=getData`),
-        fetchSafeJSON(`${API_URL_INDICADORES}?action=getData`),
-        fetchIndicadoresDireto() 
-      ]);
+      // O SISTEMA AGORA SÓ USA UMA REQUISIÇÃO PRINCIPAL!
+      // Os indicadores da folha 1aQ9p... já vêm incluídos no resG (Backend)
+      const resG = await fetchSafeJSON(`${API_URL_GESTAO}?action=getData`);
       
       if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
-
-      const novaMediaBraden = resDireto.braden || safeParseFloat(getVal(resI?.upiStats || resI || {}, ['braden']));
-      const novaMediaFugulin = resDireto.fugulin || safeParseFloat(getVal(resI?.upiStats || resI || {}, ['fugulin', 'fugulim', 'complexidade']));
-      let novaDataRef = resDireto.dataReferencia !== '--' ? resDireto.dataReferencia : getVal(resI?.upiStats || resI || {}, ['data', 'ref']);
-      if (novaDataRef === '--' || !novaDataRef) novaDataRef = new Date().toLocaleDateString('pt-BR');
 
       const newData = {
         officers: Array.isArray(resG.officers) ? resG.officers : [],
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         upi: {
-          leitosOcupados: getVal(resI?.upiStats || resI || {}, ['ocupado', 'leito']) || 0,
-          mediaBraden: novaMediaBraden,
-          mediaFugulin: novaMediaFugulin,
-          dataReferencia: novaDataRef
+          leitosOcupados: getVal(resG.upiStats, ['ocupado', 'leito']) || 0,
+          mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
+          mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
+          dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
         }
       };
       
