@@ -6,7 +6,8 @@ import {
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
-  ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield
+  ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
+  Bed
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -277,7 +278,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// COMPONENTE GANTT COMPARTILHADO (Usado por Admin e Tropa)
+// COMPONENTE GANTT COMPARTILHADO
 const GanttViewer = ({ feriasData }) => {
   const [mesFiltro, setMesFiltro] = useState(() => {
      const d = new Date();
@@ -499,7 +500,6 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
 };
 
 // --- ÁREA DO OFICIAL (TROPA) ---
-// Adicionada a propriedade onToggleAdmin (para a Chefia poder voltar pro Painel Admin)
 const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, gantt: false, password: false });
@@ -529,9 +529,9 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
-  // CORREÇÃO TURBINADA DE BUSCA INDIVIDUAL PARA A TIMELINE DO USUÁRIO
   const userSafeName = String(user).toLowerCase().trim();
 
+  // CORREÇÃO NAS PERMUTAS: O militar vê a permuta tanto se ele for o solicitante, quanto se for o substituto.
   const atestadosFiltrados = (appData.atestados || []).filter(a => {
      const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
      if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
@@ -541,8 +541,11 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
   }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
 
   const permutasFiltradas = (appData.permutas || []).filter(p => {
-     const nomeP = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
-     if (!nomeP.includes(userSafeName) && !userSafeName.includes(nomeP)) return false;
+     const nomeSolicitante = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
+     const nomeSubstituto = String(getVal(p, ['substituto'])).toLowerCase();
+     if (!nomeSolicitante.includes(userSafeName) && !userSafeName.includes(nomeSolicitante) &&
+         !nomeSubstituto.includes(userSafeName) && !userSafeName.includes(nomeSubstituto)) return false;
+     
      if (!mesFiltro) return true;
      const d = parseDate(getVal(p,['sai', 'datasai']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
@@ -595,14 +598,12 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
         <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
         
-        {/* NOVO MENU DE BOTÕES (AGORA COM 3 OPÇÕES) */}
         <div className="grid grid-cols-3 gap-3">
           <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-red-50 text-red-500 rounded-2xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
           <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
           <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-amber-50 text-amber-500 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
         </div>
 
-        {/* BOTÃO PARA ABRIR O GANTT GERAL */}
         <button onClick={() => setModals({...modals, gantt: true})} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
            <CalendarDays size={16}/> Visualizar Escala de Férias Geral
         </button>
@@ -628,7 +629,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
            </div>
 
           <div className="space-y-2">
-            {/* Renderiza tudo misturado na timeline do usuario */}
             {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas].sort((a,b) => {
                 const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
                 const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
@@ -639,16 +639,21 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
               let icon = null;
               
               if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
-              if (item._tipo === 'Permuta') { titulo = `Troca: ${getVal(item,['substituto'])}`; icon = <ArrowRightLeft size={12} className="text-indigo-500 inline mr-1"/>; }
+              if (item._tipo === 'Permuta') { 
+                  // Indica se o usuário está pedindo ou cobrindo
+                  const eSub = String(getVal(item,['substituto'])).toLowerCase().includes(userSafeName);
+                  titulo = eSub ? `Cobriu: ${getVal(item,['solicitante'])}` : `Pediu Troca: ${getVal(item,['substituto'])}`; 
+                  icon = <ArrowRightLeft size={12} className={eSub ? "text-green-500 inline mr-1" : "text-indigo-500 inline mr-1"}/>; 
+              }
               if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
 
               const statusAtual = getVal(item,['status']) || 'Homologado'; 
               const isRejected = statusAtual.toLowerCase().includes('rejeitado');
 
               return (
-              <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+              <div key={i} className={`bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center ${isRejected ? 'border-red-200' : 'border-slate-100'}`}>
                 <div className="text-xs">
-                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1">{icon} {titulo}</p>
+                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1 flex items-center">{icon} {titulo}</p>
                   <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
                     <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
                     {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
@@ -668,8 +673,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
       {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
       {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
       {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
-      
-      {/* NOVO MODAL: PEDIR FÉRIAS DO USUÁRIO COM OPÇÕES RESTRITAS */}
       {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
     </div>
   );
@@ -809,15 +812,17 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 
-                {/* STATUS UPI CARD COMPACTO */}
+                {/* STATUS UPI CARD COMPACTO: AGORA COM ACAMADOS */}
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
                       <div className="bg-blue-600 p-4 rounded-2xl shadow-lg"><Activity size={28}/></div>
                       <div><h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter">Status UPI</h3><p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">Ref: {appData.upi.dataReferencia}</p></div>
                    </div>
-                   <div className="flex gap-8 md:gap-12 text-center relative z-10 font-black w-full md:w-auto justify-between md:justify-end">
-                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Ocupação</p><p className="text-3xl md:text-4xl">{appData.upi.leitosOcupados} <span className="text-base text-slate-700 font-bold">/ 15</span></p></div>
+                   <div className="flex gap-6 md:gap-8 text-center relative z-10 font-black w-full md:w-auto justify-between md:justify-end flex-wrap">
+                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1 flex items-center gap-1 justify-center"><Bed size={10}/> Ocupação</p><p className="text-3xl md:text-4xl">{appData.upi.leitosOcupados} <span className="text-base text-slate-700 font-bold">/ 15</span></p></div>
+                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Acamados</p><p className="text-3xl md:text-4xl text-blue-400">{appData.upi.acamados || 0}</p></div>
+                      <div className="w-px bg-slate-800 hidden md:block"></div>
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Braden</p><p className="text-3xl md:text-4xl text-yellow-500">{appData.upi.mediaBraden.toFixed(1)}</p></div>
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p></div>
                    </div>
@@ -985,7 +990,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
                         <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
                         <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
+                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black tracking-widest uppercase text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
                         <td className="p-4 text-right">
                            {isPendente && (
                               <div className="flex justify-end gap-2">
@@ -1043,7 +1048,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
                        <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                       <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(p, ['status'])}</span></td>
+                       <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">
                            {isPendente && (
                               <div className="flex justify-end gap-2">
@@ -1187,7 +1192,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
-         {/* MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) */}
+         {/* MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) COM BUSCA TURBINADA BIDIRECIONAL */}
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
             
@@ -1199,9 +1204,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
                return nomeA.includes(nomeAlvo) || nomeAlvo.includes(nomeA);
             });
+            // CORREÇÃO: Busca permutas onde ele pediu OU onde ele cobriu
             const permutasHist = (appData.permutas||[]).filter(p => {
-               const nomeP = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
-               return nomeP.includes(nomeAlvo) || nomeAlvo.includes(nomeP);
+               const nomeP_solicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
+               const nomeP_substituto = String(getVal(p,['substituto'])).trim().toLowerCase();
+               return nomeP_solicitante.includes(nomeAlvo) || nomeAlvo.includes(nomeP_solicitante) || 
+                      nomeP_substituto.includes(nomeAlvo) || nomeAlvo.includes(nomeP_substituto);
             });
 
             return (
@@ -1239,15 +1247,20 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                      </div>
                      {/* Permutas */}
                      <div>
-                        <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1">Permutas (Como Solicitante)</h4>
+                        <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1">Permutas (Geral)</h4>
                         <ul className="space-y-2">
                            {permutasHist.length > 0 ? permutasHist.map((p, i) => {
                                  const st = getVal(p,['status']) || 'Homologado';
                                  const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 // Identifica se ele pediu ou se ele cobriu
+                                 const foiSolicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase().includes(nomeAlvo);
+                                 
                                  return (
                                  <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
                                     <div className="flex justify-between items-center">
-                                       <span className="font-bold text-slate-700">Substituto: {getVal(p,['substituto'])}</span>
+                                       <span className="font-bold text-slate-700">
+                                          {foiSolicitante ? `Substituto: ${getVal(p,['substituto'])}` : `Cobriu: ${getVal(p,['solicitante'])}`}
+                                       </span>
                                        <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
                                     </div>
                                     <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai', 'datasai']))} / E: {formatDate(getVal(p,['entra', 'dataentra']))}</span>
@@ -1272,7 +1285,6 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
   
-  // NOVO: Estado que controla se a Chefia está usando o sistema como Admin ou como Usuário normal
   const [adminModeActive, setAdminModeActive] = useState(true); 
   
   const [appData, setAppData] = useState(() => {
@@ -1280,7 +1292,7 @@ export default function App() {
       const cached = localStorage.getItem('sga_app_cache');
       if (cached) return JSON.parse(cached);
     } catch(e) {}
-    return { officers: [], atestados: [], permutas: [], ferias: [], upi: {leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
+    return { officers: [], atestados: [], permutas: [], ferias: [], upi: {leitosOcupados: 0, acamados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
   });
 
   const fetchSafeJSON = async (url) => {
@@ -1309,6 +1321,7 @@ export default function App() {
         ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
         upi: {
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
+          acamados: getVal(resG.upiStats, ['acamados']) || 0, // NOVO: Leitura dos acamados!
           mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
           mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
           dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
@@ -1331,7 +1344,7 @@ export default function App() {
   const handleLogin = (u, r) => { 
     setUser(u); 
     setRole(r); 
-    setAdminModeActive(true); // Sempre que logar, se for chefia, entra como chefia.
+    setAdminModeActive(true); 
     localStorage.setItem('sga_app_user', u);
     localStorage.setItem('sga_app_role', r);
   };
