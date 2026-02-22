@@ -121,7 +121,7 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
-// MOTOR DE COMPRESSÃO DE IMAGENS ALTA DEFINIÇÃO
+// MOTOR DE COMPRESSÃO DE IMAGENS (ALTA RESOLUÇÃO RESTAURADA)
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -132,15 +132,14 @@ const compressImage = (file) => {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         
-        // Mantém as dimensões originais para preservar a leitura de letras pequenas
+        // Mantemos a resolução gigante (4000px é nível 4K) para garantir leitura de textos!
+        const MAX_DIMENSION = 4000; 
         let width = img.width;
         let height = img.height;
-
-        // Limite de segurança extremo apenas para não crashar o browser do celular (4000px é resolução 4K)
-        const MAX_DIMENSION = 4000; 
+        
         if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-          if (width > height) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; } 
-          else { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
+           if (width > height) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; } 
+           else { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
         }
 
         canvas.width = width; 
@@ -148,9 +147,8 @@ const compressImage = (file) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Comprime o "peso" do ficheiro em Megabytes (Qualidade de 0 a 1)
-        // 0.5 a 0.65 reduz drasticamente o tamanho do arquivo preservando a legibilidade de textos
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+        // Reduzimos o MB (qualidade 0.6) mas mantemos o tamanho do ecrã
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         resolve({ name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", type: 'image/jpeg', base64: dataUrl.split(',')[1] });
       };
     };
@@ -164,53 +162,26 @@ const FileUpload = ({ onFileSelect }) => {
   const handleChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    setIsProcessing(true);
-    setFileName("A processar ficheiro...");
-
+    setIsProcessing(true); setFileName("A processar ficheiro...");
     try {
       if (file.type.startsWith('image/')) {
         const compressedFile = await compressImage(file);
-        onFileSelect(compressedFile);
-        setFileName(`✅ Imagem pronta em Alta Resolução (${file.name})`);
+        onFileSelect(compressedFile); setFileName(`✅ Imagem em Alta Resolução (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) {
-          alert("O PDF excede 10MB. Envie um ficheiro mais leve.");
-          e.target.value = "";
-          setIsProcessing(false);
-          setFileName("");
-          return;
-        }
+        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB. Envie um mais leve."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
         const reader = new FileReader();
-        reader.onloadend = () => {
-          onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] });
-          setFileName(`✅ PDF anexado (${file.name})`);
-        };
+        reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
         reader.readAsDataURL(file);
-      } else {
-        alert("Apenas são permitidos ficheiros PDF ou Imagens (Fotos).");
-        e.target.value = "";
-        setFileName("");
-      }
-    } catch (err) {
-      alert("Erro ao processar o ficheiro.");
-      setFileName("");
-    } finally {
-      setIsProcessing(false);
-    }
+      } else { alert("Apenas PDF ou Imagens (Fotos)."); e.target.value = ""; setFileName(""); }
+    } catch (err) { alert("Erro ao processar ficheiro."); setFileName(""); } 
+    finally { setIsProcessing(false); }
   };
 
   return (
     <div className="mt-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl relative overflow-hidden transition-all hover:bg-slate-100">
-      <div className="flex items-center gap-3 mb-2">
-         <Paperclip size={16} className="text-slate-500"/>
-         <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">
-            Anexar Documento / Foto
-         </label>
-      </div>
+      <div className="flex items-center gap-3 mb-2"><Paperclip size={16} className="text-slate-500"/><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Anexar Documento / Foto</label></div>
       <input type="file" accept="image/*,application/pdf" onChange={handleChange} disabled={isProcessing} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
-      
-      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando arquivo...</div>}
+      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando para envio...</div>}
       {fileName && !isProcessing && <div className="mt-3 text-[10px] font-bold text-green-600 bg-green-50 p-2 rounded-lg">{fileName}</div>}
     </div>
   );
@@ -242,7 +213,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ECRÃ DE LOGIN ---
+// --- ÁREA DE LOGIN ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -336,25 +307,12 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const handleSend = async (action, payload) => {
     setIsSaving(true);
     try {
-      await fetch(API_URL_GESTAO, { 
-        method: 'POST', 
-        mode: 'no-cors', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-        body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) 
-      });
-      setTimeout(() => { 
-        setIsSaving(false); 
-        setModals({ atestado: false, permuta: false }); 
-        setFileData(null); 
-        syncData(); 
-      }, 1500);
+      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
+      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false }); setFileData(null); syncData(); }, 1500);
     } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
   };
 
-  const closeModals = () => {
-      setModals({ atestado: false, permuta: false });
-      setFileData(null);
-  }
+  const closeModals = () => { setModals({ atestado: false, permuta: false }); setFileData(null); }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -382,7 +340,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
                   <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
                     <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
                     {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
-                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={8}/> Anexo</a>}
+                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
                   </div>
                 </div>
                 <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${getVal(item,['status'])==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{getVal(item,['status'])}</span>
@@ -394,8 +352,8 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
       </main>
 
       {/* MODAIS USER COM UPLOAD DE ARQUIVO */}
-      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id: Date.now().toString(), status:'Pendente', militar:user, inicio:form.inicio, dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData} /><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
-      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id: Date.now().toString(), status:'Pendente', solicitante:user, substituto:form.sub, datasai:form.sai, dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Retorno</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData} /><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
+      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
+      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Retorno</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
     </div>
   );
 };
@@ -410,15 +368,28 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [homologandoId, setHomologandoId] = useState(null); 
   
   const [showOfficerModal, setShowOfficerModal] = useState(false);
-  const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
+  const [showAtestadoModal, setShowAtestadoModal] = useState(false);
+  const [showPermutaModal, setShowPermutaModal] = useState(false);
   
+  const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
+  const [formAtestado, setFormAtestado] = useState({});
+  const [formPermuta, setFormPermuta] = useState({});
+  const [fileData, setFileData] = useState(null);
+
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
   const sendData = async (action, payload) => {
     setIsSaving(true);
     try {
       await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload }) });
-      setTimeout(() => { setIsSaving(false); setShowOfficerModal(false); syncData(true); }, 1500); 
+      setTimeout(() => { 
+          setIsSaving(false); 
+          setShowOfficerModal(false); 
+          setShowAtestadoModal(false);
+          setShowPermutaModal(false);
+          setFileData(null);
+          syncData(true); 
+      }, 1500); 
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
@@ -527,7 +498,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                 <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
+                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça / Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
                   </thead><tbody className="divide-y divide-slate-50">
                     {sortedOfficers.map((o, i) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
@@ -552,7 +523,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       case 'atestados':
          return (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Gestão de Atestados</h3>
+               <div className="flex justify-between items-center mb-6">
+                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Gestão de Atestados</h3>
+                 <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançar Atestado</button>
+               </div>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                   <tbody className="divide-y divide-slate-50">
                     {(appData.atestados||[]).map((a, i) => {
@@ -576,7 +550,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       case 'permutas':
          return (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter mb-6">Permutas Solicitadas</h3>
+               <div className="flex justify-between items-center mb-6">
+                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Permutas Solicitadas</h3>
+                 <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançar Permuta</button>
+               </div>
                <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S / E)</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
                    {(appData.permutas||[]).map((p, idx) => {
@@ -586,7 +563,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
@@ -620,6 +597,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
+         {/* Lançamento direto pela Chefia (Modais Adicionais) */}
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -654,6 +632,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
               </form>
            </Modal>
          )}
+
+         {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Entrada</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
       </main>
     </div>
   );
