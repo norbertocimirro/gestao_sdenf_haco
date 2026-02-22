@@ -6,11 +6,10 @@ import {
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
-  ChevronLeft, ChevronRight, Key, Lock
+  ChevronLeft, ChevronRight, Key, Lock, Sun
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
-// Agora apenas UMA conexão é necessária, o backend faz tudo!
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
 
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
@@ -270,7 +269,6 @@ const BirthdayWidget = ({ staff }) => {
               <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
               <div className="flex-1">
                  <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
-                 {/* CORREÇÃO DO CARD: Prioridade máxima para puxar Expediente! */}
                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente']) || getVal(p, ['setor', 'alocacao']) || 'Sem Expediente'}</p>
               </div>
            </div>
@@ -521,11 +519,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [showOfficerModal, setShowOfficerModal] = useState(false);
   const [showAtestadoModal, setShowAtestadoModal] = useState(false);
   const [showPermutaModal, setShowPermutaModal] = useState(false);
+  const [showFeriasModal, setShowFeriasModal] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
   const [formAtestado, setFormAtestado] = useState({});
   const [formPermuta, setFormPermuta] = useState({});
+  const [formFerias, setFormFerias] = useState({});
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
@@ -567,6 +567,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
           setShowOfficerModal(false); 
           setShowAtestadoModal(false);
           setShowPermutaModal(false);
+          setShowFeriasModal(false);
           setShowPassModal(false);
           setFileData(null);
           syncData(true); 
@@ -861,6 +862,111 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                </table></div>
             </div>
          );
+      case 'ferias':
+         // Cálculos de dias do Mês Selecionado para o Gantt
+         let anoStrF = new Date().getFullYear();
+         let mesStrF = new Date().getMonth();
+         if (mesFiltro) {
+             [anoStrF, mesStrF] = mesFiltro.split('-');
+             anoStrF = parseInt(anoStrF);
+             mesStrF = parseInt(mesStrF) - 1;
+         }
+         const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
+         const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
+
+         // Filtrar quem tem férias que tocam neste mês
+         const feriasListFiltradas = (appData.ferias || []).filter(f => {
+            if (!mesFiltro) return true;
+            const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
+            const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; // 30 dias por padrão
+            if (!start) return false;
+            
+            const end = new Date(start);
+            end.setDate(end.getDate() + dias - 1);
+            
+            const monthStart = new Date(anoStrF, mesStrF, 1);
+            const monthEnd = new Date(anoStrF, mesStrF + 1, 0);
+
+            // Se o período de férias encavala com o mês filtrado, exibe!
+            return start <= monthEnd && end >= monthStart;
+         });
+
+         return (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala de Férias (Gantt)</h3>
+                 
+                 <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
+                      <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
+                      <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
+                        {obterNomeMes(mesFiltro)}
+                      </div>
+                      <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
+                    </div>
+                    {mesFiltro && (
+                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-amber-500 transition-colors shrink-0">Ver Todos</button>
+                    )}
+                    <button onClick={() => setShowFeriasModal(true)} className="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Férias</button>
+                 </div>
+               </div>
+               
+               {/* GRÁFICO DE GANTT */}
+               <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <div className="min-w-[800px]">
+                     {/* Cabeçalho do Gantt (Dias do Mês) */}
+                     <div className="bg-slate-50 flex border-b border-slate-200">
+                        <div className="w-32 md:w-48 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-50 border-r border-slate-200 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center">
+                           Militar
+                        </div>
+                        <div className="flex-1 flex">
+                           {daysArrayF.map(d => {
+                              const dt = new Date(anoStrF, mesStrF, d);
+                              const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                              return (
+                                <div key={d} className={`flex-1 flex justify-center items-center py-2 border-r border-slate-100 text-[9px] font-bold ${isWeekend ? 'bg-slate-200/50 text-slate-400' : 'text-slate-600'}`}>
+                                   {d}
+                                </div>
+                           )})}
+                        </div>
+                     </div>
+                     {/* Corpo do Gantt */}
+                     {feriasListFiltradas.length > 0 ? feriasListFiltradas.map((f, i) => {
+                        const militar = getVal(f, ['militar', 'nome', 'oficial']);
+                        const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
+                        const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30;
+                        const end = start ? new Date(start) : null;
+                        if (end) end.setDate(end.getDate() + dias - 1);
+
+                        return (
+                           <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
+                              <div className="w-32 md:w-48 p-3 text-[10px] md:text-xs font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors">
+                                 {militar}
+                              </div>
+                              <div className="flex-1 flex">
+                                 {daysArrayF.map(d => {
+                                    const currentDate = new Date(anoStrF, mesStrF, d);
+                                    const isVacation = start && end && currentDate >= start && currentDate <= end;
+                                    const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                                    
+                                    let bgClass = "bg-transparent";
+                                    if (isVacation) bgClass = "bg-amber-400 border-amber-500 shadow-inner";
+                                    else if (isWeekend) bgClass = "bg-slate-100/50";
+
+                                    return (
+                                       <div key={d} className={`flex-1 border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
+                                    )
+                                 })}
+                              </div>
+                           </div>
+                        )
+                     }) : (
+                        <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhuma programação de Férias neste mês.</div>
+                     )}
+                  </div>
+               </div>
+            </div>
+         );
       default: return null;
     }
   };
@@ -870,7 +976,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">SGA-Enf</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo', icon: Users }, { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].map(item => (
+            {/* NOVO: BOTÃO FÉRIAS NA BARRA LATERAL DA CHEFIA */}
+            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'ferias', label: 'Férias', icon: Sun }, { id: 'efetivo', label: 'Efetivo', icon: Users }, { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
@@ -932,6 +1039,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
            </Modal>
          )}
 
+         {/* NOVO MODAL: LANÇAR FÉRIAS */}
+         {showFeriasModal && <Modal title="Lançar Férias (Chefia)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}/></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar Férias"}</button></form></Modal>}
+
          {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
       </main>
@@ -952,7 +1062,7 @@ export default function App() {
       const cached = localStorage.getItem('sga_app_cache');
       if (cached) return JSON.parse(cached);
     } catch(e) {}
-    return { officers: [], atestados: [], permutas: [], upi: {leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
+    return { officers: [], atestados: [], permutas: [], ferias: [], upi: {leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
   });
 
   const fetchSafeJSON = async (url) => {
@@ -971,18 +1081,15 @@ export default function App() {
     setIsSyncing(true);
     setSyncError("");
     try {
-      // O SISTEMA AGORA SÓ USA UMA REQUISIÇÃO PRINCIPAL!
-      // Os indicadores da folha 1aQ9p... já vêm incluídos no resG (Backend)
       const resG = await fetchSafeJSON(`${API_URL_GESTAO}?action=getData`);
-      
       if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
 
       const newData = {
         officers: Array.isArray(resG.officers) ? resG.officers : [],
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
+        ferias: Array.isArray(resG.ferias) ? resG.ferias : [], // NOVO: Mapeamento da variável!
         upi: {
-          // AQUI FOI FEITA A CORREÇÃO CRÍTICA
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
           mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
           mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
