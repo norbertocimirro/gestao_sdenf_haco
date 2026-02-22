@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -297,7 +297,6 @@ const WeatherWidgetMini = () => {
          <span className="text-[10px]">{weather.temperature_2m}°C</span>
       </div>
       
-      {/* Esconde detalhes no mobile pequeno, mostra no desktop/tablet */}
       <div className="hidden md:flex items-center gap-2 md:gap-3 text-slate-400">
          <span className="w-px h-3 bg-slate-200"></span>
          <span title="Sensação Térmica">S: {weather.apparent_temperature}°</span>
@@ -574,9 +573,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
-  // TAG BETA TESTER: Flag para funcionalidades que estão em teste (apenas para o Ten Cimirro por enquanto)
-  const isCimirro = String(user).toLowerCase().includes('cimirro');
-
   const [mesFiltro, setMesFiltro] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -752,9 +748,148 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
   );
 };
 
+// --- COMPONENTE BETA: ESCALA MENSAL QUADRADINHOS ---
+const EscalaPreview = ({ appData }) => {
+  const [mesStr, setMesStr] = useState("2026-03"); // Default March 2026
+
+  const ano = parseInt(mesStr.split('-')[0]);
+  const mes = parseInt(mesStr.split('-')[1]) - 1;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
+
+  // Hardcoded Logic for March 2026 extracted from PDF
+  const escalaMarco = {
+     "1": { upiD: "2T Nascimento", upiN: "2T Barbara F", utiD: "ASP Coronet", utiN: "ASP Fritz" },
+     "7": { upiD: "2T Barbara V", upiN: "2T Maia", utiD: "2T Anderson", utiN: "2T Zomer" },
+     "8": { upiD: "2T Favilla", upiN: "2T Maia", utiD: "2T Jéssica Cunha", utiN: "2T Renata" }, 
+     "14": { upiD: "1T Luiziane", upiN: "1T Gisele", utiD: "1T Karen C", utiN: "1T Oliveira" },
+     "15": { upiD: "ASP Pereira", upiN: "1T Parode", utiD: "1T Sandri", utiN: "1T Serafim" },
+     "21": { upiD: "ASP Suellen Azevedo", upiN: "2T Jéssica", utiD: "1T Marasca", utiN: "1T Zanini" },
+     "22": { upiD: "2T Nascimento", upiN: "2T Cassia Freitas", utiD: "ASP Coronet", utiN: "ASP Fritz" },
+     "28": { upiD: "2T Barbara V", upiN: "2T Barbara F", utiD: "2T Anderson", utiN: "2T Zomer" },
+     "29": { upiD: "2T Favilla", upiN: "1T Luiziane", utiD: "2T Jéssica Cunha", utiN: "2T Renata" }
+  };
+
+  const checkIndisponibilidade = (nome, currentDia) => {
+      if (!nome) return null;
+      const n = String(nome).toLowerCase().trim();
+      const dt = new Date(ano, mes, currentDia, 12, 0, 0);
+
+      // Check Ferias
+      for (let f of (appData.ferias || [])) {
+          if (String(getVal(f, ['status'])).toLowerCase().includes('rejeitado')) continue;
+          if (String(getVal(f, ['militar'])).toLowerCase().includes(n) || n.includes(String(getVal(f, ['militar'])).toLowerCase())) {
+              const start = parseDate(getVal(f, ['inicio', 'data']));
+              const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 0;
+              if (start) {
+                  const end = new Date(start);
+                  end.setDate(end.getDate() + dias - 1);
+                  if (dt >= start && dt <= end) return "Férias";
+              }
+          }
+      }
+      
+      // Check Licencas
+      for (let l of (appData.licencas || [])) {
+          if (String(getVal(l, ['status'])).toLowerCase().includes('rejeitado')) continue;
+          if (String(getVal(l, ['militar'])).toLowerCase().includes(n) || n.includes(String(getVal(l, ['militar'])).toLowerCase())) {
+              const start = parseDate(getVal(l, ['inicio', 'data']));
+              const dias = parseInt(getVal(l, ['dias', 'quantidade'])) || 0;
+              if (start) {
+                  const end = new Date(start);
+                  end.setDate(end.getDate() + dias - 1);
+                  if (dt >= start && dt <= end) return "Licença";
+              }
+          }
+      }
+
+      // Check Atestados
+      for (let a of (appData.atestados || [])) {
+          if (String(getVal(a, ['status'])).toLowerCase().includes('rejeitado')) continue;
+          if (String(getVal(a, ['militar'])).toLowerCase().includes(n) || n.includes(String(getVal(a, ['militar'])).toLowerCase())) {
+              const start = parseDate(getVal(a, ['inicio', 'data']));
+              const dias = parseInt(getVal(a, ['dias', 'quantidade'])) || 0;
+              if (start) {
+                  const end = new Date(start);
+                  end.setDate(end.getDate() + dias - 1);
+                  if (dt >= start && dt <= end) return "Atestado";
+              }
+          }
+      }
+      return null;
+  };
+
+  const renderSlot = (nomeBase, dia) => {
+     if (!nomeBase) return "-";
+     const indisp = checkIndisponibilidade(nomeBase, dia);
+     if (indisp) {
+        return (
+           <div className="flex items-center gap-1 text-red-500 font-bold" title={`Escalado, mas consta: ${indisp}`}>
+              <AlertCircle size={10} /> <span className="line-through opacity-70">{nomeBase}</span>
+           </div>
+        );
+     }
+     return <span className="text-slate-800">{nomeBase}</span>;
+  };
+
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+         <div>
+            <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala Quadradinhos (Beta)</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Validação do cruzamento de dados de afastamento</p>
+         </div>
+         <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
+       </div>
+
+       <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl mb-6 text-xs text-blue-800 font-medium">
+          <p>Fiz o mapeamento com base na regra de Antiguidade Reversa. Como a escala de rodízio depende de quem foi o último a tirar plantão no mês anterior, fixei a sequência de Março de 2026 com base nos seus dados do PDF para testarmos o cruzamento!</p>
+          <p className="mt-2 font-black">Se no futuro for implementar a geração 100% autônoma para qualquer mês, precisaremos adicionar uma coluna na aba Oficiais chamada "Data Último Plantão".</p>
+       </div>
+
+       <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-xs font-sans min-w-[800px]">
+             <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200">
+                <tr>
+                   <th className="p-3 text-center w-16 border-r border-slate-200">Dia</th>
+                   <th className="p-3 text-center w-16 border-r border-slate-200">Semana</th>
+                   <th className="p-3 border-r border-slate-200">UPI Diurno</th>
+                   <th className="p-3 border-r border-slate-200">UPI Noturno</th>
+                   <th className="p-3 border-r border-slate-200">UTI Diurno</th>
+                   <th className="p-3">UTI Noturno</th>
+                </tr>
+             </thead>
+             <tbody className="divide-y divide-slate-100">
+                {daysArray.map(d => {
+                   const dt = new Date(ano, mes, d);
+                   const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                   const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+                   const bgRow = isWeekend ? 'bg-red-50/40 hover:bg-red-50' : 'bg-white hover:bg-slate-50';
+                   const isMarch2026 = ano === 2026 && mes === 2;
+                   
+                   const assignment = (isMarch2026 && isWeekend) ? escalaMarco[String(d)] : null;
+
+                   return (
+                      <tr key={d} className={`transition-colors ${bgRow}`}>
+                         <td className={`p-3 text-center border-r border-slate-100 font-black ${isWeekend ? 'text-red-500' : 'text-slate-500'}`}>{String(d).padStart(2, '0')}</td>
+                         <td className={`p-3 text-center border-r border-slate-100 font-bold ${isWeekend ? 'text-red-400' : 'text-slate-400'}`}>{diaNome}</td>
+                         <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                         <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                         <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                         <td className="p-3 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+                      </tr>
+                   )
+                })}
+             </tbody>
+          </table>
+       </div>
+    </div>
+  );
+};
+
 // --- PAINEL CHEFIA (ADMIN) ---
 
-const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin }) => {
+const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
@@ -781,9 +916,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
   const isApenasRT = role === 'rt'; 
-  
-  // TAG BETA TESTER: O sistema detecta se é o Ten Cimirro para funcionalidades exclusivas (Acesso Antecipado)
-  const isCimirro = String(user).toLowerCase().includes('cimirro');
 
   const [mesFiltro, setMesFiltro] = useState(() => {
      const d = new Date();
@@ -885,7 +1017,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
-            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
@@ -893,7 +1024,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                       <div className="bg-blue-600 p-4 rounded-2xl shadow-lg"><Activity size={28}/></div>
                       <div>
                          <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter">Status UPI</h3>
-                         {/* A referencia de data foi removida a pedido da auditoria */}
                       </div>
                    </div>
                    <div className="flex gap-6 md:gap-8 text-center relative z-10 font-black w-full md:w-auto justify-between md:justify-end flex-wrap">
@@ -927,7 +1057,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{pendentesCount}</h3>
                    </div>
                    
-                   {/* CARD CONSOLIDADO DE AFASTAMENTOS EM VIGOR */}
                    <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm relative">
                      <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-2 flex items-center gap-1"><CalendarClock size={10}/> Em Vigor</p>
                      <div className="flex gap-4 w-full justify-center">
@@ -1245,6 +1374,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                </div>
             </div>
          );
+      case 'escala':
+         // ABRE SOMENTE SE ESTIVER NA ABA ESCALA (EXCLUSIVO BETA TESTER)
+         return <EscalaPreview appData={appData} />;
       default: return null;
     }
   };
@@ -1260,8 +1392,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: isApenasRT ? 0 : (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
-               { id: 'efetivo', label: 'Efetivo', icon: Users }, 
-               { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].map(item => (
+               { id: 'efetivo', label: 'Efetivo', icon: Users },
+               isCimirro && { id: 'escala', label: 'Escala (Beta)', icon: Calendar }, // NOVO ITEM SÓ PARA O CIMIRRO
+               { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
@@ -1336,10 +1469,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
            </Modal>
          )}
 
+         {/* Lançamento de Férias Direto (Admin pula homologação) */}
          {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
 
+         {/* Lançamento de Licença Direto (Admin) */}
          {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
 
+         {/* Lançamento de Atestados e Permutas (Admin) */}
          {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
@@ -1522,12 +1658,14 @@ export default function App() {
     localStorage.removeItem('sga_app_role');
   }
   
+  const isCimirro = String(user).toLowerCase().includes('cimirro');
+
   return (
     <ErrorBoundary>
       {!user ? (
         <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
       ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
-        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} />
+        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} isCimirro={isCimirro} />
       ) : (
         <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
       )}
