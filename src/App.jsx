@@ -863,7 +863,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'ferias':
-         // Cálculos de dias do Mês Selecionado para o Gantt
          let anoStrF = new Date().getFullYear();
          let mesStrF = new Date().getMonth();
          if (mesFiltro) {
@@ -874,11 +873,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
          const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
 
-         // Filtrar quem tem férias que tocam neste mês
          const feriasListFiltradas = (appData.ferias || []).filter(f => {
             if (!mesFiltro) return true;
             const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
-            const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; // 30 dias por padrão
+            const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; 
             if (!start) return false;
             
             const end = new Date(start);
@@ -887,7 +885,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             const monthStart = new Date(anoStrF, mesStrF, 1);
             const monthEnd = new Date(anoStrF, mesStrF + 1, 0);
 
-            // Se o período de férias encavala com o mês filtrado, exibe!
             return start <= monthEnd && end >= monthStart;
          });
 
@@ -911,25 +908,32 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                  </div>
                </div>
                
-               {/* GRÁFICO DE GANTT COM TEXTO EMBUTIDO */}
+               {/* GRÁFICO DE GANTT COM COLUNA DE PERÍODO */}
                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <div className="min-w-[800px]">
-                     {/* Cabeçalho do Gantt (Dias do Mês) */}
+                  <div className="min-w-[900px]">
+                     {/* Cabeçalho do Gantt */}
                      <div className="bg-slate-50 flex border-b border-slate-200">
-                        <div className="w-32 md:w-48 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-50 border-r border-slate-200 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center">
+                        {/* 1. Coluna do Nome FIXA */}
+                        <div className="w-32 md:w-48 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
                            Militar
                         </div>
+                        {/* 2. NOVA COLUNA DE PERÍODO FIXA */}
+                        <div className="w-32 md:w-44 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky md:left-48 left-32 bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                           Período
+                        </div>
+                        {/* 3. Colunas dos Dias do Mês */}
                         <div className="flex-1 flex">
                            {daysArrayF.map(d => {
                               const dt = new Date(anoStrF, mesStrF, d);
                               const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
                               return (
-                                <div key={d} className={`flex-1 flex justify-center items-center py-2 border-r border-slate-100 text-[9px] font-bold ${isWeekend ? 'bg-slate-200/50 text-slate-400' : 'text-slate-600'}`}>
+                                <div key={d} className={`flex-1 min-w-[24px] flex justify-center items-center py-2 border-r border-slate-100 text-[9px] font-bold ${isWeekend ? 'bg-slate-200/50 text-slate-400' : 'text-slate-600'}`}>
                                    {d}
                                 </div>
                            )})}
                         </div>
                      </div>
+                     
                      {/* Corpo do Gantt */}
                      {feriasListFiltradas.length > 0 ? feriasListFiltradas.map((f, i) => {
                         const militar = getVal(f, ['militar', 'nome', 'oficial']);
@@ -940,43 +944,36 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
                         return (
                            <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                              <div className="w-32 md:w-48 p-3 text-[10px] md:text-xs font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors">
+                              {/* 1. Nome do Militar */}
+                              <div className="w-32 md:w-48 p-3 text-[10px] md:text-xs font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
                                  {militar}
                               </div>
-                              <div className="flex-1 flex relative">
+                              {/* 2. NOVA COLUNA: Texto do Período */}
+                              <div className="w-32 md:w-44 p-3 text-[9px] md:text-[10px] font-bold text-amber-700 sticky md:left-48 left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0">
+                                 <span className="font-mono">{formatDate(start)}</span>
+                                 <span className="font-mono opacity-60 text-[8px]">até {formatDate(end)}</span>
+                                 <span className="absolute top-1 right-2 text-[7px] font-black uppercase bg-amber-200 px-1 rounded text-amber-800">{dias}d</span>
+                              </div>
+                              {/* 3. Barras do Gantt (Dias do mês) */}
+                              <div className="flex-1 flex">
                                  {daysArrayF.map(d => {
                                     const currentDate = new Date(anoStrF, mesStrF, d);
                                     const isVacation = start && end && currentDate >= start && currentDate <= end;
                                     const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
                                     
                                     let bgClass = "bg-transparent";
-                                    if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10";
+                                    if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
                                     else if (isWeekend) bgClass = "bg-slate-100/50";
 
-                                    // Lógica para mostrar o texto no 1º dia visível daquele mês
-                                    let isFirstDayOfDisplay = false;
-                                    if (isVacation) {
-                                       // É o primeiro dia se: a data de hoje for exatamente a data de início OU se o dia for 1 e as férias já estiverem rolando
-                                       if (currentDate.getTime() === start.getTime() || (d === 1 && start < currentDate)) {
-                                          isFirstDayOfDisplay = true;
-                                       }
-                                    }
-
                                     return (
-                                       <div key={d} className={`flex-1 border-r border-slate-100 relative ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}>
-                                          {isFirstDayOfDisplay && (
-                                             <span className="absolute left-1.5 md:left-2 top-1/2 -translate-y-1/2 text-[8px] md:text-[9px] font-black uppercase tracking-widest whitespace-nowrap text-amber-900 z-20 pointer-events-none drop-shadow-sm mix-blend-color-burn">
-                                                {formatDate(start).substring(0,5)} a {formatDate(end).substring(0,5)} ({dias}d)
-                                             </span>
-                                          )}
-                                       </div>
+                                       <div key={d} className={`flex-1 min-w-[24px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
                                     )
                                  })}
                               </div>
                            </div>
                         )
                      }) : (
-                        <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhuma programação de Férias neste mês.</div>
+                        <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs border-b border-slate-100">Nenhuma programação de Férias neste mês.</div>
                      )}
                   </div>
                </div>
