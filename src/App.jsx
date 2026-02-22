@@ -6,7 +6,7 @@ import {
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Key, Lock
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -275,11 +275,13 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ECRÃ DE LOGIN ---
+// --- ECRÃ DE LOGIN (COM SENHA) ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
   const [user, setUser] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   
   const list = Array.isArray(appData?.officers) ? appData.officers : [];
 
@@ -295,6 +297,24 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
         return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini');
       });
 
+  const handleAuth = () => {
+    setLoginError('');
+    const selectedUser = list.find(o => getVal(o, ['nome']) === user);
+    if (selectedUser) {
+       // Puxa a senha da planilha, se não existir, usa a padrão 123456
+       const correctPassword = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
+       
+       if (password === correctPassword) {
+           const nome = getVal(selectedUser, ['nome']);
+           let role = getVal(selectedUser, ['role']) || 'user';
+           if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin';
+           onLogin(nome, role);
+       } else {
+           setLoginError('Senha incorreta.');
+       }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden">
       {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
@@ -304,8 +324,8 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
            <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
               <Plane size={32} className="text-white transform -rotate-12"/>
            </div>
-           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">SGA-Enf HACO</h1>
-           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
+           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">Enfermagem HACO</h1>
+           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Hospital de Aeronáutica de Canoas</p>
         </div>
         
         {syncError && (
@@ -316,35 +336,29 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
         )}
 
         <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
-           <button onClick={() => setRoleGroup('chefia')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
-           <button onClick={() => setRoleGroup('tropa')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
+           <button onClick={() => {setRoleGroup('chefia'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
+           <button onClick={() => {setRoleGroup('tropa'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
         </div>
 
         <div className="space-y-4">
           <div className="relative">
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
-            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
+            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
                <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
                {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
                {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
           </div>
 
-          <button 
-             onClick={() => {
-                const selectedUser = list.find(o => getVal(o, ['nome']) === user);
-                if (selectedUser) {
-                   const nome = getVal(selectedUser, ['nome']);
-                   let role = getVal(selectedUser, ['role']) || 'user';
-                   if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin';
-                   onLogin(nome, role);
-                }
-             }} 
-             disabled={!user || isSyncing} 
-             className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}
-          >
-             Entrar no Sistema
-          </button>
+          {user && (
+            <div className="relative animate-fadeIn">
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Senha de Acesso</label>
+              <input type="password" value={password} onChange={e => {setPassword(e.target.value); setLoginError('');}} placeholder="Digite sua senha" onKeyDown={e => e.key === 'Enter' && handleAuth()} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
+              {loginError && <p className="text-red-500 text-[10px] font-bold mt-2 ml-1">{loginError}</p>}
+            </div>
+          )}
+
+          <button onClick={handleAuth} disabled={!user || !password || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user && password ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Entrar no Sistema</button>
         </div>
       </div>
     </div>
@@ -355,8 +369,9 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
 
 const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [isSaving, setIsSaving] = useState(false);
-  const [modals, setModals] = useState({ atestado: false, permuta: false });
+  const [modals, setModals] = useState({ atestado: false, permuta: false, password: false });
   const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
+  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
   const atestadosFiltrados = (appData.atestados || []).filter(a => String(getVal(a, ['militar'])).includes(user)).reverse();
@@ -366,11 +381,24 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
     setIsSaving(true);
     try {
       await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
-      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false }); setFileData(null); syncData(); }, 1500);
+      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, password: false }); setFileData(null); syncData(true); }, 1500);
     } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
   };
 
-  const closeModals = () => { setModals({ atestado: false, permuta: false }); setFileData(null); }
+  const closeModals = () => { setModals({ atestado: false, permuta: false, password: false }); setFileData(null); }
+
+  const handleChangePassword = (e) => {
+     e.preventDefault();
+     if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
+     if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
+     
+     const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
+     if(!myOfficerData) return alert("Erro ao localizar seu perfil.");
+
+     // Usa a função saveOfficer para atualizar o perfil com a nova senha
+     const payload = { ...myOfficerData, senha: passForm.new };
+     handleSend('saveOfficer', payload);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -379,7 +407,10 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-md text-xl">HA</div>
           <div><h1 className="font-black text-slate-800 text-sm uppercase tracking-tighter">Ten {user}</h1><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Painel Individual</p></div>
         </div>
-        <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-400 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
+        <div className="flex gap-2">
+           <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90"><Key size={16}/></button>
+           <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
+        </div>
       </header>
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
         <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
@@ -409,7 +440,8 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
         </div>
       </main>
 
-      {/* MODAIS USER COM UPLOAD DE ARQUIVO */}
+      {/* MODAIS USER */}
+      {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
       {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
       {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
     </div>
@@ -428,21 +460,22 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [showOfficerModal, setShowOfficerModal] = useState(false);
   const [showAtestadoModal, setShowAtestadoModal] = useState(false);
   const [showPermutaModal, setShowPermutaModal] = useState(false);
+  const [showPassModal, setShowPassModal] = useState(false);
   
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
   const [formAtestado, setFormAtestado] = useState({});
   const [formPermuta, setFormPermuta] = useState({});
+  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
-  // Estado para filtro mensal de abas (Inicializa com o mês atual YYYY-MM)
+  // Estado para filtro mensal de abas
   const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  // Funções para lidar com as Setas de Mês
   const handleMonthChange = (direction) => {
      let baseDate = new Date();
      if (filtroMesAtual) {
@@ -455,12 +488,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const displayMonthName = (yyyy_mm) => {
      if (!yyyy_mm) return "TODOS OS REGISTOS";
-     const [y, m] = yyyy_mm.split('-');
+     const [y, m] = yyy_mm.split('-');
      const d = new Date(y, m - 1, 1);
      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
-  // Cálculo da Inteligência de Negócio (Absenteísmo e Vigor)
   const atestadosAtivos = getActiveAtestados(appData.atestados);
   const absenteismoDados = calculateAbsenteismoStats(appData.atestados, (appData.officers||[]).length);
   const taxaMensalAbs = absenteismoDados.months[new Date().getMonth()].rate;
@@ -475,6 +507,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
           setShowOfficerModal(false); 
           setShowAtestadoModal(false);
           setShowPermutaModal(false);
+          setShowPassModal(false);
           setFileData(null);
           syncData(true); 
       }, 1500); 
@@ -510,6 +543,16 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     const payload = { ...formOfficer, id: formOfficer.id || Date.now(), expediente: Array.isArray(formOfficer.expediente) ? formOfficer.expediente.join(', ') : '', servico: formOfficer.servico || '' };
     sendData('saveOfficer', payload);
   };
+
+  const handleChangePassword = (e) => {
+    e.preventDefault();
+    if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
+    if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
+    const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
+    if(!myOfficerData) return alert("Erro ao localizar seu perfil.");
+    const payload = { ...myOfficerData, senha: passForm.new };
+    sendData('saveOfficer', payload);
+ };
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -749,7 +792,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
@@ -774,9 +817,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
          </nav>
-         <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-4">
+         <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-3">
             {sidebarOpen && <div className="text-center w-full"><div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center font-black shadow-md bg-slate-800 text-white border border-slate-700 mb-2">{user.substring(0,2).toUpperCase()}</div><p className="font-black text-xs tracking-tight truncate w-full uppercase">{user}</p><p className="text-[8px] text-blue-400 uppercase font-bold tracking-widest">{role}</p></div>}
-            <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-3 rounded-xl hover:bg-white/5 transition-all"><LogOut size={18}/> {sidebarOpen && 'Sair'}</button>
+            <button onClick={() => setShowPassModal(true)} className="flex items-center justify-center gap-3 text-slate-500 hover:text-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><Key size={16}/> {sidebarOpen && 'Trocar Senha'}</button>
+            <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair do Sistema'}</button>
          </div>
       </aside>
       <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative">
@@ -784,6 +828,17 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          {renderContent()}
 
          {/* Lançamento direto pela Chefia (Modais Adicionais) */}
+         {showPassModal && (
+           <Modal title="Trocar Senha de Acesso" onClose={() => setShowPassModal(false)}>
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div>
+                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div>
+                 <div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div>
+                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button>
+              </form>
+           </Modal>
+         )}
+
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
