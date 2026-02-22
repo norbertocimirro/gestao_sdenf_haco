@@ -16,7 +16,7 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
-// --- HELPERS DE SEGURANÇA ---
+// --- HELPERS DE SEGURANÇA E LEITURA ---
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -88,9 +88,14 @@ const calculateDetailedTime = (dateInput) => {
   return { y: validY, m: validM, d: validD, display: `${validY}a ${validM}m ${validD}d` };
 };
 
+// EXTRATOR NUMÉRICO BLINDADO (Corrige o problema do Braden/Fugulin vindo como texto ou com vírgulas)
 const safeParseFloat = (value) => {
-  if (!value) return 0;
-  const num = parseFloat(String(value).replace(',', '.'));
+  if (value === null || value === undefined || value === '') return 0;
+  const strVal = String(value);
+  // Expressão regular que puxa apenas os números (mesmo que tenham letras à volta, ex: "14,5 pontos")
+  const match = strVal.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match) return 0;
+  const num = parseFloat(match[0].replace(',', '.'));
   return isNaN(num) ? 0 : num;
 };
 
@@ -266,7 +271,11 @@ const BirthdayWidget = ({ staff }) => {
         {birthdays.map((p, i) => (
            <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100">
               <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
-              <div className="flex-1"><p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p><p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['setor'])}</p></div>
+              <div className="flex-1">
+                <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
+                {/* Correção: Agora puxa "expediente" em vez de setor */}
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente', 'setor'])}</p>
+              </div>
            </div>
         ))}
         {birthdays.length === 0 && <p className="text-center py-6 text-slate-400 text-[10px] font-black uppercase tracking-widest">Nenhum aniversariante</p>}
@@ -275,7 +284,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ECRÃ DE LOGIN (COM SENHA) ---
+// --- ECRÃ DE LOGIN ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -375,7 +384,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
-  // Lógica de Filtro Mensal Segura (Tradução para PT-BR para evitar falhas)
   const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -458,7 +466,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
         </div>
         <div className="pt-4">
            
-           {/* Cabeçalho com Filtro de Mês Responsivo */}
            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
              <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
                 Meus Registros 
@@ -529,20 +536,19 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
-  // Estado e Funções para filtro mensal 100% blindados (PT-BR)
-  const [mesFiltro, setMesFiltro] = useState(() => {
+  const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
   const handleMudarMes = (direcao) => {
      let dataBase = new Date();
-     if (mesFiltro) {
-        const [ano, mes] = mesFiltro.split('-');
+     if (filtroMesAtual) {
+        const [ano, mes] = filtroMesAtual.split('-');
         dataBase = new Date(ano, parseInt(mes) - 1, 1);
      }
      dataBase.setMonth(dataBase.getMonth() + direcao);
-     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+     setFiltroMesAtual(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
   };
 
   const obterNomeMes = (referenciaFiltro) => {
@@ -637,7 +643,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 
-                {/* STATUS UPI CARD COMPACTO */}
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
@@ -651,7 +656,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
-                {/* Sub-grid da esquerda: KPIs de Gestão */}
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
@@ -671,7 +675,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
-                {/* Sub-grid da direita: Aniversários */}
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
                    <BirthdayWidget staff={appData.officers}/>
                 </div>
@@ -982,10 +985,10 @@ export default function App() {
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         upi: {
-          leitosOcupados: getVal(resI?.upiStats || {}, ['ocupado', 'leito']) || 0,
-          mediaBraden: safeParseFloat(getVal(resI?.upiStats || {}, ['braden'])),
-          mediaFugulin: safeParseFloat(getVal(resI?.upiStats || {}, ['fugulin'])),
-          dataReferencia: getVal(resI?.upiStats || {}, ['data', 'ref']) || '--'
+          leitosOcupados: getVal(resI?.upiStats || resI || {}, ['ocupado', 'leito']) || 0,
+          mediaBraden: safeParseFloat(getVal(resI?.upiStats || resI || {}, ['braden'])),
+          mediaFugulin: safeParseFloat(getVal(resI?.upiStats || resI || {}, ['fugulin', 'fugulim'])),
+          dataReferencia: getVal(resI?.upiStats || resI || {}, ['data', 'ref']) || '--'
         }
       };
       
