@@ -121,7 +121,7 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
-// MOTOR DE COMPRESSÃO DE IMAGENS
+// MOTOR DE COMPRESSÃO DE IMAGENS ALTA DEFINIÇÃO
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -131,16 +131,26 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200; 
-        const MAX_HEIGHT = 1200;
+        
+        // Mantém as dimensões originais para preservar a leitura de letras pequenas
         let width = img.width;
         let height = img.height;
-        if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
-        else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-        canvas.width = width; canvas.height = height;
+
+        // Limite de segurança extremo apenas para não crashar o browser do celular (4000px é resolução 4K)
+        const MAX_DIMENSION = 4000; 
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+          if (width > height) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; } 
+          else { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
+        }
+
+        canvas.width = width; 
+        canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        
+        // Comprime o "peso" do ficheiro em Megabytes (Qualidade de 0 a 1)
+        // 0.5 a 0.65 reduz drasticamente o tamanho do arquivo preservando a legibilidade de textos
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
         resolve({ name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", type: 'image/jpeg', base64: dataUrl.split(',')[1] });
       };
     };
@@ -154,26 +164,53 @@ const FileUpload = ({ onFileSelect }) => {
   const handleChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setIsProcessing(true); setFileName("A processar ficheiro...");
+
+    setIsProcessing(true);
+    setFileName("A processar ficheiro...");
+
     try {
       if (file.type.startsWith('image/')) {
         const compressedFile = await compressImage(file);
-        onFileSelect(compressedFile); setFileName(`✅ Imagem pronta (${file.name})`);
+        onFileSelect(compressedFile);
+        setFileName(`✅ Imagem pronta em Alta Resolução (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB. Envie um mais leve."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
+        if (file.size > 10 * 1024 * 1024) {
+          alert("O PDF excede 10MB. Envie um ficheiro mais leve.");
+          e.target.value = "";
+          setIsProcessing(false);
+          setFileName("");
+          return;
+        }
         const reader = new FileReader();
-        reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
+        reader.onloadend = () => {
+          onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] });
+          setFileName(`✅ PDF anexado (${file.name})`);
+        };
         reader.readAsDataURL(file);
-      } else { alert("Apenas PDF ou Imagens (Fotos)."); e.target.value = ""; setFileName(""); }
-    } catch (err) { alert("Erro ao processar ficheiro."); setFileName(""); } 
-    finally { setIsProcessing(false); }
+      } else {
+        alert("Apenas são permitidos ficheiros PDF ou Imagens (Fotos).");
+        e.target.value = "";
+        setFileName("");
+      }
+    } catch (err) {
+      alert("Erro ao processar o ficheiro.");
+      setFileName("");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
     <div className="mt-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl relative overflow-hidden transition-all hover:bg-slate-100">
-      <div className="flex items-center gap-3 mb-2"><Paperclip size={16} className="text-slate-500"/><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Anexar Documento / Foto</label></div>
+      <div className="flex items-center gap-3 mb-2">
+         <Paperclip size={16} className="text-slate-500"/>
+         <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">
+            Anexar Documento / Foto
+         </label>
+      </div>
       <input type="file" accept="image/*,application/pdf" onChange={handleChange} disabled={isProcessing} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
-      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Comprimindo arquivo...</div>}
+      
+      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando arquivo...</div>}
       {fileName && !isProcessing && <div className="mt-3 text-[10px] font-bold text-green-600 bg-green-50 p-2 rounded-lg">{fileName}</div>}
     </div>
   );
@@ -205,7 +242,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ÁREA DE LOGIN ---
+// --- ECRÃ DE LOGIN ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -227,7 +264,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando...</div>}
+      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
       
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
         <div className="text-center mb-8">
@@ -254,8 +291,12 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
           <div className="relative">
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
             <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
+               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
+               {filtered.map((o, idx) => (
+                 <option key={idx} value={getVal(o, ['nome'])}>
+                   {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
+                 </option>
+               ))}
                {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
           </div>
@@ -295,12 +336,25 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const handleSend = async (action, payload) => {
     setIsSaving(true);
     try {
-      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
-      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false }); setFileData(null); syncData(); }, 1500);
+      await fetch(API_URL_GESTAO, { 
+        method: 'POST', 
+        mode: 'no-cors', 
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) 
+      });
+      setTimeout(() => { 
+        setIsSaving(false); 
+        setModals({ atestado: false, permuta: false }); 
+        setFileData(null); 
+        syncData(); 
+      }, 1500);
     } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
   };
 
-  const closeModals = () => { setModals({ atestado: false, permuta: false }); setFileData(null); }
+  const closeModals = () => {
+      setModals({ atestado: false, permuta: false });
+      setFileData(null);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -320,7 +374,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
         <div className="pt-4"><h3 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-3 flex justify-between items-center">Meus Registros <button onClick={()=>syncData(true)} className="p-2 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button></h3>
           <div className="space-y-2">
             {[...permutasFiltradas, ...atestadosFiltrados].map((item, i) => {
-              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link']);
+              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
               return (
               <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
                 <div className="text-xs">
@@ -339,7 +393,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
         </div>
       </main>
 
-      {/* MODAIS USER */}
+      {/* MODAIS USER COM UPLOAD DE ARQUIVO */}
       {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id: Date.now().toString(), status:'Pendente', militar:user, inicio:form.inicio, dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData} /><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
       {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id: Date.now().toString(), status:'Pendente', solicitante:user, substituto:form.sub, datasai:form.sai, dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Retorno</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData} /><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
     </div>
@@ -360,7 +414,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
-  // Disparo genérico para salvar dados simples
   const sendData = async (action, payload) => {
     setIsSaving(true);
     try {
@@ -369,13 +422,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
-  // Disparo Visual Seguro para o Botão Homologar
   const handleHomologar = async (id, sheetName) => {
     if (!id) {
        alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' ou aprove diretamente na planilha.");
        return;
     }
-    setHomologandoId(id); // Trava o botão visualmente
+    setHomologandoId(id);
     try {
       await fetch(API_URL_GESTAO, { 
         method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
@@ -435,13 +487,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p></div>
                    </div>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-red-200 transition-all">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-red-500 transition-colors">Pendentes</p>
-                  <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
+                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center group shadow-sm hover:border-blue-200 transition-all">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 group-hover:text-blue-600 transition-colors">Efetivo</p>
-                  <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.officers||[]).length}</h3>
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo</p>
+                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{(appData.officers||[]).length}</h3>
                 </div>
                 <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[250px]"><BirthdayWidget staff={appData.officers}/></div>
             </div>
