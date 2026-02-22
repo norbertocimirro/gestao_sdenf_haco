@@ -16,7 +16,7 @@ const API_URL_INDICADORES = "https://script.google.com/macros/s/AKfycbxJp8-2qRib
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
-// --- HELPERS DE SEGURANÇA E LEITURA ---
+// --- HELPERS DE SEGURANÇA E BUSCA PROFUNDA ---
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -25,6 +25,26 @@ const getVal = (obj, searchTerms) => {
     searchTerms.some(term => String(k).toLowerCase().includes(term.toLowerCase()))
   );
   return foundKey ? obj[foundKey] : "";
+};
+
+// NOVO RADAR DE DADOS: Vasculha toda a resposta da API, em qualquer nível, para achar o Braden e o Fugulin
+const findDeepValue = (obj, searchTerms) => {
+  let found = null;
+  const search = (item) => {
+    if (!item || typeof item !== 'object') return;
+    for (const key of Object.keys(item)) {
+      if (searchTerms.some(t => String(key).toLowerCase().includes(t.toLowerCase()))) {
+        found = item[key];
+        return;
+      }
+    }
+    for (const key of Object.keys(item)) {
+      search(item[key]);
+      if (found !== null) return;
+    }
+  };
+  search(obj);
+  return found;
 };
 
 const parseDate = (dateStr) => {
@@ -88,11 +108,9 @@ const calculateDetailedTime = (dateInput) => {
   return { y: validY, m: validM, d: validD, display: `${validY}a ${validM}m ${validD}d` };
 };
 
-// EXTRATOR NUMÉRICO BLINDADO (Corrige o problema do Braden/Fugulin vindo como texto ou com vírgulas)
 const safeParseFloat = (value) => {
   if (value === null || value === undefined || value === '') return 0;
   const strVal = String(value);
-  // Expressão regular que puxa apenas os números (mesmo que tenham letras à volta, ex: "14,5 pontos")
   const match = strVal.match(/-?\d+(?:[.,]\d+)?/);
   if (!match) return 0;
   const num = parseFloat(match[0].replace(',', '.'));
@@ -272,9 +290,9 @@ const BirthdayWidget = ({ staff }) => {
            <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100">
               <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
               <div className="flex-1">
-                <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
-                {/* Correção: Agora puxa "expediente" em vez de setor */}
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente', 'setor'])}</p>
+                 <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
+                 {/* CORREÇÃO DO CARTÃO: Agora prioriza mostrar a aba 'expediente' ou 'alocação' */}
+                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente', 'alocacao', 'setor']) || 'Sem Expediente'}</p>
               </div>
            </div>
         ))}
@@ -536,6 +554,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
+  // CORREÇÃO: Variável do Filtro perfeitamente nomeada
   const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -643,6 +662,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 
+                {/* STATUS UPI CARD COMPACTO */}
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
@@ -656,6 +676,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
+                {/* Sub-grid da esquerda: KPIs de Gestão */}
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
@@ -675,6 +696,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
+                {/* Sub-grid da direita: Aniversários */}
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
                    <BirthdayWidget staff={appData.officers}/>
                 </div>
@@ -766,12 +788,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'atestados':
+         // CORREÇÃO: Utilizando a variável certa "filtroMesAtual"
          const atestadosListFiltrados = (appData.atestados||[]).filter(a => {
-            if (!mesFiltro) return true;
+            if (!filtroMesAtual) return true;
             const d = parseDate(getVal(a,['inicio', 'data']));
             if (!d) return false;
             const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return itemMonth === mesFiltro;
+            return itemMonth === filtroMesAtual;
          });
 
          return (
@@ -783,12 +806,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
                       <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
                       <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {obterNomeMes(mesFiltro)}
+                        {obterNomeMes(filtroMesAtual)}
                       </div>
                       <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
                     </div>
-                    {mesFiltro && (
-                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    {filtroMesAtual && (
+                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                     )}
                     <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Atestado</button>
                  </div>
@@ -816,12 +839,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'permutas':
+         // CORREÇÃO: Utilizando a variável certa "filtroMesAtual"
          const permutasListFiltradas = (appData.permutas||[]).filter(p => {
-            if (!mesFiltro) return true;
+            if (!filtroMesAtual) return true;
             const d = parseDate(getVal(p,['sai', 'datasai']));
             if (!d) return false;
             const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return itemMonth === mesFiltro;
+            return itemMonth === filtroMesAtual;
          });
 
          return (
@@ -833,12 +857,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
                       <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
                       <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {obterNomeMes(mesFiltro)}
+                        {obterNomeMes(filtroMesAtual)}
                       </div>
                       <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
                     </div>
-                    {mesFiltro && (
-                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    {filtroMesAtual && (
+                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                     )}
                     <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Permuta</button>
                  </div>
@@ -852,7 +876,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
@@ -985,10 +1009,10 @@ export default function App() {
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         upi: {
-          leitosOcupados: getVal(resI?.upiStats || resI || {}, ['ocupado', 'leito']) || 0,
-          mediaBraden: safeParseFloat(getVal(resI?.upiStats || resI || {}, ['braden'])),
-          mediaFugulin: safeParseFloat(getVal(resI?.upiStats || resI || {}, ['fugulin', 'fugulim'])),
-          dataReferencia: getVal(resI?.upiStats || resI || {}, ['data', 'ref']) || '--'
+          leitosOcupados: findDeepValue(resI, ['ocupado', 'leito', 'censo', 'paciente']) || 0,
+          mediaBraden: safeParseFloat(findDeepValue(resI, ['braden', 'risco'])),
+          mediaFugulin: safeParseFloat(findDeepValue(resI, ['fugulin', 'fugulim', 'complexidade'])),
+          dataReferencia: findDeepValue(resI, ['data', 'ref', 'atualizacao']) || '--'
         }
       };
       
