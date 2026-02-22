@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -271,7 +271,6 @@ const FileUpload = ({ onFileSelect }) => {
   );
 };
 
-// --- WIDGET DE CLIMA DISCRETO EXPANDIDO ---
 const WeatherWidgetMini = () => {
   const [weather, setWeather] = useState(null);
 
@@ -296,7 +295,6 @@ const WeatherWidgetMini = () => {
          {weather.precipitation > 0 ? <CloudRain size={14} className="text-blue-500"/> : weather.cloud_cover > 50 ? <Cloud size={14} className="text-slate-500"/> : <Sun size={14} className="text-yellow-500"/>}
          <span className="text-[10px]">{weather.temperature_2m}°C</span>
       </div>
-      
       <div className="hidden md:flex items-center gap-2 md:gap-3 text-slate-400">
          <span className="w-px h-3 bg-slate-200"></span>
          <span title="Sensação Térmica">S: {weather.apparent_temperature}°</span>
@@ -410,21 +408,14 @@ const GanttViewer = ({ feriasData }) => {
        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <div className="min-w-[800px]">
              <div className="bg-slate-100 flex border-b border-slate-200">
-                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
-                   Militar
-                </div>
-                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
-                   Período
-                </div>
+                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">Militar</div>
+                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">Período</div>
                 <div className="flex-1 flex">
                    {daysArrayF.map(d => {
                       const dt = new Date(anoStrF, mesStrF, d);
                       const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                      return (
-                        <div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>
-                           {d}
-                        </div>
-                   )})}
+                      return (<div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>{d}</div>)
+                   })}
                 </div>
              </div>
              
@@ -437,9 +428,7 @@ const GanttViewer = ({ feriasData }) => {
 
                 return (
                    <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
-                         {militar}
-                      </div>
+                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">{militar}</div>
                       <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0 relative">
                          <span className="font-mono">{formatDate(start)}</span>
                          <span className="font-mono opacity-60 text-[7px]">até {formatDate(end)}</span>
@@ -450,14 +439,8 @@ const GanttViewer = ({ feriasData }) => {
                             const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
                             const isVacation = start && end && currentDate >= start && currentDate <= end;
                             const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
-                            
-                            let bgClass = "bg-transparent";
-                            if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
-                            else if (isWeekend) bgClass = "bg-slate-100/50";
-
-                            return (
-                               <div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
-                            )
+                            let bgClass = isVacation ? "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500" : (isWeekend ? "bg-slate-100/50" : "bg-transparent");
+                            return (<div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>)
                          })}
                       </div>
                    </div>
@@ -467,6 +450,199 @@ const GanttViewer = ({ feriasData }) => {
              )}
           </div>
        </div>
+    </div>
+  );
+};
+
+// --- NOVO: COMPONENTE GERADOR DA ESCALA VERMELHA (BETA) ---
+const EscalaVermelhaGenerator = ({ appData }) => {
+  const [mesStr, setMesStr] = useState("2026-03"); 
+  const [feriados, setFeriados] = useState("");
+  const [escalaGerada, setEscalaGerada] = useState(null);
+  const [isGerando, setIsGerando] = useState(false);
+
+  const ano = parseInt(mesStr.split('-')[0]);
+  const mes = parseInt(mesStr.split('-')[1]) - 1;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
+
+  const feriadosArray = feriados.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+
+  const checkIndisponibilidade = (nome, dateObj) => {
+      if (!nome) return null;
+      const n = String(nome).toLowerCase().trim();
+      
+      const checkAfastamento = (lista, tipo) => {
+         for (let item of (lista || [])) {
+             if (String(getVal(item, ['status'])).toLowerCase().includes('rejeitado')) continue;
+             if (String(getVal(item, ['militar', 'nome', 'oficial'])).toLowerCase().includes(n) || n.includes(String(getVal(item, ['militar'])).toLowerCase())) {
+                 const start = parseDate(getVal(item, ['inicio', 'data', 'saida']));
+                 const dias = parseInt(getVal(item, ['dias', 'quantidade'])) || 0;
+                 if (start) {
+                     const end = new Date(start);
+                     end.setDate(end.getDate() + dias - 1);
+                     end.setHours(23, 59, 59);
+                     start.setHours(0, 0, 0);
+                     if (dateObj >= start && dateObj <= end) return tipo;
+                 }
+             }
+         }
+         return null;
+      };
+
+      let indisp = checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
+      return indisp;
+  };
+
+  const gerarEscalaAlgoritmo = () => {
+     setIsGerando(true);
+     
+     // 1. Mapeia oficiais e descobre a última data de plantão e Último Turno
+     let poolOficiais = (appData.officers || []).map(o => {
+        let rawDate = parseDate(getVal(o, ['ultimo plantao', 'ultimo', 'vermelha', 'data']));
+        let rawTurno = String(getVal(o, ['ultimo turno', 'ultimoturno', 'turno'])).toUpperCase().trim();
+        let turnoNormalizado = rawTurno.includes('D') ? 'D' : (rawTurno.includes('N') ? 'N' : '');
+
+        return {
+           nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
+           nomeCurto: getVal(o, ['nome']),
+           servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
+           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
+           lastShiftTime: rawDate ? rawDate.getTime() : new Date(2000, 0, 1).getTime(),
+           ultimoTurno: turnoNormalizado
+        }
+     });
+
+     let schedule = {};
+
+     for (let d of daysArray) {
+         let dt = new Date(ano, mes, d, 12, 0, 0); 
+         let isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+         let isFeriado = feriadosArray.includes(d);
+
+         if (!isWeekend && !isFeriado) continue; 
+
+         const getNext = (setor, turnoDesejado) => {
+            let disponiveis = poolOficiais.filter(o => {
+               if (!o.servico.includes(setor)) return false;
+               if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
+               if (new Date(o.lastShiftTime).getDate() === d && new Date(o.lastShiftTime).getMonth() === mes) return false; 
+               return true;
+            });
+
+            disponiveis.sort((a, b) => {
+               if (a.lastShiftTime !== b.lastShiftTime) return a.lastShiftTime - b.lastShiftTime;
+               return b.antiguidade - a.antiguidade; 
+            });
+
+            if (disponiveis.length > 0) {
+               // Procura alguém cujo último turno NÃO FOI o turno que estamos a preencher. 
+               // Se não encontrar (todos tiraram o mesmo antes), pega o primeiro.
+               let index = disponiveis.findIndex(o => o.ultimoTurno !== turnoDesejado);
+               if (index === -1) index = 0;
+
+               let escalado = disponiveis[index];
+               
+               // Atualiza a memória com o novo turno que ele acabou de assumir
+               poolOficiais = poolOficiais.map(o => 
+                  o.nomeCurto === escalado.nomeCurto 
+                    ? { ...o, lastShiftTime: dt.getTime(), ultimoTurno: turnoDesejado } 
+                    : o
+               );
+               return escalado.nomeCompleto;
+            }
+            return "SEM ESCALA";
+         };
+
+         schedule[d] = {
+             upiD: getNext('UPI', 'D'),
+             upiN: getNext('UPI', 'N'),
+             utiD: getNext('UTI', 'D'),
+             utiN: getNext('UTI', 'N')
+         };
+     }
+
+     setTimeout(() => {
+        setEscalaGerada(schedule);
+        setIsGerando(false);
+     }, 600); 
+  };
+
+  const renderSlot = (nomeBase, dia) => {
+     if (!nomeBase) return "-";
+     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600' : 'text-slate-800'}>{nomeBase}</span>;
+  };
+
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+         <div>
+            <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cruzamento de Turnos</p>
+         </div>
+         <div className="flex gap-2 w-full md:w-auto">
+            <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
+            <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
+               {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
+            </button>
+         </div>
+       </div>
+
+       <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium">
+          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Como o algoritmo funciona agora:</p>
+          <ul className="list-disc pl-5 space-y-1">
+             <li>Busca as colunas <b>"Ultimo Plantao"</b> e <b>"Ultimo Turno"</b> (D ou N) na aba Oficiais no Google Sheets.</li>
+             <li>O sistema procura sempre quem está há mais tempo sem tirar Vermelha. Se houver empate, o mais moderno vai primeiro.</li>
+             <li>Ao escalar para Diurno, o algoritmo prioriza automaticamente os militares cujo Último Turno foi Noturno (e vice-versa).</li>
+             <li>Cruza a data com as abas de Férias, Licenças e Atestados e ignora quem está fora.</li>
+          </ul>
+          <div className="mt-4">
+             <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
+             <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
+          </div>
+       </div>
+
+       {escalaGerada && (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+             <table className="w-full text-left text-xs font-sans min-w-[800px]">
+                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200">
+                   <tr>
+                      <th className="p-3 text-center w-16 border-r border-slate-200">Dia</th>
+                      <th className="p-3 text-center w-16 border-r border-slate-200">Semana</th>
+                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50">UPI Diurno</th>
+                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100">UPI Noturno</th>
+                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50">UTI Diurno</th>
+                      <th className="p-3 text-indigo-900 bg-indigo-100">UTI Noturno</th>
+                   </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                   {daysArray.map(d => {
+                      const dt = new Date(ano, mes, d);
+                      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                      const isFeriado = feriadosArray.includes(d);
+                      const isVermelha = isWeekend || isFeriado;
+                      const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+                      
+                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50' : 'bg-white hover:bg-slate-50 opacity-40';
+                      const assignment = escalaGerada[String(d)];
+
+                      return (
+                         <tr key={d} className={`transition-colors ${bgRow}`}>
+                            <td className={`p-3 text-center border-r border-slate-100 font-black ${isVermelha ? 'text-red-500' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
+                            <td className={`p-3 text-center border-r border-slate-100 font-bold ${isVermelha ? 'text-red-400' : 'text-slate-400'}`}>
+                               {isFeriado ? 'FER' : diaNome}
+                            </td>
+                            <td className={`p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                            <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+                         </tr>
+                      )
+                   })}
+                </tbody>
+             </table>
+          </div>
+       )}
     </div>
   );
 };
@@ -748,145 +924,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
   );
 };
 
-// --- COMPONENTE BETA: ESCALA MENSAL QUADRADINHOS ---
-const EscalaPreview = ({ appData }) => {
-  const [mesStr, setMesStr] = useState("2026-03"); // Default March 2026
-
-  const ano = parseInt(mesStr.split('-')[0]);
-  const mes = parseInt(mesStr.split('-')[1]) - 1;
-  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
-  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
-
-  // Hardcoded Logic for March 2026 extracted from PDF
-  const escalaMarco = {
-     "1": { upiD: "2T Nascimento", upiN: "2T Barbara F", utiD: "ASP Coronet", utiN: "ASP Fritz" },
-     "7": { upiD: "2T Barbara V", upiN: "2T Maia", utiD: "2T Anderson", utiN: "2T Zomer" },
-     "8": { upiD: "2T Favilla", upiN: "2T Maia", utiD: "2T Jéssica Cunha", utiN: "2T Renata" }, 
-     "14": { upiD: "1T Luiziane", upiN: "1T Gisele", utiD: "1T Karen C", utiN: "1T Oliveira" },
-     "15": { upiD: "ASP Pereira", upiN: "1T Parode", utiD: "1T Sandri", utiN: "1T Serafim" },
-     "21": { upiD: "ASP Suellen Azevedo", upiN: "2T Jéssica", utiD: "1T Marasca", utiN: "1T Zanini" },
-     "22": { upiD: "2T Nascimento", upiN: "2T Cassia Freitas", utiD: "ASP Coronet", utiN: "ASP Fritz" },
-     "28": { upiD: "2T Barbara V", upiN: "2T Barbara F", utiD: "2T Anderson", utiN: "2T Zomer" },
-     "29": { upiD: "2T Favilla", upiN: "1T Luiziane", utiD: "2T Jéssica Cunha", utiN: "2T Renata" }
-  };
-
-  const checkIndisponibilidade = (nome, currentDia) => {
-      if (!nome) return null;
-      const n = String(nome).toLowerCase().trim();
-      const dt = new Date(ano, mes, currentDia, 12, 0, 0);
-
-      // Check Ferias
-      for (let f of (appData.ferias || [])) {
-          if (String(getVal(f, ['status'])).toLowerCase().includes('rejeitado')) continue;
-          if (String(getVal(f, ['militar'])).toLowerCase().includes(n) || n.includes(String(getVal(f, ['militar'])).toLowerCase())) {
-              const start = parseDate(getVal(f, ['inicio', 'data']));
-              const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 0;
-              if (start) {
-                  const end = new Date(start);
-                  end.setDate(end.getDate() + dias - 1);
-                  if (dt >= start && dt <= end) return "Férias";
-              }
-          }
-      }
-      
-      // Check Licencas
-      for (let l of (appData.licencas || [])) {
-          if (String(getVal(l, ['status'])).toLowerCase().includes('rejeitado')) continue;
-          if (String(getVal(l, ['militar'])).toLowerCase().includes(n) || n.includes(String(getVal(l, ['militar'])).toLowerCase())) {
-              const start = parseDate(getVal(l, ['inicio', 'data']));
-              const dias = parseInt(getVal(l, ['dias', 'quantidade'])) || 0;
-              if (start) {
-                  const end = new Date(start);
-                  end.setDate(end.getDate() + dias - 1);
-                  if (dt >= start && dt <= end) return "Licença";
-              }
-          }
-      }
-
-      // Check Atestados
-      for (let a of (appData.atestados || [])) {
-          if (String(getVal(a, ['status'])).toLowerCase().includes('rejeitado')) continue;
-          if (String(getVal(a, ['militar'])).toLowerCase().includes(n) || n.includes(String(getVal(a, ['militar'])).toLowerCase())) {
-              const start = parseDate(getVal(a, ['inicio', 'data']));
-              const dias = parseInt(getVal(a, ['dias', 'quantidade'])) || 0;
-              if (start) {
-                  const end = new Date(start);
-                  end.setDate(end.getDate() + dias - 1);
-                  if (dt >= start && dt <= end) return "Atestado";
-              }
-          }
-      }
-      return null;
-  };
-
-  const renderSlot = (nomeBase, dia) => {
-     if (!nomeBase) return "-";
-     const indisp = checkIndisponibilidade(nomeBase, dia);
-     if (indisp) {
-        return (
-           <div className="flex items-center gap-1 text-red-500 font-bold" title={`Escalado, mas consta: ${indisp}`}>
-              <AlertCircle size={10} /> <span className="line-through opacity-70">{nomeBase}</span>
-           </div>
-        );
-     }
-     return <span className="text-slate-800">{nomeBase}</span>;
-  };
-
-  return (
-    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-         <div>
-            <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala Quadradinhos (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Validação do cruzamento de dados de afastamento</p>
-         </div>
-         <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
-       </div>
-
-       <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl mb-6 text-xs text-blue-800 font-medium">
-          <p>Fiz o mapeamento com base na regra de Antiguidade Reversa. Como a escala de rodízio depende de quem foi o último a tirar plantão no mês anterior, fixei a sequência de Março de 2026 com base nos seus dados do PDF para testarmos o cruzamento!</p>
-          <p className="mt-2 font-black">Se no futuro for implementar a geração 100% autônoma para qualquer mês, precisaremos adicionar uma coluna na aba Oficiais chamada "Data Último Plantão".</p>
-       </div>
-
-       <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left text-xs font-sans min-w-[800px]">
-             <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200">
-                <tr>
-                   <th className="p-3 text-center w-16 border-r border-slate-200">Dia</th>
-                   <th className="p-3 text-center w-16 border-r border-slate-200">Semana</th>
-                   <th className="p-3 border-r border-slate-200">UPI Diurno</th>
-                   <th className="p-3 border-r border-slate-200">UPI Noturno</th>
-                   <th className="p-3 border-r border-slate-200">UTI Diurno</th>
-                   <th className="p-3">UTI Noturno</th>
-                </tr>
-             </thead>
-             <tbody className="divide-y divide-slate-100">
-                {daysArray.map(d => {
-                   const dt = new Date(ano, mes, d);
-                   const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                   const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
-                   const bgRow = isWeekend ? 'bg-red-50/40 hover:bg-red-50' : 'bg-white hover:bg-slate-50';
-                   const isMarch2026 = ano === 2026 && mes === 2;
-                   
-                   const assignment = (isMarch2026 && isWeekend) ? escalaMarco[String(d)] : null;
-
-                   return (
-                      <tr key={d} className={`transition-colors ${bgRow}`}>
-                         <td className={`p-3 text-center border-r border-slate-100 font-black ${isWeekend ? 'text-red-500' : 'text-slate-500'}`}>{String(d).padStart(2, '0')}</td>
-                         <td className={`p-3 text-center border-r border-slate-100 font-bold ${isWeekend ? 'text-red-400' : 'text-slate-400'}`}>{diaNome}</td>
-                         <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
-                         <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
-                         <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
-                         <td className="p-3 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
-                      </tr>
-                   )
-                })}
-             </tbody>
-          </table>
-       </div>
-    </div>
-  );
-};
-
 // --- PAINEL CHEFIA (ADMIN) ---
 
 const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
@@ -1057,6 +1094,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{pendentesCount}</h3>
                    </div>
                    
+                   {/* CARD CONSOLIDADO DE AFASTAMENTOS EM VIGOR */}
                    <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm relative">
                      <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-2 flex items-center gap-1"><CalendarClock size={10}/> Em Vigor</p>
                      <div className="flex gap-4 w-full justify-center">
@@ -1376,7 +1414,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          );
       case 'escala':
          // ABRE SOMENTE SE ESTIVER NA ABA ESCALA (EXCLUSIVO BETA TESTER)
-         return <EscalaPreview appData={appData} />;
+         return <EscalaVermelhaGenerator appData={appData} />;
       default: return null;
     }
   };
@@ -1393,7 +1431,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'efetivo', label: 'Efetivo', icon: Users },
-               isCimirro && { id: 'escala', label: 'Escala (Beta)', icon: Calendar }, // NOVO ITEM SÓ PARA O CIMIRRO
+               isCimirro && { id: 'escala', label: 'Escala (Beta)', icon: Calendar }, 
                { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
@@ -1419,12 +1457,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             <button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button>
          </header>
          
-         {/* CONTEÚDO PRINCIPAL COM PROTEÇÃO RT */}
          {(() => {
             return renderContent();
          })()}
 
-         {/* MODAIS (Só Lança se não for APENAS RT) */}
          {showOfficerModal && !isApenasRT && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -1469,17 +1505,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
            </Modal>
          )}
 
-         {/* Lançamento de Férias Direto (Admin pula homologação) */}
          {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
 
-         {/* Lançamento de Licença Direto (Admin) */}
          {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
 
-         {/* Lançamento de Atestados e Permutas (Admin) */}
          {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
-         {/* MODAL: HISTÓRICO DO MILITAR (Dossiê) */}
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
             
