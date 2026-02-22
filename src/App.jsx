@@ -982,7 +982,8 @@ export default function App() {
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         upi: {
-          leitosOcupados: getVal(resG.upiStats, ['ocupado', 'leito']) || 0,
+          // AQUI FOI FEITA A CORREÇÃO CRÍTICA
+          leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
           mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
           mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
           dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
