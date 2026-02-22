@@ -6,7 +6,7 @@ import {
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
-  ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History
+  ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -324,7 +324,6 @@ const GanttViewer = ({ feriasData }) => {
      const end = new Date(start);
      end.setDate(end.getDate() + dias - 1);
      
-     // Correção Fuso (Forçando o meio-dia)
      const monthStart = new Date(anoStrF, mesStrF, 1, 0, 0, 0);
      const monthEnd = new Date(anoStrF, mesStrF + 1, 0, 23, 59, 59);
 
@@ -383,7 +382,6 @@ const GanttViewer = ({ feriasData }) => {
                       </div>
                       <div className="flex-1 flex">
                          {daysArrayF.map(d => {
-                            // CORREÇÃO FUSO NO LAÇO DOS DIAS: Forçamos a variável currentDate para o meio-dia (12:00:00) 
                             const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
                             const isVacation = start && end && currentDate >= start && currentDate <= end;
                             const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
@@ -501,8 +499,8 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
 };
 
 // --- ÁREA DO OFICIAL (TROPA) ---
-
-const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
+// Adicionada a propriedade onToggleAdmin (para a Chefia poder voltar pro Painel Admin)
+const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, gantt: false, password: false });
   const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
@@ -531,12 +529,12 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
-  // CORREÇÃO: Filtro aprimorado para garantir a leitura de dados antigos sem padrão
+  // CORREÇÃO TURBINADA DE BUSCA INDIVIDUAL PARA A TIMELINE DO USUÁRIO
   const userSafeName = String(user).toLowerCase().trim();
 
   const atestadosFiltrados = (appData.atestados || []).filter(a => {
      const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeA.includes(userSafeName)) return false;
+     if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(a,['inicio', 'data']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
@@ -544,7 +542,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
 
   const permutasFiltradas = (appData.permutas || []).filter(p => {
      const nomeP = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
-     if (!nomeP.includes(userSafeName)) return false;
+     if (!nomeP.includes(userSafeName) && !userSafeName.includes(nomeP)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(p,['sai', 'datasai']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
@@ -552,7 +550,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
 
   const feriasFiltradas = (appData.ferias || []).filter(f => {
      const nomeF = String(getVal(f, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeF.includes(userSafeName)) return false;
+     if (!nomeF.includes(userSafeName) && !userSafeName.includes(nomeF)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
@@ -585,6 +583,11 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
           <div><h1 className="font-black text-slate-800 text-sm uppercase tracking-tighter">Ten {user}</h1><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Painel Individual</p></div>
         </div>
         <div className="flex gap-2">
+           {isAdmin && (
+              <button onClick={onToggleAdmin} className="bg-blue-50 p-2.5 rounded-xl text-blue-600 font-black flex items-center gap-2 text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all active:scale-90 border border-blue-200">
+                 <Shield size={14}/> Voltar para Gestão
+              </button>
+           )}
            <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90"><Key size={16}/></button>
            <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
         </div>
@@ -674,7 +677,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
 
 // --- PAINEL CHEFIA (ADMIN) ---
 
-const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
+const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
@@ -742,7 +745,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
-  // CORREÇÃO: Função Homologar turbinada, permite Rejeitar e Motivo
   const handleHomologar = async (id, sheetName, novoStatus = 'Homologado') => {
     if (!id) {
        alert("ERRO DE PLANILHA: Este registo antigo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' na aba para interagir com ele.");
@@ -1117,6 +1119,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          </nav>
          <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-3">
             {sidebarOpen && <div className="text-center w-full"><div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center font-black shadow-md bg-slate-800 text-white border border-slate-700 mb-2">{user.substring(0,2).toUpperCase()}</div><p className="font-black text-xs tracking-tight truncate w-full uppercase">{user}</p><p className="text-[8px] text-blue-400 uppercase font-bold tracking-widest">{role}</p></div>}
+            
+            {/* NOVO: BOTÃO MUDAR PARA MODO OFICIAL (TROPA) */}
+            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all">
+               <UserCircle size={16}/> {sidebarOpen && 'Meu Painel Individual'}
+            </button>
+
             <button onClick={() => setShowPassModal(true)} className="flex items-center justify-center gap-3 text-slate-500 hover:text-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><Key size={16}/> {sidebarOpen && 'Trocar Senha'}</button>
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair do Sistema'}</button>
          </div>
@@ -1125,7 +1133,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
-         {/* Lançamento direto pela Chefia */}
+         {/* Lançamento direto pela Chefia (Modais Adicionais) */}
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -1179,11 +1187,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
-         {/* NOVO MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) COM BUSCA TURBINADA */}
+         {/* MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) */}
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
             
-            // Filtro flexível para encontrar férias antigas
             const feriasHist = (appData.ferias||[]).filter(f => {
                const nomeF = String(getVal(f,['militar', 'nome', 'oficial'])).trim().toLowerCase();
                return nomeF.includes(nomeAlvo) || nomeAlvo.includes(nomeF);
@@ -1265,6 +1272,9 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
   
+  // NOVO: Estado que controla se a Chefia está usando o sistema como Admin ou como Usuário normal
+  const [adminModeActive, setAdminModeActive] = useState(true); 
+  
   const [appData, setAppData] = useState(() => {
     try {
       const cached = localStorage.getItem('sga_app_cache');
@@ -1321,6 +1331,7 @@ export default function App() {
   const handleLogin = (u, r) => { 
     setUser(u); 
     setRole(r); 
+    setAdminModeActive(true); // Sempre que logar, se for chefia, entra como chefia.
     localStorage.setItem('sga_app_user', u);
     localStorage.setItem('sga_app_role', r);
   };
@@ -1328,6 +1339,7 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     setRole(null);
+    setAdminModeActive(true);
     localStorage.removeItem('sga_app_user');
     localStorage.removeItem('sga_app_role');
   }
@@ -1336,10 +1348,10 @@ export default function App() {
     <ErrorBoundary>
       {!user ? (
         <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
-      ) : role === 'admin' || role === 'rt' ? (
-        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} />
+      ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
+        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} />
       ) : (
-        <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} />
+        <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
       )}
     </ErrorBoundary>
   );
