@@ -311,10 +311,9 @@ const GanttViewer = ({ feriasData }) => {
   const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
   const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
 
-  // CORREÇÃO AQUI: Filtra apenas férias que já foram homologadas, para o Gantt geral
   const feriasHomologadas = feriasData.filter(f => {
      const st = getVal(f, ['status']);
-     return st === 'Homologado' || st === ''; // Considera vazio como homologado por legado
+     return st === 'Homologado' || st === ''; 
   });
 
   const feriasListFiltradas = feriasHomologadas.filter(f => {
@@ -325,8 +324,9 @@ const GanttViewer = ({ feriasData }) => {
      const end = new Date(start);
      end.setDate(end.getDate() + dias - 1);
      
-     const monthStart = new Date(anoStrF, mesStrF, 1);
-     const monthEnd = new Date(anoStrF, mesStrF + 1, 0);
+     // Correção Fuso (Forçando o meio-dia)
+     const monthStart = new Date(anoStrF, mesStrF, 1, 0, 0, 0);
+     const monthEnd = new Date(anoStrF, mesStrF + 1, 0, 23, 59, 59);
 
      return start <= monthEnd && end >= monthStart;
   });
@@ -383,7 +383,9 @@ const GanttViewer = ({ feriasData }) => {
                       </div>
                       <div className="flex-1 flex">
                          {daysArrayF.map(d => {
-                            const currentDate = new Date(anoStrF, mesStrF, d);
+                            // CORREÇÃO FUSO NO LAÇO DOS DIAS: Forçamos a variável currentDate para o meio-dia (12:00:00) 
+                            // Dessa forma, ela não corre risco de ser lida como do dia anterior devido a fuso GMT-3.
+                            const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
                             const isVacation = start && end && currentDate >= start && currentDate <= end;
                             const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
                             
@@ -736,7 +738,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
-  // CORREÇÃO: Função genérica para homologar qualquer registro (Atestado, Permuta, Férias)
   const handleHomologar = async (id, sheetName) => {
     if (!id) {
        alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' na aba.");
@@ -1033,7 +1034,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'ferias':
-         // AQUI FOI CORRIGIDO COMO O ADMIN VÊ E APROVA AS FÉRIAS PENDENTES
          const feriasPendentes = (appData.ferias || []).filter(f => getVal(f, ['status']) === 'Pendente');
 
          return (
@@ -1150,54 +1150,68 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
          {/* NOVO MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) */}
-         {historyOfficer && (
-            <Modal title={<><History size={18}/> Dossiê: {getVal(historyOfficer,['patente','posto'])} {getVal(historyOfficer,['nome'])}</>} onClose={() => setHistoryOfficer(null)}>
-               <div className="space-y-6">
-                  {/* Férias */}
-                  <div>
-                     <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1">Férias</h4>
-                     <ul className="space-y-2">
-                        {(appData.ferias||[]).filter(f => getVal(f,['militar']) === getVal(historyOfficer,['nome'])).length > 0 ? 
-                           (appData.ferias||[]).filter(f => getVal(f,['militar']) === getVal(historyOfficer,['nome'])).map((f, i) => (
-                              <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
-                                 <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias'])}d)</span></span>
-                                 <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(f,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(f,['status']) || 'Homologado'}</span>
-                              </li>
-                           )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                     </ul>
+         {historyOfficer && (() => {
+            const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
+            
+            const feriasHist = (appData.ferias||[]).filter(f => {
+               const nomeF = String(getVal(f,['militar', 'nome', 'oficial'])).trim().toLowerCase();
+               return nomeF === nomeAlvo;
+            });
+            const atestadosHist = (appData.atestados||[]).filter(a => {
+               const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
+               return nomeA === nomeAlvo;
+            });
+            const permutasHist = (appData.permutas||[]).filter(p => {
+               const nomeP = String(getVal(p,['solicitante', 'nome'])).trim().toLowerCase();
+               return nomeP === nomeAlvo;
+            });
+
+            return (
+               <Modal title={<><History size={18}/> Dossiê: {getVal(historyOfficer,['patente','posto'])} {getVal(historyOfficer,['nome'])}</>} onClose={() => setHistoryOfficer(null)}>
+                  <div className="space-y-6">
+                     {/* Férias */}
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1">Férias</h4>
+                        <ul className="space-y-2">
+                           {feriasHist.length > 0 ? feriasHist.map((f, i) => (
+                                 <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
+                                    <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias', 'quantidade'])}d)</span></span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(f,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(f,['status']) || 'Homologado'}</span>
+                                 </li>
+                              )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
+                     {/* Atestados */}
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1">Atestados Médicos</h4>
+                        <ul className="space-y-2">
+                           {atestadosHist.length > 0 ? atestadosHist.map((a, i) => (
+                                 <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
+                                    <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(a,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(a,['status']) || 'Homologado'}</span>
+                                 </li>
+                              )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
+                     {/* Permutas */}
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1">Permutas (Como Solicitante)</h4>
+                        <ul className="space-y-2">
+                           {permutasHist.length > 0 ? permutasHist.map((p, i) => (
+                                 <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
+                                    <div className="flex justify-between items-center">
+                                       <span className="font-bold text-slate-700">Substituto: {getVal(p,['substituto'])}</span>
+                                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(p,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(p,['status']) || 'Homologado'}</span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai', 'datasai']))} / E: {formatDate(getVal(p,['entra', 'dataentra']))}</span>
+                                 </li>
+                              )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
                   </div>
-                  {/* Atestados */}
-                  <div>
-                     <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1">Atestados Médicos</h4>
-                     <ul className="space-y-2">
-                        {(appData.atestados||[]).filter(a => getVal(a,['militar']) === getVal(historyOfficer,['nome'])).length > 0 ? 
-                           (appData.atestados||[]).filter(a => getVal(a,['militar']) === getVal(historyOfficer,['nome'])).map((a, i) => (
-                              <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
-                                 <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
-                                 <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(a,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(a,['status'])}</span>
-                              </li>
-                           )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                     </ul>
-                  </div>
-                  {/* Permutas */}
-                  <div>
-                     <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1">Permutas (Como Solicitante)</h4>
-                     <ul className="space-y-2">
-                        {(appData.permutas||[]).filter(p => getVal(p,['solicitante']) === getVal(historyOfficer,['nome'])).length > 0 ? 
-                           (appData.permutas||[]).filter(p => getVal(p,['solicitante']) === getVal(historyOfficer,['nome'])).map((p, i) => (
-                              <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
-                                 <div className="flex justify-between items-center">
-                                    <span className="font-bold text-slate-700">Substituto: {getVal(p,['substituto'])}</span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(p,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(p,['status'])}</span>
-                                 </div>
-                                 <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai']))} / E: {formatDate(getVal(p,['entra']))}</span>
-                              </li>
-                           )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                     </ul>
-                  </div>
-               </div>
-            </Modal>
-         )}
+               </Modal>
+            )
+         })()}
       </main>
     </div>
   );
