@@ -311,10 +311,10 @@ const GanttViewer = ({ feriasData }) => {
   const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
   const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
 
-  // Filtra apenas férias que já foram homologadas (ou antigas que não tinham a coluna status)
+  // CORREÇÃO AQUI: Filtra apenas férias que já foram homologadas, para o Gantt geral
   const feriasHomologadas = feriasData.filter(f => {
      const st = getVal(f, ['status']);
-     return !st || st === 'Homologado'; 
+     return st === 'Homologado' || st === ''; // Considera vazio como homologado por legado
   });
 
   const feriasListFiltradas = feriasHomologadas.filter(f => {
@@ -736,6 +736,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
+  // CORREÇÃO: Função genérica para homologar qualquer registro (Atestado, Permuta, Férias)
   const handleHomologar = async (id, sheetName) => {
     if (!id) {
        alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' na aba.");
@@ -916,8 +917,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                         <td className="p-3 md:p-4 text-center text-slate-300 font-black text-base">{getVal(o, ['antiguidade'])}</td>
                         <td className="p-3 md:p-4">
                            <div className="flex flex-col">
-                              {/* NOVO: Nome clicável para abrir Histórico */}
-                              <span onClick={() => setHistoryOfficer(o)} className="font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter text-xs md:text-sm cursor-pointer hover:underline transition-all">
+                              <span onClick={() => setHistoryOfficer(o)} className="font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter text-xs md:text-sm cursor-pointer hover:underline transition-all" title="Ver Dossiê">
                                  {getVal(o,['patente','posto'])} {nomeOficial}
                               </span>
                               <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(getVal(o,['nasc']))}</span>
@@ -1033,12 +1033,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'ferias':
-         // NOVO: Separar as férias pendentes de homologação e as já homologadas
+         // AQUI FOI CORRIGIDO COMO O ADMIN VÊ E APROVA AS FÉRIAS PENDENTES
          const feriasPendentes = (appData.ferias || []).filter(f => getVal(f, ['status']) === 'Pendente');
 
          return (
             <div className="space-y-6">
-               {/* 1. SEÇÃO DE PENDÊNCIAS (SE HOUVER) */}
+               {/* 1. SEÇÃO DE PENDÊNCIAS */}
                {feriasPendentes.length > 0 && (
                   <div className="bg-white rounded-3xl shadow-sm border border-amber-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
@@ -1067,7 +1067,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <button onClick={() => setShowFeriasModal(true)} className="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançamento Direto</button>
                   </div>
                   
-                  {/* Chama o componente Gantt que construímos */}
                   <GanttViewer feriasData={appData.ferias || []} />
                </div>
             </div>
