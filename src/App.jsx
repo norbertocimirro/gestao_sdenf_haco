@@ -120,7 +120,7 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
   
   if (Array.isArray(atestados)) {
     atestados.forEach(a => {
-      if (getVal(a, ['status']) !== 'Homologado') return; // Considera apenas os homologados
+      if (getVal(a, ['status']) !== 'Homologado') return; 
       
       const start = parseDate(getVal(a, ['inicio', 'data']));
       if (!start) return;
@@ -144,7 +144,8 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
     const lostDays = statsByMonth[m];
     const daysInMonth = new Date(currentYear, m + 1, 0).getDate();
     const possibleDays = totalOfficers * daysInMonth;
-    const rate = possibleDays > 0 ? ((lostDays / possibleDays) * 100) : 0;
+    // Arredondamento para 1 casa decimal
+    const rate = possibleDays > 0 ? parseFloat(((lostDays / possibleDays) * 100).toFixed(1)) : 0;
     
     annualLostDays += lostDays;
     annualPossibleDays += possibleDays;
@@ -156,7 +157,8 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
     });
   }
   
-  const annualRate = annualPossibleDays > 0 ? ((annualLostDays / annualPossibleDays) * 100) : 0;
+  // Arredondamento para 1 casa decimal
+  const annualRate = annualPossibleDays > 0 ? parseFloat(((annualLostDays / annualPossibleDays) * 100).toFixed(1)) : 0;
 
   return { currentYear, months: monthsData, annualRate, annualLostDays };
 };
@@ -522,7 +524,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                 </div>
 
-                {/* Sub-grid da esquerda: KPIs de Gestão (Ocupa 2 colunas no desktop) */}
+                {/* Sub-grid da esquerda: KPIs de Gestão */}
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
@@ -533,11 +535,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                    </div>
                    <div className="bg-red-50 p-5 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm">
-                     <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-1 flex items-center gap-1"><CalendarClock size={10}/> Atestados Em Vigor Hoje</p>
+                     <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-1 flex items-center gap-1"><CalendarClock size={10}/> Atestados Em Vigor</p>
                      <h3 className="text-3xl font-black text-red-600 tracking-tighter">{atestadosAtivos.length}</h3>
                    </div>
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm hover:border-blue-200 cursor-pointer transition-all" onClick={() => setActiveTab('absenteismo')}>
-                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1"><PieChart size={10}/> Taxa Absenteísmo ({absenteismoDados.currentYear})</p>
+                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1"><PieChart size={10}/> Absenteísmo Anual</p>
                      <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{absenteismoDados.annualRate}%</h3>
                    </div>
                 </div>
@@ -608,7 +610,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Quadro de Oficiais</h3>
-                <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>
+                <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md shadow-blue-500/20 transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
                   <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
@@ -826,7 +828,7 @@ export default function App() {
       {!user ? (
         <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
       ) : role === 'admin' || role === 'rt' ? (
-        <MainSystem user={user} role={role} onLogout={() => setUser(null)} globalOfficers={appData.officers} appData={appData} syncData={syncData} isSyncing={isSyncing} />
+        <MainSystem user={user} role={role} onLogout={() => setUser(null)} appData={appData} syncData={syncData} isSyncing={isSyncing} />
       ) : (
         <UserDashboard user={user} onLogout={() => setUser(null)} appData={appData} syncData={syncData} isSyncing={isSyncing} />
       )}
