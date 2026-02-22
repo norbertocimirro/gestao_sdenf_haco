@@ -271,7 +271,7 @@ const FileUpload = ({ onFileSelect }) => {
   );
 };
 
-// --- NOVO: WIDGET DE CLIMA DISCRETO NO CABEÇALHO ---
+// --- WIDGET DE CLIMA DISCRETO EXPANDIDO ---
 const WeatherWidgetMini = () => {
   const [weather, setWeather] = useState(null);
 
@@ -291,9 +291,27 @@ const WeatherWidgetMini = () => {
   if (!weather) return null;
 
   return (
-    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 shadow-sm" title={`Canoas/RS: Sensação de ${weather.apparent_temperature}°, Vento ${weather.wind_speed_10m}km/h`}>
-      {weather.precipitation > 0 ? <CloudRain size={14} className="text-blue-500"/> : weather.cloud_cover > 50 ? <Cloud size={14} className="text-slate-500"/> : <Sun size={14} className="text-yellow-500"/>}
-      <span className="text-[10px] font-black text-slate-700 tracking-tighter">{weather.temperature_2m}°C</span>
+    <div className="flex items-center gap-2 md:gap-3 bg-white px-3 md:px-4 py-1.5 rounded-full border border-slate-200 shadow-sm text-[9px] md:text-[10px] font-black text-slate-600 tracking-widest ml-auto" title={`Canoas/RS`}>
+      <div className="flex items-center gap-1 text-slate-800">
+         {weather.precipitation > 0 ? <CloudRain size={14} className="text-blue-500"/> : weather.cloud_cover > 50 ? <Cloud size={14} className="text-slate-500"/> : <Sun size={14} className="text-yellow-500"/>}
+         <span className="text-[10px]">{weather.temperature_2m}°C</span>
+      </div>
+      
+      {/* Esconde detalhes no mobile pequeno, mostra no desktop/tablet */}
+      <div className="hidden md:flex items-center gap-2 md:gap-3 text-slate-400">
+         <span className="w-px h-3 bg-slate-200"></span>
+         <span title="Sensação Térmica">S: {weather.apparent_temperature}°</span>
+         <span className="w-px h-3 bg-slate-200"></span>
+         <span className="flex items-center gap-0.5" title="Umidade Relativa"><Droplets size={10} className="text-blue-400"/> {weather.relative_humidity_2m}%</span>
+         <span className="w-px h-3 bg-slate-200"></span>
+         <span className="flex items-center gap-0.5" title="Vento"><Wind size={10} className="text-slate-400"/> {weather.wind_speed_10m} km/h</span>
+         {weather.precipitation > 0 && (
+            <>
+               <span className="w-px h-3 bg-slate-200"></span>
+               <span className="flex items-center gap-0.5 text-blue-500" title="Chuva"><CloudRain size={10}/> {weather.precipitation}mm</span>
+            </>
+         )}
+      </div>
     </div>
   );
 };
@@ -653,7 +671,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
         </div>
       </header>
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
-        <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
         
         <div className="grid grid-cols-4 gap-2">
           <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
@@ -899,7 +916,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{pendentesCount}</h3>
                    </div>
                    
-                   {/* CARD CONSOLIDADO DE AFASTAMENTOS EM VIGOR */}
                    <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm relative">
                      <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-2 flex items-center gap-1"><CalendarClock size={10}/> Em Vigor</p>
                      <div className="flex gap-4 w-full justify-center">
@@ -1251,7 +1267,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
       </aside>
       <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative z-10">
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
                <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p>
                {/* NOVO: WIDGET MINI NO CABEÇALHO */}
                <WeatherWidgetMini />
