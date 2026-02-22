@@ -97,6 +97,25 @@ const safeParseFloat = (value) => {
   return isNaN(num) ? 0 : num;
 };
 
+// --- FUNÇÕES DE CLASSIFICAÇÃO DE ESCALAS ---
+const getBradenClass = (score) => {
+   if (score === 0) return { label: "Sem Dados", color: "text-slate-500" };
+   if (score <= 9) return { label: "Risco Muito Elevado", color: "text-red-500" };
+   if (score <= 12) return { label: "Risco Elevado", color: "text-orange-500" };
+   if (score <= 14) return { label: "Risco Moderado", color: "text-amber-500" };
+   if (score <= 18) return { label: "Baixo Risco", color: "text-yellow-600" };
+   return { label: "Sem Risco", color: "text-green-500" };
+};
+
+const getFugulinClass = (score) => {
+   if (score === 0) return { label: "Sem Dados", color: "text-slate-500" };
+   if (score <= 14) return { label: "Cuidado Mínimo", color: "text-green-500" };
+   if (score <= 20) return { label: "Cuidado Intermediário", color: "text-yellow-500" };
+   if (score <= 26) return { label: "Alta Dependência", color: "text-orange-500" };
+   if (score <= 29) return { label: "Semi-Intensivo", color: "text-red-400" };
+   return { label: "Cuidados Intensivos", color: "text-red-600" };
+};
+
 const getActiveAtestados = (atestados) => {
   if (!Array.isArray(atestados)) return [];
   const today = new Date();
@@ -531,7 +550,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
 
   const userSafeName = String(user).toLowerCase().trim();
 
-  // CORREÇÃO NAS PERMUTAS: O militar vê a permuta tanto se ele for o solicitante, quanto se for o substituto.
   const atestadosFiltrados = (appData.atestados || []).filter(a => {
      const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
      if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
@@ -640,7 +658,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
               
               if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
               if (item._tipo === 'Permuta') { 
-                  // Indica se o usuário está pedindo ou cobrindo
                   const eSub = String(getVal(item,['substituto'])).toLowerCase().includes(userSafeName);
                   titulo = eSub ? `Cobriu: ${getVal(item,['solicitante'])}` : `Pediu Troca: ${getVal(item,['substituto'])}`; 
                   icon = <ArrowRightLeft size={12} className={eSub ? "text-green-500 inline mr-1" : "text-indigo-500 inline mr-1"}/>; 
@@ -808,11 +825,17 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   const renderContent = () => {
     switch(activeTab) {
       case 'dashboard':
+        // CÁLCULOS NOVOS DO DASHBOARD
+        const bradenInfo = getBradenClass(appData.upi.mediaBraden);
+        const fugulinInfo = getFugulinClass(appData.upi.mediaFugulin);
+        const contagemFUNSA = (appData.officers||[]).filter(o => String(getVal(o,['expediente'])).toUpperCase().includes('FUNSA')).length;
+        const contagemEfetivoBase = (appData.officers||[]).length;
+        const contagemAssistencial = contagemEfetivoBase - contagemFUNSA;
+
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 
-                {/* STATUS UPI CARD COMPACTO: AGORA COM ACAMADOS */}
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
@@ -823,16 +846,30 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1 flex items-center gap-1 justify-center"><Bed size={10}/> Ocupação</p><p className="text-3xl md:text-4xl">{appData.upi.leitosOcupados} <span className="text-base text-slate-700 font-bold">/ 15</span></p></div>
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Acamados</p><p className="text-3xl md:text-4xl text-blue-400">{appData.upi.acamados || 0}</p></div>
                       <div className="w-px bg-slate-800 hidden md:block"></div>
-                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Braden</p><p className="text-3xl md:text-4xl text-yellow-500">{appData.upi.mediaBraden.toFixed(1)}</p></div>
-                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p></div>
+                      
+                      {/* NOVO BRADEN E FUGULIN CLASSIFICADO */}
+                      <div>
+                         <p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Braden</p>
+                         <p className="text-3xl md:text-4xl text-yellow-500 mb-1">{appData.upi.mediaBraden.toFixed(1)}</p>
+                         <p className={`text-[8px] uppercase tracking-widest font-black ${bradenInfo.color} bg-slate-800/50 px-2 py-0.5 rounded`}>{bradenInfo.label}</p>
+                      </div>
+                      <div>
+                         <p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p>
+                         <p className="text-3xl md:text-4xl text-green-500 mb-1">{appData.upi.mediaFugulin.toFixed(1)}</p>
+                         <p className={`text-[8px] uppercase tracking-widest font-black ${fugulinInfo.color} bg-slate-800/50 px-2 py-0.5 rounded`}>{fugulinInfo.label}</p>
+                      </div>
                    </div>
                 </div>
 
-                {/* Sub-grid da esquerda: KPIs de Gestão */}
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
-                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
-                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.officers||[]).length}</h3>
+                   {/* NOVO EFETIVO COM QUEBRA */}
+                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm relative">
+                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Total</p>
+                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter mb-2">{contagemEfetivoBase}</h3>
+                     <div className="flex gap-2 text-[8px] font-black uppercase tracking-widest w-full px-2">
+                        <span className="bg-blue-50 text-blue-600 py-1 flex-1 text-center rounded">{contagemAssistencial} Assis.</span>
+                        <span className="bg-indigo-50 text-indigo-600 py-1 flex-1 text-center rounded">{contagemFUNSA} Funsa</span>
+                     </div>
                    </div>
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
@@ -848,7 +885,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                    </div>
                 </div>
 
-                {/* Sub-grid da direita: Aniversários */}
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
                    <BirthdayWidget staff={appData.officers}/>
                 </div>
@@ -990,7 +1026,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
                         <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
                         <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black tracking-widest uppercase text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
+                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
                         <td className="p-4 text-right">
                            {isPendente && (
                               <div className="flex justify-end gap-2">
@@ -1204,7 +1240,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
                return nomeA.includes(nomeAlvo) || nomeAlvo.includes(nomeA);
             });
-            // CORREÇÃO: Busca permutas onde ele pediu OU onde ele cobriu
             const permutasHist = (appData.permutas||[]).filter(p => {
                const nomeP_solicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
                const nomeP_substituto = String(getVal(p,['substituto'])).trim().toLowerCase();
@@ -1321,7 +1356,7 @@ export default function App() {
         ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
         upi: {
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
-          acamados: getVal(resG.upiStats, ['acamados']) || 0, // NOVO: Leitura dos acamados!
+          acamados: getVal(resG.upiStats, ['acamados']) || 0, 
           mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
           mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
           dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
