@@ -5,7 +5,7 @@ import {
   Star, Cake, BookOpen, Plus, Trash2, Edit3, 
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
-  ChevronUp, ChevronDown, ChevronsUpDown
+  ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -93,6 +93,74 @@ const safeParseFloat = (value) => {
   return isNaN(num) ? 0 : num;
 };
 
+// --- MÉTODOS DE INTELIGÊNCIA (ABSENTEÍSMO E VIGOR) ---
+
+const getActiveAtestados = (atestados) => {
+  if (!Array.isArray(atestados)) return [];
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  return atestados.filter(a => {
+    const start = parseDate(getVal(a, ['inicio', 'data']));
+    if (!start) return false;
+    start.setHours(0,0,0,0);
+    const dias = parseInt(getVal(a, ['dias'])) || 0;
+    
+    const end = new Date(start);
+    end.setDate(end.getDate() + Math.max(0, dias - 1));
+    end.setHours(0,0,0,0);
+    
+    return today >= start && today <= end;
+  });
+};
+
+const calculateAbsenteismoStats = (atestados, totalOfficers) => {
+  const currentYear = new Date().getFullYear();
+  const statsByMonth = Array.from({ length: 12 }, () => 0);
+  
+  if (Array.isArray(atestados)) {
+    atestados.forEach(a => {
+      if (getVal(a, ['status']) !== 'Homologado') return; // Considera apenas os homologados
+      
+      const start = parseDate(getVal(a, ['inicio', 'data']));
+      if (!start) return;
+      const dias = parseInt(getVal(a, ['dias'])) || 0;
+      const end = new Date(start);
+      end.setDate(end.getDate() + Math.max(0, dias - 1));
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getFullYear() === currentYear) {
+          statsByMonth[d.getMonth()]++;
+        }
+      }
+    });
+  }
+
+  const monthsData = [];
+  let annualLostDays = 0;
+  let annualPossibleDays = 0;
+
+  for (let m = 0; m < 12; m++) {
+    const lostDays = statsByMonth[m];
+    const daysInMonth = new Date(currentYear, m + 1, 0).getDate();
+    const possibleDays = totalOfficers * daysInMonth;
+    const rate = possibleDays > 0 ? ((lostDays / possibleDays) * 100) : 0;
+    
+    annualLostDays += lostDays;
+    annualPossibleDays += possibleDays;
+    
+    monthsData.push({
+      monthName: new Date(currentYear, m, 1).toLocaleDateString('pt-BR', { month: 'long' }),
+      lostDays,
+      rate: rate
+    });
+  }
+  
+  const annualRate = annualPossibleDays > 0 ? ((annualLostDays / annualPossibleDays) * 100) : 0;
+
+  return { currentYear, months: monthsData, annualRate, annualLostDays };
+};
+
 // --- ERROR BOUNDARY ---
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -121,7 +189,7 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
-// MOTOR DE COMPRESSÃO DE IMAGENS (ALTA RESOLUÇÃO RESTAURADA)
+// MOTOR DE COMPRESSÃO DE IMAGENS ALTA DEFINIÇÃO
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -131,23 +199,16 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        
-        // Mantemos a resolução gigante (4000px é nível 4K) para garantir leitura de textos!
         const MAX_DIMENSION = 4000; 
         let width = img.width;
         let height = img.height;
-        
         if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
            if (width > height) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; } 
            else { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
         }
-
-        canvas.width = width; 
-        canvas.height = height;
+        canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        
-        // Reduzimos o MB (qualidade 0.6) mas mantemos o tamanho do ecrã
         const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         resolve({ name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", type: 'image/jpeg', base64: dataUrl.split(',')[1] });
       };
@@ -166,14 +227,14 @@ const FileUpload = ({ onFileSelect }) => {
     try {
       if (file.type.startsWith('image/')) {
         const compressedFile = await compressImage(file);
-        onFileSelect(compressedFile); setFileName(`✅ Imagem em Alta Resolução (${file.name})`);
+        onFileSelect(compressedFile); setFileName(`✅ Imagem otimizada (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB. Envie um mais leve."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
+        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
         const reader = new FileReader();
         reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
         reader.readAsDataURL(file);
-      } else { alert("Apenas PDF ou Imagens (Fotos)."); e.target.value = ""; setFileName(""); }
-    } catch (err) { alert("Erro ao processar ficheiro."); setFileName(""); } 
+      } else { alert("Apenas PDF ou Imagens."); e.target.value = ""; setFileName(""); }
+    } catch (err) { alert("Erro ao processar."); setFileName(""); } 
     finally { setIsProcessing(false); }
   };
 
@@ -181,7 +242,7 @@ const FileUpload = ({ onFileSelect }) => {
     <div className="mt-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl relative overflow-hidden transition-all hover:bg-slate-100">
       <div className="flex items-center gap-3 mb-2"><Paperclip size={16} className="text-slate-500"/><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Anexar Documento / Foto</label></div>
       <input type="file" accept="image/*,application/pdf" onChange={handleChange} disabled={isProcessing} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
-      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando para envio...</div>}
+      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando...</div>}
       {fileName && !isProcessing && <div className="mt-3 text-[10px] font-bold text-green-600 bg-green-50 p-2 rounded-lg">{fileName}</div>}
     </div>
   );
@@ -213,7 +274,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ÁREA DE LOGIN ---
+// --- ECRÃ DE LOGIN ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -263,11 +324,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
             <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
                <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (
-                 <option key={idx} value={getVal(o, ['nome'])}>
-                   {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
-                 </option>
-               ))}
+               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
                {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
           </div>
@@ -378,6 +435,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
+  // Cálculo da Inteligência de Negócio (Absenteísmo e Vigor)
+  const atestadosAtivos = getActiveAtestados(appData.atestados);
+  const absenteismoDados = calculateAbsenteismoStats(appData.atestados, (appData.officers||[]).length);
+
   const sendData = async (action, payload) => {
     setIsSaving(true);
     try {
@@ -445,8 +506,10 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       case 'dashboard':
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-                <div className="md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                
+                {/* STATUS UPI CARD COMPACTO */}
+                <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
                       <div className="bg-blue-600 p-4 rounded-2xl shadow-lg"><Activity size={28}/></div>
@@ -458,18 +521,68 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p><p className="text-3xl md:text-4xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p></div>
                    </div>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
-                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+
+                {/* Sub-grid da esquerda: KPIs de Gestão (Ocupa 2 colunas no desktop) */}
+                <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
+                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
+                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Base</p>
+                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.officers||[]).length}</h3>
+                   </div>
+                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
+                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
+                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+                   </div>
+                   <div className="bg-red-50 p-5 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm">
+                     <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-1 flex items-center gap-1"><CalendarClock size={10}/> Atestados Em Vigor Hoje</p>
+                     <h3 className="text-3xl font-black text-red-600 tracking-tighter">{atestadosAtivos.length}</h3>
+                   </div>
+                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm hover:border-blue-200 cursor-pointer transition-all" onClick={() => setActiveTab('absenteismo')}>
+                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1"><PieChart size={10}/> Taxa Absenteísmo ({absenteismoDados.currentYear})</p>
+                     <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{absenteismoDados.annualRate}%</h3>
+                   </div>
                 </div>
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo</p>
-                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{(appData.officers||[]).length}</h3>
+
+                {/* Sub-grid da direita: Aniversários */}
+                <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
+                   <BirthdayWidget staff={appData.officers}/>
                 </div>
-                <div className="md:col-span-2 row-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col min-h-[250px]"><BirthdayWidget staff={appData.officers}/></div>
             </div>
           </div>
         );
+      case 'absenteismo':
+         return (
+           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans">
+              <div className="flex justify-between items-center mb-8 border-b pb-6">
+                <div>
+                   <h3 className="font-black text-slate-800 text-xl uppercase tracking-tighter flex items-center gap-2"><TrendingDown className="text-red-500"/> Painel de Absenteísmo</h3>
+                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Cálculo de dias perdidos por Atestados Médicos ({absenteismoDados.currentYear})</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Taxa Anual Acumulada</p>
+                   <h2 className="text-4xl font-black text-red-600 tracking-tighter">{absenteismoDados.annualRate}%</h2>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 {absenteismoDados.months.map((m, idx) => (
+                    <div key={idx} className={`p-5 rounded-2xl border transition-all ${m.rate > 5 ? 'bg-red-50 border-red-100' : m.rate > 0 ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100 opacity-50'}`}>
+                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{m.monthName}</p>
+                       <div className="flex justify-between items-end">
+                          <div>
+                            <p className="text-2xl font-black tracking-tighter text-slate-800">{m.rate}%</p>
+                          </div>
+                          <p className="text-[9px] font-bold uppercase text-slate-400">{m.lostDays} dias perdidos</p>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+              
+              <div className="mt-8 bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs text-slate-500 font-bold flex gap-3">
+                 <AlertCircle size={16} className="text-blue-500 shrink-0"/>
+                 <p>A taxa de absenteísmo é calculada cruzando os dias de atestado médico (homologados) que ocorrem em cada mês contra a força de trabalho teórica (Total de Oficiais x Dias do Mês). O cálculo serve para auditar o impacto na assistência do HACO.</p>
+              </div>
+           </div>
+         );
       case 'efetivo':
          const sortedOfficers = [...(appData.officers||[])].sort((a,b) => {
             const { key, direction } = sortConfig;
@@ -498,7 +611,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                 <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça / Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
+                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" /><th className="p-3 md:p-4 text-right">Ação</th></tr>
                   </thead><tbody className="divide-y divide-slate-50">
                     {sortedOfficers.map((o, i) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
@@ -532,9 +645,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     {(appData.atestados||[]).map((a, i) => {
                       const anexoUrl = getVal(a, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
                       const idRegisto = getVal(a, ['id', 'identificador']);
+                      const isVigor = atestadosAtivos.includes(a);
+                      
                       return (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase">{getVal(a,['militar'])}</td>
+                        <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase flex items-center gap-2">{getVal(a,['militar'])} {isVigor && <span className="bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded uppercase tracking-widest">Em Vigor</span>}</td>
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
                         <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
                         <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
@@ -563,7 +678,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
@@ -583,7 +698,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">SGA-Enf</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo Oficiais', icon: Users } ].map(item => (
+            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo', icon: Users }, { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
@@ -593,7 +708,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-3 rounded-xl hover:bg-white/5 transition-all"><LogOut size={18}/> {sidebarOpen && 'Sair'}</button>
          </div>
       </aside>
-      <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50">
+      <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative">
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
