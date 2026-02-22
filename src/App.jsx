@@ -122,6 +122,10 @@ const getActiveAtestados = (atestados) => {
   today.setHours(0,0,0,0);
   
   return atestados.filter(a => {
+    // CORREÇÃO: Atestados pendentes ou rejeitados não entram no cálculo de atestados em vigor
+    const status = String(getVal(a, ['status'])).toLowerCase();
+    if (status.includes('rejeitado') || status === 'pendente') return false;
+
     const start = parseDate(getVal(a, ['inicio', 'data']));
     if (!start) return false;
     start.setHours(0,0,0,0);
@@ -141,7 +145,9 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
   
   if (Array.isArray(atestados)) {
     atestados.forEach(a => {
-      if (getVal(a, ['status']) !== 'Homologado') return; 
+      // CORREÇÃO: Só atestados homologados entram no cálculo do absenteísmo
+      const status = String(getVal(a, ['status'])).toLowerCase();
+      if (!status.includes('homologado') && status !== '') return; 
       
       const start = parseDate(getVal(a, ['inicio', 'data']));
       if (!start) return;
@@ -331,9 +337,10 @@ const GanttViewer = ({ feriasData }) => {
   const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
   const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
 
+  // CORREÇÃO: Férias Rejeitadas e Pendentes não aparecem no Gantt
   const feriasHomologadas = feriasData.filter(f => {
-     const st = String(getVal(f, ['status']) || '').trim();
-     return st === 'Homologado' || st === ''; 
+     const st = String(getVal(f, ['status']) || '').trim().toLowerCase();
+     return st.includes('homologado') || st === ''; // Considera vazio como homologado por legado
   });
 
   const feriasListFiltradas = feriasHomologadas.filter(f => {
@@ -647,6 +654,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
            </div>
 
           <div className="space-y-2">
+            {/* Renderiza tudo misturado na timeline do usuario */}
             {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas].sort((a,b) => {
                 const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
                 const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
@@ -690,6 +698,8 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
       {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
       {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
       {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
+      
+      {/* NOVO MODAL: PEDIR FÉRIAS DO USUÁRIO COM OPÇÕES RESTRITAS */}
       {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
     </div>
   );
@@ -825,7 +835,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   const renderContent = () => {
     switch(activeTab) {
       case 'dashboard':
-        // CÁLCULOS NOVOS DO DASHBOARD
         const bradenInfo = getBradenClass(appData.upi.mediaBraden);
         const fugulinInfo = getFugulinClass(appData.upi.mediaFugulin);
         const contagemFUNSA = (appData.officers||[]).filter(o => String(getVal(o,['expediente'])).toUpperCase().includes('FUNSA')).length;
@@ -847,7 +856,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                       <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Acamados</p><p className="text-3xl md:text-4xl text-blue-400">{appData.upi.acamados || 0}</p></div>
                       <div className="w-px bg-slate-800 hidden md:block"></div>
                       
-                      {/* NOVO BRADEN E FUGULIN CLASSIFICADO */}
                       <div>
                          <p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Braden</p>
                          <p className="text-3xl md:text-4xl text-yellow-500 mb-1">{appData.upi.mediaBraden.toFixed(1)}</p>
@@ -862,7 +870,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                 </div>
 
                 <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
-                   {/* NOVO EFETIVO COM QUEBRA */}
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm relative">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Total</p>
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter mb-2">{contagemEfetivoBase}</h3>
