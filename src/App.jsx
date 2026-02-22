@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -271,6 +271,62 @@ const FileUpload = ({ onFileSelect }) => {
   );
 };
 
+// --- NOVO: WIDGET DE CLIMA PARA CANOAS/RS ---
+const WeatherWidget = () => {
+  const [weather, setWeather] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-29.92&longitude=-51.18&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,relative_humidity_2m,cloud_cover&timezone=America%2FSao_Paulo");
+        const data = await res.json();
+        setWeather(data.current);
+      } catch (e) {
+        console.error("Erro clima", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWeather();
+  }, []);
+
+  if (loading) return <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-center h-32"><Loader2 className="animate-spin text-blue-500" /></div>;
+  if (!weather) return null;
+
+  return (
+    <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-lg border border-slate-700 p-5 text-white flex flex-col justify-between relative overflow-hidden transition-all hover:shadow-xl">
+      <Cloud className="absolute -top-6 -right-6 text-white/5" size={120} />
+      <div className="flex justify-between items-start relative z-10">
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-blue-300 flex items-center gap-1"><MapPin size={10}/> Canoas, RS</p>
+          <div className="flex items-baseline gap-1 mt-1">
+            <h3 className="text-4xl font-black tracking-tighter">{weather.temperature_2m}°</h3>
+            <span className="text-xs font-bold text-slate-400">Sensação {weather.apparent_temperature}°</span>
+          </div>
+        </div>
+        <div className="bg-white/10 p-2.5 rounded-2xl backdrop-blur-sm shadow-sm">
+           {weather.precipitation > 0 ? <CloudRain size={24} className="text-blue-300"/> : weather.cloud_cover > 50 ? <Cloud size={24} className="text-slate-300"/> : <Sun size={24} className="text-yellow-400"/>}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/10 relative z-10">
+        <div className="flex flex-col items-center text-center">
+          <Wind size={12} className="text-blue-300 mb-1"/>
+          <span className="text-[10px] font-black tracking-widest">{weather.wind_speed_10m} km/h</span>
+        </div>
+        <div className="flex flex-col items-center text-center border-l border-r border-white/10">
+          <Droplets size={12} className="text-blue-400 mb-1"/>
+          <span className="text-[10px] font-black tracking-widest">{weather.relative_humidity_2m}%</span>
+        </div>
+        <div className="flex flex-col items-center text-center">
+          <CloudRain size={12} className="text-blue-200 mb-1"/>
+          <span className="text-[10px] font-black tracking-widest">{weather.precipitation} mm</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const BirthdayWidget = ({ staff }) => {
   const list = Array.isArray(staff) ? staff : [];
   const currentMonth = new Date().getMonth();
@@ -280,7 +336,7 @@ const BirthdayWidget = ({ staff }) => {
   }).sort((a, b) => (parseDate(getVal(a, ['nasc']))?.getDate() || 0) - (parseDate(getVal(b, ['nasc']))?.getDate() || 0));
 
   return (
-    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full font-sans">
+    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full font-sans flex-1">
       <div className="p-4 bg-gradient-to-br from-pink-500 to-rose-600 text-white flex justify-between items-center">
         <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest"><Cake size={14} /> Aniversariantes do Mês</h3>
       </div>
@@ -625,7 +681,9 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
         </div>
       </header>
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
-        <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
+        
+        {/* WIDGET DO CLIMA CANOAS SUBSTITUINDO O ANTIGO BANNER "MURAL" */}
+        <WeatherWidget />
         
         <div className="grid grid-cols-4 gap-2">
           <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
@@ -833,6 +891,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
+            
+            {/* NOVO: WEATHER WIDGET NA DASHBOARD DA CHEFIA */}
+            <div className="w-full">
+               <WeatherWidget />
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
@@ -871,7 +935,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{pendentesCount}</h3>
                    </div>
                    
-                   {/* CARD CONSOLIDADO DE AFASTAMENTOS EM VIGOR */}
                    <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm relative">
                      <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-2 flex items-center gap-1"><CalendarClock size={10}/> Em Vigor</p>
                      <div className="flex gap-4 w-full justify-center">
@@ -1275,7 +1338,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          )}
 
          {/* Lançamento de Férias Direto (Admin pula homologação) */}
-         {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
+         {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias (Chefia)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
 
          {/* Lançamento de Licença Direto (Admin) */}
          {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
