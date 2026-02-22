@@ -275,7 +275,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ECRÃ DE LOGIN (COM SENHA) ---
+// --- ECRÃ DE LOGIN (CORREÇÃO DE TEXTO VS NÚMERO) ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -301,10 +301,12 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
     setLoginError('');
     const selectedUser = list.find(o => getVal(o, ['nome']) === user);
     if (selectedUser) {
-       // Puxa a senha da planilha, se não existir, usa a padrão 123456
-       const correctPassword = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
+       // CORREÇÃO CRÍTICA: Força ambas as senhas (digitada e da planilha) a serem Textos (String) para a comparação não falhar
+       const correctPasswordRaw = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
+       const correctPassword = String(correctPasswordRaw).trim();
+       const inputPassword = String(password).trim();
        
-       if (password === correctPassword) {
+       if (inputPassword === correctPassword) {
            const nome = getVal(selectedUser, ['nome']);
            let role = getVal(selectedUser, ['role']) || 'user';
            if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin';
@@ -395,7 +397,6 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
      const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
      if(!myOfficerData) return alert("Erro ao localizar seu perfil.");
 
-     // Usa a função saveOfficer para atualizar o perfil com a nova senha
      const payload = { ...myOfficerData, senha: passForm.new };
      handleSend('saveOfficer', payload);
   };
