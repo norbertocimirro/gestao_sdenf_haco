@@ -408,14 +408,21 @@ const GanttViewer = ({ feriasData }) => {
        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <div className="min-w-[800px]">
              <div className="bg-slate-100 flex border-b border-slate-200">
-                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">Militar</div>
-                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">Período</div>
+                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                   Militar
+                </div>
+                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                   Período
+                </div>
                 <div className="flex-1 flex">
                    {daysArrayF.map(d => {
                       const dt = new Date(anoStrF, mesStrF, d);
                       const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                      return (<div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>{d}</div>)
-                   })}
+                      return (
+                        <div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>
+                           {d}
+                        </div>
+                   )})}
                 </div>
              </div>
              
@@ -428,7 +435,9 @@ const GanttViewer = ({ feriasData }) => {
 
                 return (
                    <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">{militar}</div>
+                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
+                         {militar}
+                      </div>
                       <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0 relative">
                          <span className="font-mono">{formatDate(start)}</span>
                          <span className="font-mono opacity-60 text-[7px]">até {formatDate(end)}</span>
@@ -439,8 +448,14 @@ const GanttViewer = ({ feriasData }) => {
                             const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
                             const isVacation = start && end && currentDate >= start && currentDate <= end;
                             const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
-                            let bgClass = isVacation ? "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500" : (isWeekend ? "bg-slate-100/50" : "bg-transparent");
-                            return (<div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>)
+                            
+                            let bgClass = "bg-transparent";
+                            if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
+                            else if (isWeekend) bgClass = "bg-slate-100/50";
+
+                            return (
+                               <div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
+                            )
                          })}
                       </div>
                    </div>
@@ -454,7 +469,7 @@ const GanttViewer = ({ feriasData }) => {
   );
 };
 
-// --- NOVO: COMPONENTE GERADOR DA ESCALA VERMELHA (BETA) ---
+// --- COMPONENTE GERADOR DA ESCALA VERMELHA (BETA) ---
 const EscalaVermelhaGenerator = ({ appData }) => {
   const [mesStr, setMesStr] = useState("2026-03"); 
   const [feriados, setFeriados] = useState("");
@@ -497,11 +512,11 @@ const EscalaVermelhaGenerator = ({ appData }) => {
   const gerarEscalaAlgoritmo = () => {
      setIsGerando(true);
      
-     // 1. Mapeia oficiais e descobre a última data de plantão e Último Turno
      let poolOficiais = (appData.officers || []).map(o => {
         let rawDate = parseDate(getVal(o, ['ultimo plantao', 'ultimo', 'vermelha', 'data']));
         let rawTurno = String(getVal(o, ['ultimo turno', 'ultimoturno', 'turno'])).toUpperCase().trim();
         let turnoNormalizado = rawTurno.includes('D') ? 'D' : (rawTurno.includes('N') ? 'N' : '');
+        let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
         return {
            nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
@@ -509,7 +524,8 @@ const EscalaVermelhaGenerator = ({ appData }) => {
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
            antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
            lastShiftTime: rawDate ? rawDate.getTime() : new Date(2000, 0, 1).getTime(),
-           ultimoTurno: turnoNormalizado
+           ultimoTurno: turnoNormalizado,
+           isGestante: isGestante
         }
      });
 
@@ -524,6 +540,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
 
          const getNext = (setor, turnoDesejado) => {
             let disponiveis = poolOficiais.filter(o => {
+               if (o.isGestante) return false; // BLOQUEIO: Gestante não entra na vermelha
                if (!o.servico.includes(setor)) return false;
                if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
                if (new Date(o.lastShiftTime).getDate() === d && new Date(o.lastShiftTime).getMonth() === mes) return false; 
@@ -536,14 +553,11 @@ const EscalaVermelhaGenerator = ({ appData }) => {
             });
 
             if (disponiveis.length > 0) {
-               // Procura alguém cujo último turno NÃO FOI o turno que estamos a preencher. 
-               // Se não encontrar (todos tiraram o mesmo antes), pega o primeiro.
                let index = disponiveis.findIndex(o => o.ultimoTurno !== turnoDesejado);
                if (index === -1) index = 0;
 
                let escalado = disponiveis[index];
                
-               // Atualiza a memória com o novo turno que ele acabou de assumir
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
                     ? { ...o, lastShiftTime: dt.getTime(), ultimoTurno: turnoDesejado } 
@@ -594,6 +608,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
              <li>Busca as colunas <b>"Ultimo Plantao"</b> e <b>"Ultimo Turno"</b> (D ou N) na aba Oficiais no Google Sheets.</li>
              <li>O sistema procura sempre quem está há mais tempo sem tirar Vermelha. Se houver empate, o mais moderno vai primeiro.</li>
              <li>Ao escalar para Diurno, o algoritmo prioriza automaticamente os militares cujo Último Turno foi Noturno (e vice-versa).</li>
+             <li>Militares marcadas como <b>Gestantes</b> são ignoradas da Escala Vermelha automaticamente.</li>
              <li>Cruza a data com as abas de Férias, Licenças e Atestados e ignora quem está fora.</li>
           </ul>
           <div className="mt-4">
@@ -942,7 +957,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   
   const [historyOfficer, setHistoryOfficer] = useState(null);
 
-  const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
+  const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '', gestante: '' });
   const [formAtestado, setFormAtestado] = useState({});
   const [formPermuta, setFormPermuta] = useState({});
   const [formFerias, setFormFerias] = useState({});
@@ -1054,6 +1069,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
+            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
@@ -1094,7 +1110,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                      <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{pendentesCount}</h3>
                    </div>
                    
-                   {/* CARD CONSOLIDADO DE AFASTAMENTOS EM VIGOR */}
                    <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm relative">
                      <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-2 flex items-center gap-1"><CalendarClock size={10}/> Em Vigor</p>
                      <div className="flex gap-4 w-full justify-center">
@@ -1169,7 +1184,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Quadro de Oficiais</h3>
-                {!isApenasRT && <button onClick={() => { setFormOfficer({ expediente: [], servico: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>}
+                {!isApenasRT && <button onClick={() => { setFormOfficer({ expediente: [], servico: '', gestante: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>}
               </div>
               <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
                   <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" />{!isApenasRT && <th className="p-3 md:p-4 text-right">Ação</th>}</tr>
@@ -1179,15 +1194,16 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                       const tServico = calculateDetailedTime(getVal(o, ['ingres']));
                       const expedientes = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== "");
                       const isRT = String(getVal(o, ['role'])).toLowerCase() === 'rt'; 
+                      const isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
                       return (
                       <tr key={i} className="hover:bg-slate-50/80 group transition-colors">
                         <td className="p-3 md:p-4 text-center text-slate-300 font-black text-base">{getVal(o, ['antiguidade'])}</td>
-                        <td className="p-3 md:p-4"><div className="flex flex-col items-start gap-1"><div className="flex items-center gap-2"><span onClick={() => setHistoryOfficer(o)} className="font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter text-xs md:text-sm cursor-pointer hover:underline transition-all" title="Ver Dossiê">{getVal(o,['patente','posto'])} {getVal(o, ['nome'])}</span>{isRT && <span className="bg-amber-400 text-slate-900 text-[6px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded shadow-sm">RT Enfermagem</span>}</div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(getVal(o,['nasc']))}</span></div></td>
+                        <td className="p-3 md:p-4"><div className="flex flex-col items-start gap-1"><div className="flex items-center gap-2"><span onClick={() => setHistoryOfficer(o)} className="font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter text-xs md:text-sm cursor-pointer hover:underline transition-all" title="Ver Dossiê">{getVal(o,['patente','posto'])} {getVal(o, ['nome'])}</span>{isRT && <span className="bg-amber-400 text-slate-900 text-[6px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded shadow-sm">RT Enfermagem</span>}{isGestante && <span className="bg-pink-400 text-white text-[6px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5"><Baby size={8}/> Gestante</span>}</div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(getVal(o,['nasc']))}</span></div></td>
                         <td className="p-3 md:p-4"><div className="flex flex-col gap-1"><div className="flex flex-wrap gap-1">{expedientes.map((ex, idx) => (<span key={idx} className="bg-blue-50 text-blue-600 text-[7px] font-black uppercase px-1.5 py-0.5 rounded border border-blue-100">{ex}</span>))}</div><span className={`text-[8px] font-black uppercase inline-block ${getVal(o,['servico']) === 'UTI' ? 'text-purple-600' : 'text-blue-600'}`}>SV: {getVal(o,['servico']) || '-'}</span></div></td>
                         <td className={`p-3 md:p-4 text-center text-[10px] font-bold ${tIdade.y >= 45 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-600'}`}>{tIdade.display}</td>
                         <td className={`p-3 md:p-4 text-center text-[10px] font-bold ${tServico.y >= 7 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-600'}`}><div className="flex flex-col items-center"><span className="text-[8px] text-slate-400 font-mono">{formatDate(getVal(o,['ingres']))}</span><span>{tServico.display}</span></div></td>
-                        {!isApenasRT && <td className="p-3 md:p-4 text-right"><div className="flex gap-2 justify-end opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => { const expArr = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== ""); setFormOfficer({ ...o, nome: getVal(o,['nome']), patente: getVal(o,['patente','posto']), antiguidade: getVal(o,['antiguidade']), nascimento: formatDateForInput(getVal(o,['nasc'])), ingresso: formatDateForInput(getVal(o,['ingres'])), role: getVal(o,['role']), expediente: expArr, servico: getVal(o,['servico']) }); setShowOfficerModal(true); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"><Edit3 size={14}/></button><button onClick={() => { if(window.confirm(`Remover ${getVal(o,['nome'])}?`)) sendData('deleteOfficer', { nome: getVal(o,['nome']) }); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></td>}
+                        {!isApenasRT && <td className="p-3 md:p-4 text-right"><div className="flex gap-2 justify-end opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => { const expArr = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== ""); setFormOfficer({ ...o, nome: getVal(o,['nome']), patente: getVal(o,['patente','posto']), antiguidade: getVal(o,['antiguidade']), nascimento: formatDateForInput(getVal(o,['nasc'])), ingresso: formatDateForInput(getVal(o,['ingres'])), role: getVal(o,['role']), expediente: expArr, servico: getVal(o,['servico']), gestante: isGestante ? 'Sim' : '' }); setShowOfficerModal(true); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"><Edit3 size={14}/></button><button onClick={() => { if(window.confirm(`Remover ${getVal(o,['nome'])}?`)) sendData('deleteOfficer', { nome: getVal(o,['nome']) }); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></td>}
                       </tr>
                     )})}
                     {sortedOfficers.length === 0 && <tr><td colSpan={isApenasRT ? 5 : 6} className="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhum oficial</td></tr>}
@@ -1413,7 +1429,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
-         // ABRE SOMENTE SE ESTIVER NA ABA ESCALA (EXCLUSIVO BETA TESTER)
          return <EscalaVermelhaGenerator appData={appData} />;
       default: return null;
     }
@@ -1471,22 +1486,32 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
                     
-                    <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
-                      <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
-                        {LOCAIS_EXPEDIENTE.map(local => (
-                          <button key={local} type="button" onClick={() => handleToggleExpediente(local)} className={`py-2 px-1 rounded-xl text-[8px] font-black transition-all border ${ (formOfficer.expediente || []).includes(local) ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300' }`}>{local}</button>
-                        ))}
-                      </div>
+                    <div className="col-span-2 pt-3 border-t">
+                       <label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
+                       <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+                         {LOCAIS_EXPEDIENTE.map(local => (
+                           <button key={local} type="button" onClick={() => handleToggleExpediente(local)} className={`py-2 px-1 rounded-xl text-[8px] font-black transition-all border ${ (formOfficer.expediente || []).includes(local) ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300' }`}>{local}</button>
+                         ))}
+                       </div>
                     </div>
 
-                    <div className="col-span-2 pt-3"><label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
-                      <div className="flex gap-3">
-                        {LOCAIS_SERVICO.map(serv => (
-                          <button key={serv} type="button" onClick={() => setFormOfficer({...formOfficer, servico: serv})} className={`flex-1 p-3 rounded-2xl text-[10px] font-black transition-all border flex items-center justify-center gap-2 ${ formOfficer.servico === serv ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200' }`}>
-                             {formOfficer.servico === serv ? <CheckSquare size={12}/> : <Square size={12}/>} {serv}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="col-span-2 pt-3">
+                       <label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
+                       <div className="flex gap-3">
+                         {LOCAIS_SERVICO.map(serv => (
+                           <button key={serv} type="button" onClick={() => setFormOfficer({...formOfficer, servico: serv})} className={`flex-1 p-3 rounded-2xl text-[10px] font-black transition-all border flex items-center justify-center gap-2 ${ formOfficer.servico === serv ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200' }`}>
+                              {formOfficer.servico === serv ? <CheckSquare size={12}/> : <Square size={12}/>} {serv}
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+
+                    {/* NOVO CHECKBOX DE GESTANTE */}
+                    <div className="col-span-2 pt-3">
+                       <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-pink-500 bg-pink-50 p-4 rounded-2xl border border-pink-200 cursor-pointer hover:bg-pink-100 transition-colors">
+                         <input type="checkbox" className="w-4 h-4 accent-pink-500" checked={formOfficer.gestante === 'Sim'} onChange={e => setFormOfficer({...formOfficer, gestante: e.target.checked ? 'Sim' : ''})} />
+                         Militar Gestante (Isenta de Escala Vermelha)
+                       </label>
                     </div>
                  </div>
                  <button type="submit" disabled={isSaving} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all mt-4">{isSaving ? "A Processar..." : "Gravar Dados"}</button>
@@ -1510,7 +1535,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
 
          {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.sai,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
