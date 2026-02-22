@@ -911,12 +911,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                  </div>
                </div>
                
-               {/* GRÁFICO DE GANTT */}
+               {/* GRÁFICO DE GANTT COM TEXTO EMBUTIDO */}
                <div className="overflow-x-auto rounded-2xl border border-slate-200">
                   <div className="min-w-[800px]">
                      {/* Cabeçalho do Gantt (Dias do Mês) */}
                      <div className="bg-slate-50 flex border-b border-slate-200">
-                        <div className="w-32 md:w-48 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-50 border-r border-slate-200 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center">
+                        <div className="w-32 md:w-48 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-50 border-r border-slate-200 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center">
                            Militar
                         </div>
                         <div className="flex-1 flex">
@@ -940,21 +940,36 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
                         return (
                            <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                              <div className="w-32 md:w-48 p-3 text-[10px] md:text-xs font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors">
+                              <div className="w-32 md:w-48 p-3 text-[10px] md:text-xs font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors">
                                  {militar}
                               </div>
-                              <div className="flex-1 flex">
+                              <div className="flex-1 flex relative">
                                  {daysArrayF.map(d => {
                                     const currentDate = new Date(anoStrF, mesStrF, d);
                                     const isVacation = start && end && currentDate >= start && currentDate <= end;
                                     const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
                                     
                                     let bgClass = "bg-transparent";
-                                    if (isVacation) bgClass = "bg-amber-400 border-amber-500 shadow-inner";
+                                    if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10";
                                     else if (isWeekend) bgClass = "bg-slate-100/50";
 
+                                    // Lógica para mostrar o texto no 1º dia visível daquele mês
+                                    let isFirstDayOfDisplay = false;
+                                    if (isVacation) {
+                                       // É o primeiro dia se: a data de hoje for exatamente a data de início OU se o dia for 1 e as férias já estiverem rolando
+                                       if (currentDate.getTime() === start.getTime() || (d === 1 && start < currentDate)) {
+                                          isFirstDayOfDisplay = true;
+                                       }
+                                    }
+
                                     return (
-                                       <div key={d} className={`flex-1 border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
+                                       <div key={d} className={`flex-1 border-r border-slate-100 relative ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}>
+                                          {isFirstDayOfDisplay && (
+                                             <span className="absolute left-1.5 md:left-2 top-1/2 -translate-y-1/2 text-[8px] md:text-[9px] font-black uppercase tracking-widest whitespace-nowrap text-amber-900 z-20 pointer-events-none drop-shadow-sm mix-blend-color-burn">
+                                                {formatDate(start).substring(0,5)} a {formatDate(end).substring(0,5)} ({dias}d)
+                                             </span>
+                                          )}
+                                       </div>
                                     )
                                  })}
                               </div>
@@ -973,7 +988,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden">
-      <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl border-r border-white/5`}>
+      <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">SGA-Enf</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
             {/* NOVO: BOTÃO FÉRIAS NA BARRA LATERAL DA CHEFIA */}
@@ -988,7 +1003,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair do Sistema'}</button>
          </div>
       </aside>
-      <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative">
+      <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative z-10">
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
@@ -1088,7 +1103,7 @@ export default function App() {
         officers: Array.isArray(resG.officers) ? resG.officers : [],
         atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
-        ferias: Array.isArray(resG.ferias) ? resG.ferias : [], // NOVO: Mapeamento da variável!
+        ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
         upi: {
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
           mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
