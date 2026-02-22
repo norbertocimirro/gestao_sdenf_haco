@@ -312,7 +312,7 @@ const GanttViewer = ({ feriasData }) => {
   const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
 
   const feriasHomologadas = feriasData.filter(f => {
-     const st = getVal(f, ['status']);
+     const st = String(getVal(f, ['status']) || '').trim();
      return st === 'Homologado' || st === ''; 
   });
 
@@ -384,7 +384,6 @@ const GanttViewer = ({ feriasData }) => {
                       <div className="flex-1 flex">
                          {daysArrayF.map(d => {
                             // CORREÇÃO FUSO NO LAÇO DOS DIAS: Forçamos a variável currentDate para o meio-dia (12:00:00) 
-                            // Dessa forma, ela não corre risco de ser lida como do dia anterior devido a fuso GMT-3.
                             const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
                             const isVacation = start && end && currentDate >= start && currentDate <= end;
                             const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
@@ -532,23 +531,28 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
-  // Filtros para mostrar na lista do painel do usuário
+  // CORREÇÃO: Filtro aprimorado para garantir a leitura de dados antigos sem padrão
+  const userSafeName = String(user).toLowerCase().trim();
+
   const atestadosFiltrados = (appData.atestados || []).filter(a => {
-     if (!String(getVal(a, ['militar'])).includes(user)) return false;
+     const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
+     if (!nomeA.includes(userSafeName)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(a,['inicio', 'data']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
   }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
 
   const permutasFiltradas = (appData.permutas || []).filter(p => {
-     if (!String(getVal(p, ['solicitante'])).includes(user)) return false;
+     const nomeP = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
+     if (!nomeP.includes(userSafeName)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(p,['sai', 'datasai']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
   }).map(p => ({...p, _tipo: 'Permuta'})).reverse();
 
   const feriasFiltradas = (appData.ferias || []).filter(f => {
-     if (!String(getVal(f, ['militar'])).includes(user)) return false;
+     const nomeF = String(getVal(f, ['militar', 'nome', 'oficial'])).toLowerCase();
+     if (!nomeF.includes(userSafeName)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
      return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
@@ -635,7 +639,8 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
               if (item._tipo === 'Permuta') { titulo = `Troca: ${getVal(item,['substituto'])}`; icon = <ArrowRightLeft size={12} className="text-indigo-500 inline mr-1"/>; }
               if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
 
-              const statusAtual = getVal(item,['status']) || 'Homologado'; // fallback pra antigas
+              const statusAtual = getVal(item,['status']) || 'Homologado'; 
+              const isRejected = statusAtual.toLowerCase().includes('rejeitado');
 
               return (
               <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
@@ -647,7 +652,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
                     {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
                   </div>
                 </div>
-                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${statusAtual==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{statusAtual}</span>
+                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest text-right max-w-[100px] leading-tight ${isRejected ? 'bg-red-50 text-red-600' : statusAtual==='Pendente' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{statusAtual}</span>
               </div>
             )})}
             {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0 && feriasFiltradas.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
@@ -682,7 +687,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [showFeriasModal, setShowFeriasModal] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   
-  // Controle do Modal de Histórico Individual no Efetivo
   const [historyOfficer, setHistoryOfficer] = useState(null);
 
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
@@ -738,19 +742,20 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
     } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
   };
 
-  const handleHomologar = async (id, sheetName) => {
+  // CORREÇÃO: Função Homologar turbinada, permite Rejeitar e Motivo
+  const handleHomologar = async (id, sheetName, novoStatus = 'Homologado') => {
     if (!id) {
-       alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' na aba.");
+       alert("ERRO DE PLANILHA: Este registo antigo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' na aba para interagir com ele.");
        return;
     }
     setHomologandoId(id);
     try {
       await fetch(API_URL_GESTAO, { 
         method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-        body: JSON.stringify({ action: 'updateStatus', payload: { sheet: sheetName, id: id, status: 'Homologado' } }) 
+        body: JSON.stringify({ action: 'updateStatus', payload: { sheet: sheetName, id: id, status: novoStatus } }) 
       });
       setTimeout(() => { setHomologandoId(null); syncData(true); }, 2000);
-    } catch(e) { setHomologandoId(null); alert("Erro de conexão ao homologar."); }
+    } catch(e) { setHomologandoId(null); alert("Erro de conexão ao atualizar status."); }
   };
 
   const handleToggleExpediente = (local) => {
@@ -963,12 +968,14 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Atestado</button>
                  </div>
                </div>
-               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
+               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ações</th></tr></thead>
                   <tbody className="divide-y divide-slate-50">
                     {atestadosListFiltrados.map((a, i) => {
                       const anexoUrl = getVal(a, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
                       const idRegisto = getVal(a, ['id', 'identificador']);
                       const isVigor = atestadosAtivos.includes(a);
+                      const isPendente = getVal(a,['status']) === 'Pendente';
+                      const isRejeitado = String(getVal(a,['status'])).includes('Rejeitado');
                       
                       return (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
@@ -976,8 +983,15 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                         <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
                         <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
                         <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black tracking-widest uppercase ${getVal(a,['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{getVal(a,['status'])}</span></td>
-                        <td className="p-4 text-right">{getVal(a,['status']) === 'Pendente' && <button onClick={()=>handleHomologar(idRegisto, 'Atestados')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
+                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
+                        <td className="p-4 text-right">
+                           {isPendente && (
+                              <div className="flex justify-end gap-2">
+                                 <button onClick={()=>handleHomologar(idRegisto, 'Atestados', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
+                                 <button onClick={()=>{const m = window.prompt("Motivo da rejeição:"); if(m) handleHomologar(idRegisto, 'Atestados', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
+                              </div>
+                           )}
+                        </td>
                       </tr>
                     )})}
                     {atestadosListFiltrados.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhum registo no período selecionado</td></tr>}
@@ -1013,19 +1027,29 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Permuta</button>
                  </div>
                </div>
-               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S / E)</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
+               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S / E)</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ações</th></tr></thead>
                  <tbody className="divide-y divide-slate-50">
                    {permutasListFiltradas.map((p, idx) => {
                      const anexoUrl = getVal(p, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
                      const idRegisto = getVal(p, ['id', 'identificador']);
+                     const isPendente = getVal(p,['status']) === 'Pendente';
+                     const isRejeitado = String(getVal(p,['status'])).includes('Rejeitado');
+
                      return (
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
                        <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                       <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
-                       <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
+                       <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(p, ['status'])}</span></td>
+                       <td className="p-4 text-right">
+                           {isPendente && (
+                              <div className="flex justify-end gap-2">
+                                 <button onClick={()=>handleHomologar(idRegisto, 'Permutas', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
+                                 <button onClick={()=>{const m = window.prompt("Motivo da rejeição:"); if(m) handleHomologar(idRegisto, 'Permutas', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
+                              </div>
+                           )}
+                       </td>
                      </tr>
                    )})}
                    {permutasListFiltradas.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta no período selecionado</td></tr>}
@@ -1038,12 +1062,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
          return (
             <div className="space-y-6">
-               {/* 1. SEÇÃO DE PENDÊNCIAS */}
+               {/* 1. SEÇÃO DE PENDÊNCIAS COM BOTÃO APROVAR/REJEITAR */}
                {feriasPendentes.length > 0 && (
                   <div className="bg-white rounded-3xl shadow-sm border border-amber-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                      <h3 className="font-black text-amber-600 text-lg uppercase tracking-tighter mb-4 flex items-center gap-2"><Sun size={20}/> Solicitações Pendentes</h3>
-                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias (Parcela)</th><th className="p-4">Início</th><th className="p-4 text-right">Ação</th></tr></thead>
+                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias (Parcela)</th><th className="p-4">Início</th><th className="p-4 text-right">Ações</th></tr></thead>
                         <tbody className="divide-y divide-slate-50">
                           {feriasPendentes.map((f, i) => {
                              const idRegisto = getVal(f, ['id', 'identificador']);
@@ -1052,7 +1076,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                                <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(f, ['militar'])}</td>
                                <td className="p-4 text-center text-slate-600 font-bold text-xs">{getVal(f, ['dias', 'quantidade'])}d</td>
                                <td className="p-4 font-mono font-bold text-slate-500 text-[10px]">{formatDate(getVal(f,['inicio', 'data']))}</td>
-                               <td className="p-4 text-right"><button onClick={()=>handleHomologar(idRegisto, 'Ferias')} disabled={homologandoId === idRegisto} className="bg-amber-500 text-white px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-amber-600 active:scale-95 transition-all disabled:bg-amber-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar Férias'}</button></td>
+                               <td className="p-4 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={()=>handleHomologar(idRegisto, 'Ferias', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-amber-500 text-white px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-amber-600 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
+                                    <button onClick={()=>{const m = window.prompt("Motivo da rejeição das férias:"); if(m) handleHomologar(idRegisto, 'Ferias', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
+                                  </div>
+                               </td>
                              </tr>
                           )})}
                         </tbody>
@@ -1096,7 +1125,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8"><div className="space-y-1"><h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p></div><button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button></header>
          {renderContent()}
 
-         {/* Lançamento direto pela Chefia (Modais Adicionais) */}
+         {/* Lançamento direto pela Chefia */}
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -1146,24 +1175,26 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          {/* Lançamento de Férias Direto (Admin pula homologação) */}
          {showFeriasModal && <Modal title="Lançar Férias (Chefia)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
 
+         {/* Lançamento de Atestados e Permutas (Admin) */}
          {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
-         {/* NOVO MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) */}
+         {/* NOVO MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) COM BUSCA TURBINADA */}
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
             
+            // Filtro flexível para encontrar férias antigas
             const feriasHist = (appData.ferias||[]).filter(f => {
                const nomeF = String(getVal(f,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeF === nomeAlvo;
+               return nomeF.includes(nomeAlvo) || nomeAlvo.includes(nomeF);
             });
             const atestadosHist = (appData.atestados||[]).filter(a => {
                const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeA === nomeAlvo;
+               return nomeA.includes(nomeAlvo) || nomeAlvo.includes(nomeA);
             });
             const permutasHist = (appData.permutas||[]).filter(p => {
-               const nomeP = String(getVal(p,['solicitante', 'nome'])).trim().toLowerCase();
-               return nomeP === nomeAlvo;
+               const nomeP = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
+               return nomeP.includes(nomeAlvo) || nomeAlvo.includes(nomeP);
             });
 
             return (
@@ -1173,39 +1204,48 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <div>
                         <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1">Férias</h4>
                         <ul className="space-y-2">
-                           {feriasHist.length > 0 ? feriasHist.map((f, i) => (
+                           {feriasHist.length > 0 ? feriasHist.map((f, i) => {
+                                 const st = getVal(f,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 return (
                                  <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias', 'quantidade'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(f,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(f,['status']) || 'Homologado'}</span>
+                                    <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias', 'quantidade'])}d)</span></span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
                                  </li>
-                              )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
                         </ul>
                      </div>
                      {/* Atestados */}
                      <div>
                         <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1">Atestados Médicos</h4>
                         <ul className="space-y-2">
-                           {atestadosHist.length > 0 ? atestadosHist.map((a, i) => (
+                           {atestadosHist.length > 0 ? atestadosHist.map((a, i) => {
+                                 const st = getVal(a,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 return (
                                  <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
                                     <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(a,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(a,['status']) || 'Homologado'}</span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
                                  </li>
-                              )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
                         </ul>
                      </div>
                      {/* Permutas */}
                      <div>
                         <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1">Permutas (Como Solicitante)</h4>
                         <ul className="space-y-2">
-                           {permutasHist.length > 0 ? permutasHist.map((p, i) => (
+                           {permutasHist.length > 0 ? permutasHist.map((p, i) => {
+                                 const st = getVal(p,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 return (
                                  <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
                                     <div className="flex justify-between items-center">
                                        <span className="font-bold text-slate-700">Substituto: {getVal(p,['substituto'])}</span>
-                                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(p,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(p,['status']) || 'Homologado'}</span>
+                                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
                                     </div>
                                     <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai', 'datasai']))} / E: {formatDate(getVal(p,['entra', 'dataentra']))}</span>
                                  </li>
-                              )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
                         </ul>
                      </div>
                   </div>
