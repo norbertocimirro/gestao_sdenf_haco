@@ -6,7 +6,7 @@ import {
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
-  ChevronLeft, ChevronRight, Key, Lock, Sun
+  ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -96,8 +96,6 @@ const safeParseFloat = (value) => {
   return isNaN(num) ? 0 : num;
 };
 
-// --- MÉTODOS DE INTELIGÊNCIA (ABSENTEÍSMO E VIGOR) ---
-
 const getActiveAtestados = (atestados) => {
   if (!Array.isArray(atestados)) return [];
   const today = new Date();
@@ -178,16 +176,16 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// --- COMPONENTES VISUAIS ---
+// --- COMPONENTES VISUAIS E COMPARTILHADOS ---
 
 const Modal = ({ title, onClose, children }) => (
   <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans">
-    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden animate-fadeIn border border-slate-200">
+    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn border border-slate-200">
       <div className="p-5 border-b flex justify-between items-center bg-slate-50">
-        <h3 className="font-black text-slate-800 uppercase tracking-tighter text-lg">{title}</h3>
+        <h3 className="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2">{title}</h3>
         <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-all"><CloseIcon size={20}/></button>
       </div>
-      <div className="p-6 max-h-[80vh] overflow-y-auto">{children}</div>
+      <div className="p-6 max-h-[85vh] overflow-y-auto">{children}</div>
     </div>
   </div>
 );
@@ -278,6 +276,137 @@ const BirthdayWidget = ({ staff }) => {
     </div>
   );
 };
+
+// COMPONENTE GANTT COMPARTILHADO (Usado por Admin e Tropa)
+const GanttViewer = ({ feriasData }) => {
+  const [mesFiltro, setMesFiltro] = useState(() => {
+     const d = new Date();
+     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const handleMudarMes = (direcao) => {
+     let dataBase = new Date();
+     if (mesFiltro) {
+        const [ano, mes] = mesFiltro.split('-');
+        dataBase = new Date(ano, parseInt(mes) - 1, 1);
+     }
+     dataBase.setMonth(dataBase.getMonth() + direcao);
+     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const obterNomeMes = (referencia) => {
+     if (!referencia) return "MÊS ATUAL";
+     const [ano, mes] = referencia.split('-');
+     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
+     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  };
+
+  let anoStrF = new Date().getFullYear();
+  let mesStrF = new Date().getMonth();
+  if (mesFiltro) {
+      [anoStrF, mesStrF] = mesFiltro.split('-');
+      anoStrF = parseInt(anoStrF);
+      mesStrF = parseInt(mesStrF) - 1;
+  }
+  const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
+  const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
+
+  // Filtra apenas férias que já foram homologadas (ou antigas que não tinham a coluna status)
+  const feriasHomologadas = feriasData.filter(f => {
+     const st = getVal(f, ['status']);
+     return !st || st === 'Homologado'; 
+  });
+
+  const feriasListFiltradas = feriasHomologadas.filter(f => {
+     const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
+     const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; 
+     if (!start) return false;
+     
+     const end = new Date(start);
+     end.setDate(end.getDate() + dias - 1);
+     
+     const monthStart = new Date(anoStrF, mesStrF, 1);
+     const monthEnd = new Date(anoStrF, mesStrF + 1, 0);
+
+     return start <= monthEnd && end >= monthStart;
+  });
+
+  return (
+    <div className="w-full">
+       <div className="flex items-center gap-2 mb-4 justify-between bg-slate-50 p-2 rounded-2xl border border-slate-200">
+          <button onClick={() => handleMudarMes(-1)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-white rounded-xl transition-all active:scale-95"><ChevronLeft size={16}/></button>
+          <div className="text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
+            {obterNomeMes(mesFiltro)}
+          </div>
+          <button onClick={() => handleMudarMes(1)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-white rounded-xl transition-all active:scale-95"><ChevronRight size={16}/></button>
+       </div>
+       
+       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <div className="min-w-[800px]">
+             {/* Cabeçalho do Gantt */}
+             <div className="bg-slate-100 flex border-b border-slate-200">
+                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                   Militar
+                </div>
+                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                   Período
+                </div>
+                <div className="flex-1 flex">
+                   {daysArrayF.map(d => {
+                      const dt = new Date(anoStrF, mesStrF, d);
+                      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                      return (
+                        <div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>
+                           {d}
+                        </div>
+                   )})}
+                </div>
+             </div>
+             
+             {/* Corpo do Gantt */}
+             {feriasListFiltradas.length > 0 ? feriasListFiltradas.map((f, i) => {
+                const militar = getVal(f, ['militar', 'nome', 'oficial']);
+                const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
+                const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30;
+                const end = start ? new Date(start) : null;
+                if (end) end.setDate(end.getDate() + dias - 1);
+
+                return (
+                   <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
+                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
+                         {militar}
+                      </div>
+                      <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0 relative">
+                         <span className="font-mono">{formatDate(start)}</span>
+                         <span className="font-mono opacity-60 text-[7px]">até {formatDate(end)}</span>
+                         <span className="absolute top-1 right-1 text-[7px] font-black uppercase bg-amber-200 px-1 rounded text-amber-800">{dias}d</span>
+                      </div>
+                      <div className="flex-1 flex">
+                         {daysArrayF.map(d => {
+                            const currentDate = new Date(anoStrF, mesStrF, d);
+                            const isVacation = start && end && currentDate >= start && currentDate <= end;
+                            const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                            
+                            let bgClass = "bg-transparent";
+                            if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
+                            else if (isWeekend) bgClass = "bg-slate-100/50";
+
+                            return (
+                               <div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
+                            )
+                         })}
+                      </div>
+                   </div>
+                )
+             }) : (
+                <div className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Sem férias homologadas neste mês.</div>
+             )}
+          </div>
+       </div>
+    </div>
+  );
+};
+
 
 // --- ECRÃ DE LOGIN ---
 
@@ -374,7 +503,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
 
 const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [isSaving, setIsSaving] = useState(false);
-  const [modals, setModals] = useState({ atestado: false, permuta: false, password: false });
+  const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, gantt: false, password: false });
   const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
@@ -401,42 +530,45 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
+  // Filtros para mostrar na lista do painel do usuário
   const atestadosFiltrados = (appData.atestados || []).filter(a => {
      if (!String(getVal(a, ['militar'])).includes(user)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(a,['inicio', 'data']));
-     if (!d) return false;
-     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).reverse();
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
 
   const permutasFiltradas = (appData.permutas || []).filter(p => {
      if (!String(getVal(p, ['solicitante'])).includes(user)) return false;
      if (!mesFiltro) return true;
      const d = parseDate(getVal(p,['sai', 'datasai']));
-     if (!d) return false;
-     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).reverse();
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(p => ({...p, _tipo: 'Permuta'})).reverse();
+
+  const feriasFiltradas = (appData.ferias || []).filter(f => {
+     if (!String(getVal(f, ['militar'])).includes(user)) return false;
+     if (!mesFiltro) return true;
+     const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(f => ({...f, _tipo: 'Férias'})).reverse();
 
   const handleSend = async (action, payload) => {
     setIsSaving(true);
     try {
       await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
-      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, password: false }); setFileData(null); syncData(true); }, 1500);
+      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, ferias: false, gantt: false, password: false }); setFileData(null); syncData(true); }, 1500);
     } catch(e) { setIsSaving(false); alert("Erro ao enviar. Verifique a conexão."); }
   };
 
-  const closeModals = () => { setModals({ atestado: false, permuta: false, password: false }); setFileData(null); }
+  const closeModals = () => { setModals({ atestado: false, permuta: false, ferias: false, gantt: false, password: false }); setFileData(null); }
 
   const handleChangePassword = (e) => {
      e.preventDefault();
      if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
      if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
-     
      const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
      if(!myOfficerData) return alert("Erro ao localizar seu perfil.");
-
-     const payload = { ...myOfficerData, senha: passForm.new };
-     handleSend('saveOfficer', payload);
+     handleSend('saveOfficer', { ...myOfficerData, senha: passForm.new });
   };
 
   return (
@@ -453,12 +585,20 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
       </header>
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
         <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-red-50 text-red-500 rounded-2xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest">Atestado</span></button>
-          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest">Permuta</span></button>
+        
+        {/* NOVO MENU DE BOTÕES (AGORA COM 3 OPÇÕES) */}
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-red-50 text-red-500 rounded-2xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
+          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
+          <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-amber-50 text-amber-500 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
         </div>
+
+        {/* BOTÃO PARA ABRIR O GANTT GERAL */}
+        <button onClick={() => setModals({...modals, gantt: true})} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
+           <CalendarDays size={16}/> Visualizar Escala de Férias Geral
+        </button>
+
         <div className="pt-4">
-           
            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
              <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
                 Meus Registros 
@@ -479,30 +619,48 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
            </div>
 
           <div className="space-y-2">
-            {[...permutasFiltradas, ...atestadosFiltrados].map((item, i) => {
+            {/* Renderiza tudo misturado na timeline do usuario */}
+            {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas].sort((a,b) => {
+                const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
+                const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
+                return dateB - dateA;
+            }).map((item, i) => {
               const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
+              let titulo = "";
+              let icon = null;
+              
+              if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
+              if (item._tipo === 'Permuta') { titulo = `Troca: ${getVal(item,['substituto'])}`; icon = <ArrowRightLeft size={12} className="text-indigo-500 inline mr-1"/>; }
+              if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
+
+              const statusAtual = getVal(item,['status']) || 'Homologado'; // fallback pra antigas
+
               return (
               <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
                 <div className="text-xs">
-                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1">{getVal(item,['substituto']) ? `Troca: ${getVal(item,['substituto'])}` : `Afastamento: ${getVal(item,['dias'])}d`}</p>
+                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1">{icon} {titulo}</p>
                   <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
                     <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
                     {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
                     {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
                   </div>
                 </div>
-                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${getVal(item,['status'])==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{getVal(item,['status'])}</span>
+                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${statusAtual==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{statusAtual}</span>
               </div>
             )})}
-            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
+            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0 && feriasFiltradas.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
           </div>
         </div>
       </main>
 
       {/* MODAIS USER */}
+      {modals.gantt && <Modal title={<><CalendarDays size={18}/> Escala Geral de Férias</>} onClose={closeModals}><GanttViewer feriasData={appData.ferias} /></Modal>}
       {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
       {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
       {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
+      
+      {/* NOVO MODAL: PEDIR FÉRIAS DO USUÁRIO COM OPÇÕES RESTRITAS */}
+      {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
     </div>
   );
 };
@@ -522,6 +680,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
   const [showFeriasModal, setShowFeriasModal] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   
+  // Controle do Modal de Histórico Individual no Efetivo
+  const [historyOfficer, setHistoryOfficer] = useState(null);
+
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '' });
   const [formAtestado, setFormAtestado] = useState({});
   const [formPermuta, setFormPermuta] = useState({});
@@ -577,7 +738,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const handleHomologar = async (id, sheetName) => {
     if (!id) {
-       alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' ou aprove diretamente na planilha.");
+       alert("ERRO DE PLANILHA: Este registo não possui um 'id' salvo no Google Sheets. Crie a coluna 'id' na aba.");
        return;
     }
     setHomologandoId(id);
@@ -661,7 +822,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                    </div>
                    <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
-                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
+                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length}</h3>
                    </div>
                    <div className="bg-red-50 p-5 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm">
                      <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-1 flex items-center gap-1"><CalendarClock size={10}/> Atestados Em Vigor</p>
@@ -748,11 +909,20 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                       const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
                       const tServico = calculateDetailedTime(getVal(o, ['ingres']));
                       const expedientes = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== "");
-                      
+                      const nomeOficial = getVal(o, ['nome']);
+
                       return (
                       <tr key={i} className="hover:bg-slate-50/80 group transition-colors">
                         <td className="p-3 md:p-4 text-center text-slate-300 font-black text-base">{getVal(o, ['antiguidade'])}</td>
-                        <td className="p-3 md:p-4"><div className="flex flex-col"><span className="font-black text-slate-800 uppercase tracking-tighter text-xs md:text-sm">{getVal(o,['patente','posto'])} {getVal(o,['nome'])}</span><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(getVal(o,['nasc']))}</span></div></td>
+                        <td className="p-3 md:p-4">
+                           <div className="flex flex-col">
+                              {/* NOVO: Nome clicável para abrir Histórico */}
+                              <span onClick={() => setHistoryOfficer(o)} className="font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter text-xs md:text-sm cursor-pointer hover:underline transition-all">
+                                 {getVal(o,['patente','posto'])} {nomeOficial}
+                              </span>
+                              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(getVal(o,['nasc']))}</span>
+                           </div>
+                        </td>
                         <td className="p-3 md:p-4"><div className="flex flex-col gap-1"><div className="flex flex-wrap gap-1">{expedientes.map((ex, idx) => (<span key={idx} className="bg-blue-50 text-blue-600 text-[7px] font-black uppercase px-1.5 py-0.5 rounded border border-blue-100">{ex}</span>))}</div><span className={`text-[8px] font-black uppercase inline-block ${getVal(o,['servico']) === 'UTI' ? 'text-purple-600' : 'text-blue-600'}`}>SV: {getVal(o,['servico']) || '-'}</span></div></td>
                         <td className={`p-3 md:p-4 text-center text-[10px] font-bold ${tIdade.y >= 45 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-600'}`}>{tIdade.display}</td>
                         <td className={`p-3 md:p-4 text-center text-[10px] font-bold ${tServico.y >= 7 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-600'}`}><div className="flex flex-col items-center"><span className="text-[8px] text-slate-400 font-mono">{formatDate(getVal(o,['ingres']))}</span><span>{tServico.display}</span></div></td>
@@ -863,119 +1033,42 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             </div>
          );
       case 'ferias':
-         let anoStrF = new Date().getFullYear();
-         let mesStrF = new Date().getMonth();
-         if (mesFiltro) {
-             [anoStrF, mesStrF] = mesFiltro.split('-');
-             anoStrF = parseInt(anoStrF);
-             mesStrF = parseInt(mesStrF) - 1;
-         }
-         const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
-         const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
-
-         const feriasListFiltradas = (appData.ferias || []).filter(f => {
-            if (!mesFiltro) return true;
-            const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
-            const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; 
-            if (!start) return false;
-            
-            const end = new Date(start);
-            end.setDate(end.getDate() + dias - 1);
-            
-            const monthStart = new Date(anoStrF, mesStrF, 1);
-            const monthEnd = new Date(anoStrF, mesStrF + 1, 0);
-
-            return start <= monthEnd && end >= monthStart;
-         });
+         // NOVO: Separar as férias pendentes de homologação e as já homologadas
+         const feriasPendentes = (appData.ferias || []).filter(f => getVal(f, ['status']) === 'Pendente');
 
          return (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala de Férias (Gantt)</h3>
-                 
-                 <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                      <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
-                      <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {obterNomeMes(mesFiltro)}
-                      </div>
-                      <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
-                    </div>
-                    {mesFiltro && (
-                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-amber-500 transition-colors shrink-0">Ver Todos</button>
-                    )}
-                    <button onClick={() => setShowFeriasModal(true)} className="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Férias</button>
-                 </div>
-               </div>
-               
-               {/* GRÁFICO DE GANTT COM COLUNA DE PERÍODO */}
-               <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <div className="min-w-[900px]">
-                     {/* Cabeçalho do Gantt */}
-                     <div className="bg-slate-50 flex border-b border-slate-200">
-                        {/* 1. Coluna do Nome FIXA */}
-                        <div className="w-32 md:w-48 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
-                           Militar
-                        </div>
-                        {/* 2. NOVA COLUNA DE PERÍODO FIXA */}
-                        <div className="w-32 md:w-44 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest sticky md:left-48 left-32 bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
-                           Período
-                        </div>
-                        {/* 3. Colunas dos Dias do Mês */}
-                        <div className="flex-1 flex">
-                           {daysArrayF.map(d => {
-                              const dt = new Date(anoStrF, mesStrF, d);
-                              const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                              return (
-                                <div key={d} className={`flex-1 min-w-[24px] flex justify-center items-center py-2 border-r border-slate-100 text-[9px] font-bold ${isWeekend ? 'bg-slate-200/50 text-slate-400' : 'text-slate-600'}`}>
-                                   {d}
-                                </div>
-                           )})}
-                        </div>
-                     </div>
-                     
-                     {/* Corpo do Gantt */}
-                     {feriasListFiltradas.length > 0 ? feriasListFiltradas.map((f, i) => {
-                        const militar = getVal(f, ['militar', 'nome', 'oficial']);
-                        const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
-                        const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30;
-                        const end = start ? new Date(start) : null;
-                        if (end) end.setDate(end.getDate() + dias - 1);
-
-                        return (
-                           <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                              {/* 1. Nome do Militar */}
-                              <div className="w-32 md:w-48 p-3 text-[10px] md:text-xs font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
-                                 {militar}
-                              </div>
-                              {/* 2. NOVA COLUNA: Texto do Período */}
-                              <div className="w-32 md:w-44 p-3 text-[9px] md:text-[10px] font-bold text-amber-700 sticky md:left-48 left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0">
-                                 <span className="font-mono">{formatDate(start)}</span>
-                                 <span className="font-mono opacity-60 text-[8px]">até {formatDate(end)}</span>
-                                 <span className="absolute top-1 right-2 text-[7px] font-black uppercase bg-amber-200 px-1 rounded text-amber-800">{dias}d</span>
-                              </div>
-                              {/* 3. Barras do Gantt (Dias do mês) */}
-                              <div className="flex-1 flex">
-                                 {daysArrayF.map(d => {
-                                    const currentDate = new Date(anoStrF, mesStrF, d);
-                                    const isVacation = start && end && currentDate >= start && currentDate <= end;
-                                    const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
-                                    
-                                    let bgClass = "bg-transparent";
-                                    if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
-                                    else if (isWeekend) bgClass = "bg-slate-100/50";
-
-                                    return (
-                                       <div key={d} className={`flex-1 min-w-[24px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
-                                    )
-                                 })}
-                              </div>
-                           </div>
-                        )
-                     }) : (
-                        <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs border-b border-slate-100">Nenhuma programação de Férias neste mês.</div>
-                     )}
+            <div className="space-y-6">
+               {/* 1. SEÇÃO DE PENDÊNCIAS (SE HOUVER) */}
+               {feriasPendentes.length > 0 && (
+                  <div className="bg-white rounded-3xl shadow-sm border border-amber-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
+                     <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                     <h3 className="font-black text-amber-600 text-lg uppercase tracking-tighter mb-4 flex items-center gap-2"><Sun size={20}/> Solicitações Pendentes</h3>
+                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias (Parcela)</th><th className="p-4">Início</th><th className="p-4 text-right">Ação</th></tr></thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {feriasPendentes.map((f, i) => {
+                             const idRegisto = getVal(f, ['id', 'identificador']);
+                             return (
+                             <tr key={i} className="hover:bg-amber-50/50 transition-colors">
+                               <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(f, ['militar'])}</td>
+                               <td className="p-4 text-center text-slate-600 font-bold text-xs">{getVal(f, ['dias', 'quantidade'])}d</td>
+                               <td className="p-4 font-mono font-bold text-slate-500 text-[10px]">{formatDate(getVal(f,['inicio', 'data']))}</td>
+                               <td className="p-4 text-right"><button onClick={()=>handleHomologar(idRegisto, 'Ferias')} disabled={homologandoId === idRegisto} className="bg-amber-500 text-white px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-amber-600 active:scale-95 transition-all disabled:bg-amber-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar Férias'}</button></td>
+                             </tr>
+                          )})}
+                        </tbody>
+                     </table></div>
                   </div>
+               )}
+
+               {/* 2. GANTT COMPARTILHADO */}
+               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala de Férias</h3>
+                    <button onClick={() => setShowFeriasModal(true)} className="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançamento Direto</button>
+                  </div>
+                  
+                  {/* Chama o componente Gantt que construímos */}
+                  <GanttViewer feriasData={appData.ferias || []} />
                </div>
             </div>
          );
@@ -988,8 +1081,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">SGA-Enf</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {/* NOVO: BOTÃO FÉRIAS NA BARRA LATERAL DA CHEFIA */}
-            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'ferias', label: 'Férias', icon: Sun }, { id: 'efetivo', label: 'Efetivo', icon: Users }, { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].map(item => (
+            {/* Menu da Chefia */}
+            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'ferias', label: 'Férias', icon: Sun, badge: (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, { id: 'efetivo', label: 'Efetivo', icon: Users }, { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
             ))}
@@ -1051,11 +1144,61 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
            </Modal>
          )}
 
-         {/* NOVO MODAL: LANÇAR FÉRIAS */}
-         {showFeriasModal && <Modal title="Lançar Férias (Chefia)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}/></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar Férias"}</button></form></Modal>}
+         {/* Lançamento de Férias Direto (Admin pula homologação) */}
+         {showFeriasModal && <Modal title="Lançar Férias (Chefia)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
 
-         {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         {showAtestadoModal && <Modal title="Lançar Atestado (Chefia)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         {showPermutaModal && <Modal title="Lançar Permuta (Chefia)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         
+         {/* NOVO MODAL: HISTÓRICO DO MILITAR (Acionado pela Tabela de Efetivo) */}
+         {historyOfficer && (
+            <Modal title={<><History size={18}/> Dossiê: {getVal(historyOfficer,['patente','posto'])} {getVal(historyOfficer,['nome'])}</>} onClose={() => setHistoryOfficer(null)}>
+               <div className="space-y-6">
+                  {/* Férias */}
+                  <div>
+                     <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1">Férias</h4>
+                     <ul className="space-y-2">
+                        {(appData.ferias||[]).filter(f => getVal(f,['militar']) === getVal(historyOfficer,['nome'])).length > 0 ? 
+                           (appData.ferias||[]).filter(f => getVal(f,['militar']) === getVal(historyOfficer,['nome'])).map((f, i) => (
+                              <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
+                                 <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias'])}d)</span></span>
+                                 <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(f,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(f,['status']) || 'Homologado'}</span>
+                              </li>
+                           )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                     </ul>
+                  </div>
+                  {/* Atestados */}
+                  <div>
+                     <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1">Atestados Médicos</h4>
+                     <ul className="space-y-2">
+                        {(appData.atestados||[]).filter(a => getVal(a,['militar']) === getVal(historyOfficer,['nome'])).length > 0 ? 
+                           (appData.atestados||[]).filter(a => getVal(a,['militar']) === getVal(historyOfficer,['nome'])).map((a, i) => (
+                              <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
+                                 <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
+                                 <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(a,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(a,['status'])}</span>
+                              </li>
+                           )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                     </ul>
+                  </div>
+                  {/* Permutas */}
+                  <div>
+                     <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1">Permutas (Como Solicitante)</h4>
+                     <ul className="space-y-2">
+                        {(appData.permutas||[]).filter(p => getVal(p,['solicitante']) === getVal(historyOfficer,['nome'])).length > 0 ? 
+                           (appData.permutas||[]).filter(p => getVal(p,['solicitante']) === getVal(historyOfficer,['nome'])).map((p, i) => (
+                              <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
+                                 <div className="flex justify-between items-center">
+                                    <span className="font-bold text-slate-700">Substituto: {getVal(p,['substituto'])}</span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded ${getVal(p,['status'])==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`}>{getVal(p,['status'])}</span>
+                                 </div>
+                                 <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai']))} / E: {formatDate(getVal(p,['entra']))}</span>
+                              </li>
+                           )) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                     </ul>
+                  </div>
+               </div>
+            </Modal>
+         )}
       </main>
     </div>
   );
