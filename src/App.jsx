@@ -5,7 +5,8 @@ import {
   Star, Cake, BookOpen, Plus, Trash2, Edit3, 
   UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
-  ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart
+  ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -324,11 +325,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
             <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => setUser(e.target.value)}>
                <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (
-                 <option key={idx} value={getVal(o, ['nome'])}>
-                   {getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}
-                 </option>
-               ))}
+               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
                {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
           </div>
@@ -439,11 +436,29 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
-  // Estado para filtro mensal de abas
+  // Estado para filtro mensal de abas (Inicializa com o mês atual YYYY-MM)
   const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  // Funções para lidar com as Setas de Mês
+  const handleMonthChange = (direction) => {
+     let baseDate = new Date();
+     if (filtroMesAtual) {
+        const [y, m] = filtroMesAtual.split('-');
+        baseDate = new Date(y, m - 1, 1);
+     }
+     baseDate.setMonth(baseDate.getMonth() + direction);
+     setFiltroMesAtual(`${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const displayMonthName = (yyyy_mm) => {
+     if (!yyyy_mm) return "TODOS OS REGISTOS";
+     const [y, m] = yyyy_mm.split('-');
+     const d = new Date(y, m - 1, 1);
+     return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  };
 
   // Cálculo da Inteligência de Negócio (Absenteísmo e Vigor)
   const atestadosAtivos = getActiveAtestados(appData.atestados);
@@ -658,9 +673,19 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                  <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Gestão de Atestados</h3>
+                 
+                 {/* NOVO SELETOR MENSAL VISUAL */}
                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    <input type="month" value={filtroMesAtual} onChange={e => setFiltroMesAtual(e.target.value)} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer" />
-                    <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors">Limpar Filtro</button>
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
+                      <button onClick={() => handleMonthChange(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
+                      <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
+                        {displayMonthName(filtroMesAtual)}
+                      </div>
+                      <button onClick={() => handleMonthChange(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
+                    </div>
+                    {filtroMesAtual && (
+                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    )}
                     <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Atestado</button>
                  </div>
                </div>
@@ -689,7 +714,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
       case 'permutas':
          const permutasListFiltradas = (appData.permutas||[]).filter(p => {
             if (!filtroMesAtual) return true;
-            const d = parseDate(getVal(p,['sai', 'datasai'])); // Usa a data de saída para filtro
+            const d = parseDate(getVal(p,['sai', 'datasai']));
             if (!d) return false;
             const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             return itemMonth === filtroMesAtual;
@@ -699,9 +724,19 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                  <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Permutas Solicitadas</h3>
+                 
+                 {/* NOVO SELETOR MENSAL VISUAL */}
                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    <input type="month" value={filtroMesAtual} onChange={e => setFiltroMesAtual(e.target.value)} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer" />
-                    <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors">Limpar Filtro</button>
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
+                      <button onClick={() => handleMonthChange(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
+                      <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
+                        {displayMonthName(filtroMesAtual)}
+                      </div>
+                      <button onClick={() => handleMonthChange(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
+                    </div>
+                    {filtroMesAtual && (
+                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    )}
                     <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Permuta</button>
                  </div>
                </div>
@@ -714,7 +749,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
                        <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
+                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500 bg-red-50 px-2 py-1 rounded">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600 bg-green-50 px-2 py-1 rounded">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Visualizar Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${getVal(p, ['status']) === 'Homologado' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{getVal(p, ['status'])}</span></td>
                        <td className="p-4 text-right">{getVal(p, ['status']) === 'Pendente' && <button onClick={() => handleHomologar(idRegisto, 'Permutas')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:bg-blue-300 disabled:cursor-not-allowed">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Homologar'}</button>}</td>
