@@ -230,7 +230,7 @@ const FileUpload = ({ onFileSelect }) => {
         const compressedFile = await compressImage(file);
         onFileSelect(compressedFile); setFileName(`✅ Imagem otimizada (${file.name})`);
       } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
+        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB. Envie um mais leve."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
         const reader = new FileReader();
         reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
         reader.readAsDataURL(file);
@@ -275,7 +275,7 @@ const BirthdayWidget = ({ staff }) => {
   );
 };
 
-// --- ECRÃ DE LOGIN (CORREÇÃO DE TEXTO VS NÚMERO) ---
+// --- ECRÃ DE LOGIN (COM SENHA) ---
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
@@ -301,7 +301,6 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
     setLoginError('');
     const selectedUser = list.find(o => getVal(o, ['nome']) === user);
     if (selectedUser) {
-       // CORREÇÃO CRÍTICA: Força ambas as senhas (digitada e da planilha) a serem Textos (String) para a comparação não falhar
        const correctPasswordRaw = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
        const correctPassword = String(correctPasswordRaw).trim();
        const inputPassword = String(password).trim();
@@ -327,7 +326,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
               <Plane size={32} className="text-white transform -rotate-12"/>
            </div>
            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">Enfermagem HACO</h1>
-           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Hospital de Aeronáutica de Canoas</p>
+           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
         </div>
         
         {syncError && (
@@ -376,8 +375,46 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
   const [fileData, setFileData] = useState(null);
 
-  const atestadosFiltrados = (appData.atestados || []).filter(a => String(getVal(a, ['militar'])).includes(user)).reverse();
-  const permutasFiltradas = (appData.permutas || []).filter(p => String(getVal(p, ['solicitante'])).includes(user)).reverse();
+  // Lógica de Filtro Mensal Segura (Tradução para PT-BR para evitar falhas)
+  const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
+     const d = new Date();
+     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const handleMonthChange = (direcao) => {
+     let dataBase = new Date();
+     if (filtroMesAtual) {
+        const [ano, mes] = filtroMesAtual.split('-');
+        dataBase = new Date(ano, parseInt(mes) - 1, 1);
+     }
+     dataBase.setMonth(dataBase.getMonth() + direcao);
+     setFiltroMesAtual(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const obterNomeMes = (mesFiltro) => {
+     if (!mesFiltro) return "TODOS OS REGISTOS";
+     const [ano, mes] = mesFiltro.split('-');
+     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
+     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  };
+
+  const atestadosFiltrados = (appData.atestados || []).filter(a => {
+     if (!String(getVal(a, ['militar'])).includes(user)) return false;
+     if (!filtroMesAtual) return true;
+     const d = parseDate(getVal(a,['inicio', 'data']));
+     if (!d) return false;
+     const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+     return itemMonth === filtroMesAtual;
+  }).reverse();
+
+  const permutasFiltradas = (appData.permutas || []).filter(p => {
+     if (!String(getVal(p, ['solicitante'])).includes(user)) return false;
+     if (!filtroMesAtual) return true;
+     const d = parseDate(getVal(p,['sai', 'datasai']));
+     if (!d) return false;
+     const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+     return itemMonth === filtroMesAtual;
+  }).reverse();
 
   const handleSend = async (action, payload) => {
     setIsSaving(true);
@@ -419,7 +456,28 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
           <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-red-50 text-red-500 rounded-2xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest">Atestado</span></button>
           <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={20}/></div><span className="font-black text-[9px] uppercase text-slate-700 tracking-widest">Permuta</span></button>
         </div>
-        <div className="pt-4"><h3 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-3 flex justify-between items-center">Meus Registros <button onClick={()=>syncData(true)} className="p-2 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button></h3>
+        <div className="pt-4">
+           
+           {/* Cabeçalho com Filtro de Mês Responsivo */}
+           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
+                Meus Registros 
+                <button onClick={()=>syncData(true)} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button>
+             </h3>
+             <div className="flex items-center gap-2">
+                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
+                    <button onClick={() => handleMonthChange(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
+                    <div className="w-28 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">
+                      {obterNomeMes(filtroMesAtual)}
+                    </div>
+                    <button onClick={() => handleMonthChange(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
+                 </div>
+                 {filtroMesAtual && (
+                    <button onClick={() => setFiltroMesAtual('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                 )}
+             </div>
+           </div>
+
           <div className="space-y-2">
             {[...permutasFiltradas, ...atestadosFiltrados].map((item, i) => {
               const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
@@ -436,7 +494,7 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing }) => {
                 <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest ${getVal(item,['status'])==='Homologado'?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>{getVal(item,['status'])}</span>
               </div>
             )})}
-            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos recentes</p>}
+            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
           </div>
         </div>
       </main>
@@ -471,27 +529,27 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
 
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
-  // Estado para filtro mensal de abas
-  const [filtroMesAtual, setFiltroMesAtual] = useState(() => {
+  // Estado e Funções para filtro mensal 100% blindados (PT-BR)
+  const [mesFiltro, setMesFiltro] = useState(() => {
      const d = new Date();
      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const handleMonthChange = (direction) => {
-     let baseDate = new Date();
-     if (filtroMesAtual) {
-        const [y, m] = filtroMesAtual.split('-');
-        baseDate = new Date(y, m - 1, 1);
+  const handleMudarMes = (direcao) => {
+     let dataBase = new Date();
+     if (mesFiltro) {
+        const [ano, mes] = mesFiltro.split('-');
+        dataBase = new Date(ano, parseInt(mes) - 1, 1);
      }
-     baseDate.setMonth(baseDate.getMonth() + direction);
-     setFiltroMesAtual(`${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}`);
+     dataBase.setMonth(dataBase.getMonth() + direcao);
+     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  const displayMonthName = (yyyy_mm) => {
-     if (!yyyy_mm) return "TODOS OS REGISTOS";
-     const [y, m] = yyy_mm.split('-');
-     const d = new Date(y, m - 1, 1);
-     return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  const obterNomeMes = (referenciaFiltro) => {
+     if (!referenciaFiltro) return "TODOS OS REGISTOS";
+     const [ano, mes] = referenciaFiltro.split('-');
+     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
+     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
   const atestadosAtivos = getActiveAtestados(appData.atestados);
@@ -706,11 +764,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          );
       case 'atestados':
          const atestadosListFiltrados = (appData.atestados||[]).filter(a => {
-            if (!filtroMesAtual) return true;
+            if (!mesFiltro) return true;
             const d = parseDate(getVal(a,['inicio', 'data']));
             if (!d) return false;
             const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return itemMonth === filtroMesAtual;
+            return itemMonth === mesFiltro;
          });
 
          return (
@@ -718,17 +776,16 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                  <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Gestão de Atestados</h3>
                  
-                 {/* NOVO SELETOR MENSAL VISUAL */}
-                 <div className="flex items-center gap-3 w-full md:w-auto">
+                 <div className="flex items-center gap-2 w-full md:w-auto">
                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                      <button onClick={() => handleMonthChange(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
+                      <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
                       <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {displayMonthName(filtroMesAtual)}
+                        {obterNomeMes(mesFiltro)}
                       </div>
-                      <button onClick={() => handleMonthChange(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
+                      <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
                     </div>
-                    {filtroMesAtual && (
-                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    {mesFiltro && (
+                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                     )}
                     <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Atestado</button>
                  </div>
@@ -757,11 +814,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          );
       case 'permutas':
          const permutasListFiltradas = (appData.permutas||[]).filter(p => {
-            if (!filtroMesAtual) return true;
+            if (!mesFiltro) return true;
             const d = parseDate(getVal(p,['sai', 'datasai']));
             if (!d) return false;
             const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return itemMonth === filtroMesAtual;
+            return itemMonth === mesFiltro;
          });
 
          return (
@@ -769,17 +826,16 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                  <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Permutas Solicitadas</h3>
                  
-                 {/* NOVO SELETOR MENSAL VISUAL */}
-                 <div className="flex items-center gap-3 w-full md:w-auto">
+                 <div className="flex items-center gap-2 w-full md:w-auto">
                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                      <button onClick={() => handleMonthChange(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
+                      <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
                       <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-                        {displayMonthName(filtroMesAtual)}
+                        {obterNomeMes(mesFiltro)}
                       </div>
-                      <button onClick={() => handleMonthChange(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
+                      <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
                     </div>
-                    {filtroMesAtual && (
-                      <button onClick={() => setFiltroMesAtual('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
+                    {mesFiltro && (
+                      <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>
                     )}
                     <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Permuta</button>
                  </div>
@@ -829,17 +885,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
          {renderContent()}
 
          {/* Lançamento direto pela Chefia (Modais Adicionais) */}
-         {showPassModal && (
-           <Modal title="Trocar Senha de Acesso" onClose={() => setShowPassModal(false)}>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div>
-                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div>
-                 <div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div>
-                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button>
-              </form>
-           </Modal>
-         )}
-
          {showOfficerModal && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -871,6 +916,17 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing }) => {
                     </div>
                  </div>
                  <button type="submit" disabled={isSaving} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all mt-4">{isSaving ? "A Processar..." : "Gravar Dados"}</button>
+              </form>
+           </Modal>
+         )}
+
+         {showPassModal && (
+           <Modal title="Trocar Senha de Acesso" onClose={() => setShowPassModal(false)}>
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div>
+                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div>
+                 <div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div>
+                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button>
               </form>
            </Modal>
          )}
