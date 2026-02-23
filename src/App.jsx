@@ -469,7 +469,6 @@ const GanttViewer = ({ feriasData }) => {
   );
 };
 
-
 // --- COMPONENTE GESTOR DE ESCALAS (OFICIAL E BETA) ---
 const EscalaManager = ({ appData }) => {
   const [activeSubTab, setActiveSubTab] = useState('oficial');
@@ -1489,6 +1488,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
+         // BLOQUEIO DUPLO: Apenas Cimirro vê esta tela
+         if (!isCimirro) return null;
          return (
             <div className="animate-fadeIn">
                <EscalaManager appData={appData} />
@@ -1510,7 +1511,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'efetivo', label: 'Efetivo', icon: Users },
-               { id: 'escala', label: isCimirro ? 'Escala Mensal' : 'Escala (Beta)', icon: Calendar }, 
+               isCimirro && { id: 'escala', label: 'Escala Mensal', icon: Calendar }, 
                { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
