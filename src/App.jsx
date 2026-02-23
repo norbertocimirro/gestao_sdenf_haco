@@ -290,7 +290,7 @@ const WeatherWidgetMini = () => {
   if (!weather) return null;
 
   return (
-    <div className="flex items-center gap-2 md:gap-3 bg-white px-3 md:px-4 py-1.5 rounded-full border border-slate-200 shadow-sm text-[9px] md:text-[10px] font-black text-slate-600 tracking-widest ml-auto" title={`Canoas/RS`}>
+    <div className="flex items-center gap-2 md:gap-3 bg-white px-3 md:px-4 py-1.5 rounded-full border border-slate-200 shadow-sm text-[9px] md:text-[10px] font-black text-slate-600 tracking-widest ml-auto print:hidden" title={`Canoas/RS`}>
       <div className="flex items-center gap-1 text-slate-800">
          {weather.precipitation > 0 ? <CloudRain size={14} className="text-blue-500"/> : weather.cloud_cover > 50 ? <Cloud size={14} className="text-slate-500"/> : <Sun size={14} className="text-yellow-500"/>}
          <span className="text-[10px]">{weather.temperature_2m}°C</span>
@@ -512,18 +512,13 @@ const EscalaVermelhaGenerator = ({ appData }) => {
   const gerarEscalaAlgoritmo = () => {
      setIsGerando(true);
      
-     // BUSCA AS 3 DATAS DO PASSADO E CONTA QUANTOS BURACOS A PESSOA TEM
+     // 1. Mapear Militares, ver quem é Gestante e qual é o "Total de Quadradinhos" e a "Data do Último Plantão"
      let poolOficiais = (appData.officers || []).map(o => {
-        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
-        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
-        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
+        let rawDate = parseDate(getVal(o, ['ultimo plantao', 'ultimo', 'vermelha', 'data']));
         let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
-        // LÓGICA DE AUDITORIA: Quantos quadradinhos faltam ser preenchidos?
-        let vazios = 0;
-        if (!rawD1) vazios++;
-        if (!rawD2) vazios++;
-        if (!rawD3) vazios++;
+        // LÓGICA DE AUDITORIA: "Saldo de Quadradinhos"
+        let quadradinhosPreenchidos = parseInt(getVal(o, ['quadradinhos', 'total', 'plantoes'])) || 0;
 
         return {
            nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
@@ -531,12 +526,9 @@ const EscalaVermelhaGenerator = ({ appData }) => {
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
            antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
            
-           vazios: vazios, 
+           quadradinhos: quadradinhosPreenchidos, // QUANTO MENOR, MAIS DEVENDO (VAI PRIMEIRO)
 
-           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
-           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
-           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
-           
+           lastShiftTime: rawDate ? rawDate.getTime() : new Date(2000, 0, 1).getTime(),
            isGestante: isGestante
         }
      });
@@ -556,31 +548,28 @@ const EscalaVermelhaGenerator = ({ appData }) => {
                if (!o.servico.includes(setor)) return false;
                if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
                // Regra de segurança: Não tira 2 plantões no mesmo dia
-               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
+               if (new Date(o.lastShiftTime).getDate() === d && new Date(o.lastShiftTime).getMonth() === mes) return false; 
                return true;
             });
 
-            // LÓGICA DE ORDENAÇÃO (QUADRADINHOS IMPLACÁVEIS)
+            // NOVA LÓGICA INFALÍVEL DE ORDENAÇÃO:
             disponiveis.sort((a, b) => {
-               // 1. Quem tem mais buracos na escala (quem deve, paga primeiro)
-               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
-               // 2. Quem tirou o plantão mais recente há mais tempo
-               if (a.d1 !== b.d1) return a.d1 - b.d1; 
-               // 3. Desempata pelo penúltimo
-               if (a.d2 !== b.d2) return a.d2 - b.d2; 
-               // 4. Desempata pelo antepenúltimo
-               if (a.d3 !== b.d3) return a.d3 - b.d3; 
-               // 5. O mais moderno vai primeiro (assume-se que maior número = mais moderno)
+               // 1. Quem tem menos quadradinhos preenchidos vai primeiro (A Bárbara e Nascimento vão pagar dívida aqui)
+               if (a.quadradinhos !== b.quadradinhos) return a.quadradinhos - b.quadradinhos; 
+               // 2. Empatou nos quadradinhos? Quem tirou o plantão há mais tempo vai primeiro
+               if (a.lastShiftTime !== b.lastShiftTime) return a.lastShiftTime - b.lastShiftTime; 
+               // 3. Tudo empatado? O mais moderno vai primeiro.
                return b.antiguidade - a.antiguidade;  
             });
 
             if (disponiveis.length > 0) {
                let escalado = disponiveis[0];
                
-               // ATUALIZA O HISTÓRICO: Paga uma dívida e empurra as datas para trás
+               // ATUALIZA O HISTÓRICO PARA O PRÓXIMO LOOP: 
+               // A pessoa tirou plantão -> ganha 1 quadradinho e a data atualiza para hoje.
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
+                    ? { ...o, lastShiftTime: dt.getTime(), quadradinhos: o.quadradinhos + 1 } 
                     : o
                );
                return escalado.nomeCompleto;
@@ -605,29 +594,31 @@ const EscalaVermelhaGenerator = ({ appData }) => {
 
   const renderSlot = (nomeBase, dia) => {
      if (!nomeBase) return "-";
-     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black' : 'text-slate-800'}>{nomeBase}</span>;
+     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black print:text-red-600' : 'text-slate-800 print:text-black'}>{nomeBase}</span>;
   };
 
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
        
-       {/* Cabeçalho visível apenas na impressão */}
+       {/* CABEÇALHO EXCLUSIVO PARA IMPRESSÃO (PDF) */}
        <div className="hidden print:block text-center mb-6">
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800">Escala de Enfermagem - Vermelha</h2>
-          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
-          <div className="w-full h-px bg-slate-200 my-4"></div>
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Escala de Enfermagem - Vermelha</h2>
+          <p className="text-sm font-bold text-gray-600 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
+          <div className="w-full h-px bg-black my-4"></div>
        </div>
 
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
          <div>
             <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cobrança de Dívidas</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos (Balanço Automático)</p>
          </div>
          <div className="flex gap-2 w-full md:w-auto">
             <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
             <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
                {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
             </button>
+            
+            {/* BOTÃO DE IMPRIMIR / PDF */}
             <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
                <Printer size={14}/> PDF
             </button>
@@ -635,14 +626,12 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        </div>
 
        <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
-          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Regras Atuais do Algoritmo:</p>
+          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Instruções de Configuração no Sheets:</p>
           <ul className="list-disc pl-5 space-y-1">
-             <li>Busca as colunas <b>Plantao 1</b> (Mais Recente), <b>Plantao 2</b> e <b>Plantao 3</b> na aba Oficiais.</li>
-             <li>Militares com colunas vazias estão "a dever". Elas têm <b>Prioridade Máxima</b> e são escaladas repetidamente (pagando a dívida) até igualarem os restantes.</li>
-             <li>No empate, verifica a data mais antiga. Mantendo o empate, o <b>mais moderno</b> entra primeiro na fila.</li>
-             <li>O 1º da fila é escalado de <b>Diurno</b>. O 2º da fila é escalado de <b>Noturno</b> no mesmo dia.</li>
-             <li>Militares marcadas como <b>Gestantes</b> são sumariamente ignoradas.</li>
-             <li>A escala cruza com as abas de Férias, Licenças e Atestados (apenas homologados) para evitar choques de data.</li>
+             <li>Na aba Oficiais, mantenha a coluna <b>"Ultimo Plantao"</b> com a data da última vez que o militar tirou a escala vermelha.</li>
+             <li>Crie uma nova coluna chamada <b>"Quadradinhos"</b> (ou Total). Lá, digite quantos plantões o militar já tirou no semestre. Quem tem número menor (dívida), vai ser escalado primeiro automaticamente!</li>
+             <li>No empate de Quadradinhos e Data, o <b>mais moderno</b> entra de Diurno e o seguinte de Noturno.</li>
+             <li>Gestantes, Férias, Licenças e Atestados homologados são ignorados da escala.</li>
           </ul>
           <div className="mt-4">
              <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
@@ -651,19 +640,19 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        </div>
 
        {escalaGerada && (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none">
-             <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full">
-                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-slate-200">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+             <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
                    <tr>
-                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border-slate-300">Dia</th>
-                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border-slate-300">Semana</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:border-slate-300 print:bg-transparent">UPI Diurno</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:border-slate-300 print:bg-transparent">UPI Noturno</th>
-                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:border-slate-300 print:bg-transparent">UTI Diurno</th>
-                      <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent">UTI Noturno</th>
+                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
+                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                      <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
                    </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 print:divide-slate-300">
+                <tbody className="divide-y divide-slate-100 print:divide-gray-300">
                    {daysArray.map(d => {
                       const dt = new Date(ano, mes, d);
                       const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
@@ -671,22 +660,22 @@ const EscalaVermelhaGenerator = ({ appData }) => {
                       const isVermelha = isWeekend || isFeriado;
                       const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
                       
-                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-slate-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
+                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
                       const assignment = escalaGerada[String(d)];
 
-                      // Se não for vermelha, não imprime a linha
+                      // Se o modo impressão estiver ativo, esconde dias normais
                       if (!isVermelha) return null;
 
                       return (
                          <tr key={d} className={`transition-colors ${bgRow}`}>
-                            <td className={`p-3 text-center border-r border-slate-100 print:border-slate-300 font-black ${isVermelha ? 'text-red-500 print:text-slate-800' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
-                            <td className={`p-3 text-center border-r border-slate-100 print:border-slate-300 font-bold ${isVermelha ? 'text-red-400 print:text-slate-800' : 'text-slate-400'}`}>
+                            <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
+                            <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
                                {isFeriado ? 'FER' : diaNome}
                             </td>
-                            <td className={`p-3 border-r border-slate-100 print:border-slate-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 print:border-slate-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 print:border-slate-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
-                            <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                            <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
                          </tr>
                       )
                    })}
@@ -743,7 +732,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden print:hidden">
       {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
       
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
