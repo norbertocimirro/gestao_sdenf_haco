@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -191,7 +191,7 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
   render() {
     if (this.state.hasError) return (
-        <div className="min-h-screen bg-slate-100 p-8 flex flex-col items-center justify-center font-sans">
+        <div className="min-h-screen bg-slate-100 p-8 flex flex-col items-center justify-center font-sans print:hidden">
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-red-200 text-center"><AlertCircle size={64} className="text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Erro de Interface</h1><p className="text-slate-500 mb-4 text-sm">{this.state.error?.toString()}</p><button onClick={() => {localStorage.removeItem('sga_app_cache'); window.location.reload();}} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Limpar Cache e Recarregar</button></div>
         </div>
       );
@@ -202,7 +202,7 @@ class ErrorBoundary extends React.Component {
 // --- COMPONENTES VISUAIS E COMPARTILHADOS ---
 
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans">
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans print:hidden">
     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn border border-slate-200">
       <div className="p-5 border-b flex justify-between items-center bg-slate-50">
         <h3 className="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2">{title}</h3>
@@ -531,7 +531,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
            antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
            
-           vazios: vazios, // Este é o fator multiplicador de prioridade
+           vazios: vazios, 
 
            d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
            d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
@@ -550,7 +550,6 @@ const EscalaVermelhaGenerator = ({ appData }) => {
 
          if (!isWeekend && !isFeriado) continue; 
 
-         // Regra: O 1º da fila pega Diurno, o 2º da fila pega Noturno. (Turno não importa)
          const getNext = (setor) => {
             let disponiveis = poolOficiais.filter(o => {
                if (o.isGestante) return false; 
@@ -610,8 +609,16 @@ const EscalaVermelhaGenerator = ({ appData }) => {
   };
 
   return (
-    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
+       
+       {/* Cabeçalho visível apenas na impressão */}
+       <div className="hidden print:block text-center mb-6">
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800">Escala de Enfermagem - Vermelha</h2>
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
+          <div className="w-full h-px bg-slate-200 my-4"></div>
+       </div>
+
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
          <div>
             <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cobrança de Dívidas</p>
@@ -621,10 +628,13 @@ const EscalaVermelhaGenerator = ({ appData }) => {
             <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
                {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
             </button>
+            <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
+               <Printer size={14}/> PDF
+            </button>
          </div>
        </div>
 
-       <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium">
+       <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
           <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Regras Atuais do Algoritmo:</p>
           <ul className="list-disc pl-5 space-y-1">
              <li>Busca as colunas <b>Plantao 1</b> (Mais Recente), <b>Plantao 2</b> e <b>Plantao 3</b> na aba Oficiais.</li>
@@ -641,19 +651,19 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        </div>
 
        {escalaGerada && (
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-             <table className="w-full text-left text-xs font-sans min-w-[800px]">
-                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none">
+             <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full">
+                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-slate-200">
                    <tr>
-                      <th className="p-3 text-center w-16 border-r border-slate-200">Dia</th>
-                      <th className="p-3 text-center w-16 border-r border-slate-200">Semana</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50">UPI Diurno</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100">UPI Noturno</th>
-                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50">UTI Diurno</th>
-                      <th className="p-3 text-indigo-900 bg-indigo-100">UTI Noturno</th>
+                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border-slate-300">Dia</th>
+                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border-slate-300">Semana</th>
+                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:border-slate-300 print:bg-transparent">UPI Diurno</th>
+                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:border-slate-300 print:bg-transparent">UPI Noturno</th>
+                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:border-slate-300 print:bg-transparent">UTI Diurno</th>
+                      <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent">UTI Noturno</th>
                    </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 print:divide-slate-300">
                    {daysArray.map(d => {
                       const dt = new Date(ano, mes, d);
                       const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
@@ -661,18 +671,21 @@ const EscalaVermelhaGenerator = ({ appData }) => {
                       const isVermelha = isWeekend || isFeriado;
                       const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
                       
-                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50' : 'bg-white hover:bg-slate-50 opacity-40';
+                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-slate-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
                       const assignment = escalaGerada[String(d)];
+
+                      // Se não for vermelha, não imprime a linha
+                      if (!isVermelha) return null;
 
                       return (
                          <tr key={d} className={`transition-colors ${bgRow}`}>
-                            <td className={`p-3 text-center border-r border-slate-100 font-black ${isVermelha ? 'text-red-500' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
-                            <td className={`p-3 text-center border-r border-slate-100 font-bold ${isVermelha ? 'text-red-400' : 'text-slate-400'}`}>
+                            <td className={`p-3 text-center border-r border-slate-100 print:border-slate-300 font-black ${isVermelha ? 'text-red-500 print:text-slate-800' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
+                            <td className={`p-3 text-center border-r border-slate-100 print:border-slate-300 font-bold ${isVermelha ? 'text-red-400 print:text-slate-800' : 'text-slate-400'}`}>
                                {isFeriado ? 'FER' : diaNome}
                             </td>
-                            <td className={`p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 print:border-slate-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 print:border-slate-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-100 print:border-slate-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
                             <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
                          </tr>
                       )
@@ -1458,8 +1471,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden">
-      <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
+    <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden print:bg-white print:h-auto print:overflow-visible">
+      <aside className={`print:hidden ${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">ENF-HACO</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
             {/* Menu da Chefia / RT */}
@@ -1486,8 +1499,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
          </div>
       </aside>
-      <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative z-10">
-         <header className="flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8">
+      <main className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative z-10 print:p-0 print:bg-white print:overflow-visible">
+         <header className="print:hidden flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8">
             <div className="flex flex-col md:flex-row md:items-center gap-4">
                <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p>
                <WeatherWidgetMini />
@@ -1562,6 +1575,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
+         {/* MODAL: HISTÓRICO DO MILITAR (Dossiê) */}
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
             
