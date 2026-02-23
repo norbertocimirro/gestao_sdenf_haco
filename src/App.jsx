@@ -512,16 +512,31 @@ const EscalaVermelhaGenerator = ({ appData }) => {
   const gerarEscalaAlgoritmo = () => {
      setIsGerando(true);
      
+     // BUSCA AS 3 DATAS DO PASSADO E CONTA QUANTOS BURACOS A PESSOA TEM
      let poolOficiais = (appData.officers || []).map(o => {
-        let rawDate = parseDate(getVal(o, ['ultimo plantao', 'ultimo', 'vermelha', 'data']));
+        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
+        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
+        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
         let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
+
+        // LÓGICA DE AUDITORIA: Quantos quadradinhos faltam ser preenchidos?
+        let vazios = 0;
+        if (!rawD1) vazios++;
+        if (!rawD2) vazios++;
+        if (!rawD3) vazios++;
 
         return {
            nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
            nomeCurto: getVal(o, ['nome']),
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
            antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
-           lastShiftTime: rawDate ? rawDate.getTime() : new Date(2000, 0, 1).getTime(),
+           
+           vazios: vazios, // Este é o fator multiplicador de prioridade
+
+           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
+           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
+           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
+           
            isGestante: isGestante
         }
      });
@@ -535,30 +550,38 @@ const EscalaVermelhaGenerator = ({ appData }) => {
 
          if (!isWeekend && !isFeriado) continue; 
 
-         // Como a regra nova exige puramente a Data e dps Antiguidade:
-         // O 1º da fila pega Diurno, o 2º da fila pega Noturno.
+         // Regra: O 1º da fila pega Diurno, o 2º da fila pega Noturno. (Turno não importa)
          const getNext = (setor) => {
             let disponiveis = poolOficiais.filter(o => {
                if (o.isGestante) return false; 
                if (!o.servico.includes(setor)) return false;
                if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
-               if (new Date(o.lastShiftTime).getDate() === d && new Date(o.lastShiftTime).getMonth() === mes) return false; 
+               // Regra de segurança: Não tira 2 plantões no mesmo dia
+               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
                return true;
             });
 
-            // Ordena primeiro pela data do ultimo plantão (mais antigo vem primeiro)
-            // Se empatar, ordena por antiguidade reversa (mais moderno vem primeiro)
+            // LÓGICA DE ORDENAÇÃO (QUADRADINHOS IMPLACÁVEIS)
             disponiveis.sort((a, b) => {
-               if (a.lastShiftTime !== b.lastShiftTime) return a.lastShiftTime - b.lastShiftTime;
-               return b.antiguidade - a.antiguidade; 
+               // 1. Quem tem mais buracos na escala (quem deve, paga primeiro)
+               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
+               // 2. Quem tirou o plantão mais recente há mais tempo
+               if (a.d1 !== b.d1) return a.d1 - b.d1; 
+               // 3. Desempata pelo penúltimo
+               if (a.d2 !== b.d2) return a.d2 - b.d2; 
+               // 4. Desempata pelo antepenúltimo
+               if (a.d3 !== b.d3) return a.d3 - b.d3; 
+               // 5. O mais moderno vai primeiro (assume-se que maior número = mais moderno)
+               return b.antiguidade - a.antiguidade;  
             });
 
             if (disponiveis.length > 0) {
                let escalado = disponiveis[0];
                
+               // ATUALIZA O HISTÓRICO: Paga uma dívida e empurra as datas para trás
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, lastShiftTime: dt.getTime() } 
+                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
                     : o
                );
                return escalado.nomeCompleto;
@@ -591,7 +614,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
          <div>
             <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cruzamento de Dados</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cobrança de Dívidas</p>
          </div>
          <div className="flex gap-2 w-full md:w-auto">
             <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
@@ -602,13 +625,14 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        </div>
 
        <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium">
-          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Como o algoritmo funciona agora:</p>
+          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Regras Atuais do Algoritmo:</p>
           <ul className="list-disc pl-5 space-y-1">
-             <li>Busca a coluna <b>"Ultimo Plantao"</b> na aba Oficiais no Google Sheets. O Último Turno não interfere.</li>
-             <li>A fila é estritamente por Data e Antiguidade (Moderno na frente).</li>
-             <li>O primeiro da fila entra de <b>Diurno</b>, e o próximo entra de <b>Noturno</b> no mesmo dia.</li>
-             <li>Militares marcadas como <b>Gestantes</b> são ignoradas da Escala Vermelha automaticamente.</li>
-             <li>Cruza a data com as abas de Férias, Licenças e Atestados e pula quem está fora.</li>
+             <li>Busca as colunas <b>Plantao 1</b> (Mais Recente), <b>Plantao 2</b> e <b>Plantao 3</b> na aba Oficiais.</li>
+             <li>Militares com colunas vazias estão "a dever". Elas têm <b>Prioridade Máxima</b> e são escaladas repetidamente (pagando a dívida) até igualarem os restantes.</li>
+             <li>No empate, verifica a data mais antiga. Mantendo o empate, o <b>mais moderno</b> entra primeiro na fila.</li>
+             <li>O 1º da fila é escalado de <b>Diurno</b>. O 2º da fila é escalado de <b>Noturno</b> no mesmo dia.</li>
+             <li>Militares marcadas como <b>Gestantes</b> são sumariamente ignoradas.</li>
+             <li>A escala cruza com as abas de Férias, Licenças e Atestados (apenas homologados) para evitar choques de data.</li>
           </ul>
           <div className="mt-4">
              <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
