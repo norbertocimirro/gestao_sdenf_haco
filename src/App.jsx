@@ -514,8 +514,6 @@ const EscalaVermelhaGenerator = ({ appData }) => {
      
      let poolOficiais = (appData.officers || []).map(o => {
         let rawDate = parseDate(getVal(o, ['ultimo plantao', 'ultimo', 'vermelha', 'data']));
-        let rawTurno = String(getVal(o, ['ultimo turno', 'ultimoturno', 'turno'])).toUpperCase().trim();
-        let turnoNormalizado = rawTurno.includes('D') ? 'D' : (rawTurno.includes('N') ? 'N' : '');
         let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
         return {
@@ -524,7 +522,6 @@ const EscalaVermelhaGenerator = ({ appData }) => {
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
            antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
            lastShiftTime: rawDate ? rawDate.getTime() : new Date(2000, 0, 1).getTime(),
-           ultimoTurno: turnoNormalizado,
            isGestante: isGestante
         }
      });
@@ -538,29 +535,30 @@ const EscalaVermelhaGenerator = ({ appData }) => {
 
          if (!isWeekend && !isFeriado) continue; 
 
-         const getNext = (setor, turnoDesejado) => {
+         // Como a regra nova exige puramente a Data e dps Antiguidade:
+         // O 1º da fila pega Diurno, o 2º da fila pega Noturno.
+         const getNext = (setor) => {
             let disponiveis = poolOficiais.filter(o => {
-               if (o.isGestante) return false; // BLOQUEIO: Gestante não entra na vermelha
+               if (o.isGestante) return false; 
                if (!o.servico.includes(setor)) return false;
                if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
                if (new Date(o.lastShiftTime).getDate() === d && new Date(o.lastShiftTime).getMonth() === mes) return false; 
                return true;
             });
 
+            // Ordena primeiro pela data do ultimo plantão (mais antigo vem primeiro)
+            // Se empatar, ordena por antiguidade reversa (mais moderno vem primeiro)
             disponiveis.sort((a, b) => {
                if (a.lastShiftTime !== b.lastShiftTime) return a.lastShiftTime - b.lastShiftTime;
                return b.antiguidade - a.antiguidade; 
             });
 
             if (disponiveis.length > 0) {
-               let index = disponiveis.findIndex(o => o.ultimoTurno !== turnoDesejado);
-               if (index === -1) index = 0;
-
-               let escalado = disponiveis[index];
+               let escalado = disponiveis[0];
                
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, lastShiftTime: dt.getTime(), ultimoTurno: turnoDesejado } 
+                    ? { ...o, lastShiftTime: dt.getTime() } 
                     : o
                );
                return escalado.nomeCompleto;
@@ -569,10 +567,11 @@ const EscalaVermelhaGenerator = ({ appData }) => {
          };
 
          schedule[d] = {
-             upiD: getNext('UPI', 'D'),
-             upiN: getNext('UPI', 'N'),
-             utiD: getNext('UTI', 'D'),
-             utiN: getNext('UTI', 'N')
+             // A ordem das chamadas garante que o 1º da fila pega Dia e o 2º pega Noite
+             upiD: getNext('UPI'),
+             upiN: getNext('UPI'),
+             utiD: getNext('UTI'),
+             utiN: getNext('UTI')
          };
      }
 
@@ -584,7 +583,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
 
   const renderSlot = (nomeBase, dia) => {
      if (!nomeBase) return "-";
-     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600' : 'text-slate-800'}>{nomeBase}</span>;
+     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black' : 'text-slate-800'}>{nomeBase}</span>;
   };
 
   return (
@@ -592,7 +591,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
          <div>
             <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cruzamento de Turnos</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cruzamento de Dados</p>
          </div>
          <div className="flex gap-2 w-full md:w-auto">
             <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
@@ -605,11 +604,11 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium">
           <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Como o algoritmo funciona agora:</p>
           <ul className="list-disc pl-5 space-y-1">
-             <li>Busca as colunas <b>"Ultimo Plantao"</b> e <b>"Ultimo Turno"</b> (D ou N) na aba Oficiais no Google Sheets.</li>
-             <li>O sistema procura sempre quem está há mais tempo sem tirar Vermelha. Se houver empate, o mais moderno vai primeiro.</li>
-             <li>Ao escalar para Diurno, o algoritmo prioriza automaticamente os militares cujo Último Turno foi Noturno (e vice-versa).</li>
+             <li>Busca a coluna <b>"Ultimo Plantao"</b> na aba Oficiais no Google Sheets. O Último Turno não interfere.</li>
+             <li>A fila é estritamente por Data e Antiguidade (Moderno na frente).</li>
+             <li>O primeiro da fila entra de <b>Diurno</b>, e o próximo entra de <b>Noturno</b> no mesmo dia.</li>
              <li>Militares marcadas como <b>Gestantes</b> são ignoradas da Escala Vermelha automaticamente.</li>
-             <li>Cruza a data com as abas de Férias, Licenças e Atestados e ignora quem está fora.</li>
+             <li>Cruza a data com as abas de Férias, Licenças e Atestados e pula quem está fora.</li>
           </ul>
           <div className="mt-4">
              <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
@@ -1472,10 +1471,12 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             <button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button>
          </header>
          
+         {/* CONTEÚDO PRINCIPAL COM PROTEÇÃO RT */}
          {(() => {
             return renderContent();
          })()}
 
+         {/* MODAIS (Só Lança se não for APENAS RT) */}
          {showOfficerModal && !isApenasRT && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -1486,27 +1487,24 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
                     
-                    <div className="col-span-2 pt-3 border-t">
-                       <label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
-                       <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
-                         {LOCAIS_EXPEDIENTE.map(local => (
-                           <button key={local} type="button" onClick={() => handleToggleExpediente(local)} className={`py-2 px-1 rounded-xl text-[8px] font-black transition-all border ${ (formOfficer.expediente || []).includes(local) ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300' }`}>{local}</button>
-                         ))}
-                       </div>
+                    <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
+                      <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+                        {LOCAIS_EXPEDIENTE.map(local => (
+                          <button key={local} type="button" onClick={() => handleToggleExpediente(local)} className={`py-2 px-1 rounded-xl text-[8px] font-black transition-all border ${ (formOfficer.expediente || []).includes(local) ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300' }`}>{local}</button>
+                        ))}
+                      </div>
                     </div>
 
-                    <div className="col-span-2 pt-3">
-                       <label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
-                       <div className="flex gap-3">
-                         {LOCAIS_SERVICO.map(serv => (
-                           <button key={serv} type="button" onClick={() => setFormOfficer({...formOfficer, servico: serv})} className={`flex-1 p-3 rounded-2xl text-[10px] font-black transition-all border flex items-center justify-center gap-2 ${ formOfficer.servico === serv ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200' }`}>
-                              {formOfficer.servico === serv ? <CheckSquare size={12}/> : <Square size={12}/>} {serv}
-                           </button>
-                         ))}
-                       </div>
+                    <div className="col-span-2 pt-3"><label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
+                      <div className="flex gap-3">
+                        {LOCAIS_SERVICO.map(serv => (
+                          <button key={serv} type="button" onClick={() => setFormOfficer({...formOfficer, servico: serv})} className={`flex-1 p-3 rounded-2xl text-[10px] font-black transition-all border flex items-center justify-center gap-2 ${ formOfficer.servico === serv ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200' }`}>
+                             {formOfficer.servico === serv ? <CheckSquare size={12}/> : <Square size={12}/>} {serv}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
-                    {/* NOVO CHECKBOX DE GESTANTE */}
                     <div className="col-span-2 pt-3">
                        <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-pink-500 bg-pink-50 p-4 rounded-2xl border border-pink-200 cursor-pointer hover:bg-pink-100 transition-colors">
                          <input type="checkbox" className="w-4 h-4 accent-pink-500" checked={formOfficer.gestante === 'Sim'} onChange={e => setFormOfficer({...formOfficer, gestante: e.target.checked ? 'Sim' : ''})} />
@@ -1530,12 +1528,15 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
            </Modal>
          )}
 
+         {/* Lançamento de Férias Direto (Admin pula homologação) */}
          {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
 
+         {/* Lançamento de Licença Direto (Admin) */}
          {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
 
+         {/* Lançamento de Atestados e Permutas (Admin) */}
          {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.sai,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
          
          {historyOfficer && (() => {
             const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
