@@ -512,23 +512,29 @@ const EscalaVermelhaGenerator = ({ appData }) => {
   const gerarEscalaAlgoritmo = () => {
      setIsGerando(true);
      
-     // 1. Mapear Militares, ver quem é Gestante e qual é o "Total de Quadradinhos" e a "Data do Último Plantão"
+     // BUSCA AS 3 DATAS DO PASSADO E CONTA QUANTOS BURACOS (DÍVIDAS) A PESSOA TEM
      let poolOficiais = (appData.officers || []).map(o => {
-        let rawDate = parseDate(getVal(o, ['ultimo plantao', 'ultimo', 'vermelha', 'data']));
+        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
+        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
+        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
         let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
-        // LÓGICA DE AUDITORIA: "Saldo de Quadradinhos"
-        let quadradinhosPreenchidos = parseInt(getVal(o, ['quadradinhos', 'total', 'plantoes'])) || 0;
+        // LÓGICA DE AUDITORIA: Conta quadradinhos vazios (Dívida de plantões)
+        let vazios = 0;
+        if (!rawD1) vazios++;
+        if (!rawD2) vazios++;
+        if (!rawD3) vazios++;
 
         return {
            nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
            nomeCurto: getVal(o, ['nome']),
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
-           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
+           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, // Dica: Numeração maior = Mais Moderno
            
-           quadradinhos: quadradinhosPreenchidos, // QUANTO MENOR, MAIS DEVENDO (VAI PRIMEIRO)
-
-           lastShiftTime: rawDate ? rawDate.getTime() : new Date(2000, 0, 1).getTime(),
+           vazios: vazios, 
+           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
+           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
+           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
            isGestante: isGestante
         }
      });
@@ -547,29 +553,33 @@ const EscalaVermelhaGenerator = ({ appData }) => {
                if (o.isGestante) return false; 
                if (!o.servico.includes(setor)) return false;
                if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
-               // Regra de segurança: Não tira 2 plantões no mesmo dia
-               if (new Date(o.lastShiftTime).getDate() === d && new Date(o.lastShiftTime).getMonth() === mes) return false; 
+               // Trava de segurança: Ninguém faz 2 plantões no mesmo dia
+               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
                return true;
             });
 
-            // NOVA LÓGICA INFALÍVEL DE ORDENAÇÃO:
+            // NOVA LÓGICA IMPLACÁVEL (COM COBRANÇA DE DÍVIDAS)
             disponiveis.sort((a, b) => {
-               // 1. Quem tem menos quadradinhos preenchidos vai primeiro (A Bárbara e Nascimento vão pagar dívida aqui)
-               if (a.quadradinhos !== b.quadradinhos) return a.quadradinhos - b.quadradinhos; 
-               // 2. Empatou nos quadradinhos? Quem tirou o plantão há mais tempo vai primeiro
-               if (a.lastShiftTime !== b.lastShiftTime) return a.lastShiftTime - b.lastShiftTime; 
-               // 3. Tudo empatado? O mais moderno vai primeiro.
+               // 1. Quem tem mais buracos (vazios), vai primeiro para pagar a dívida!
+               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
+               // 2. Empatou na dívida? Quem tirou o plantão mais recente há mais tempo
+               if (a.d1 !== b.d1) return a.d1 - b.d1; 
+               // 3. Empatou de novo? Desempata pelo penúltimo plantão
+               if (a.d2 !== b.d2) return a.d2 - b.d2; 
+               // 4. Empatou de novo? Desempata pelo antepenúltimo plantão
+               if (a.d3 !== b.d3) return a.d3 - b.d3; 
+               // 5. Tudo empatado? O mais moderno (maior nº de antiguidade) vai primeiro
                return b.antiguidade - a.antiguidade;  
             });
 
             if (disponiveis.length > 0) {
                let escalado = disponiveis[0];
                
-               // ATUALIZA O HISTÓRICO PARA O PRÓXIMO LOOP: 
-               // A pessoa tirou plantão -> ganha 1 quadradinho e a data atualiza para hoje.
+               // ATUALIZA A MEMÓRIA DO ROBÔ PARA O PRÓXIMO LOOP
+               // Diminui a dívida (vazios - 1) e arrasta as datas para trás
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, lastShiftTime: dt.getTime(), quadradinhos: o.quadradinhos + 1 } 
+                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
                     : o
                );
                return escalado.nomeCompleto;
@@ -578,7 +588,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
          };
 
          schedule[d] = {
-             // A ordem das chamadas garante que o 1º da fila pega Dia e o 2º pega Noite
+             // O 1º da fila pega sempre o Diurno, o 2º pega sempre o Noturno
              upiD: getNext('UPI'),
              upiN: getNext('UPI'),
              utiD: getNext('UTI'),
@@ -610,7 +620,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
          <div>
             <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos (Balanço Automático)</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cobrança de Dívidas</p>
          </div>
          <div className="flex gap-2 w-full md:w-auto">
             <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
@@ -626,12 +636,14 @@ const EscalaVermelhaGenerator = ({ appData }) => {
        </div>
 
        <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
-          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Instruções de Configuração no Sheets:</p>
+          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Regras Atuais do Algoritmo:</p>
           <ul className="list-disc pl-5 space-y-1">
-             <li>Na aba Oficiais, mantenha a coluna <b>"Ultimo Plantao"</b> com a data da última vez que o militar tirou a escala vermelha.</li>
-             <li>Crie uma nova coluna chamada <b>"Quadradinhos"</b> (ou Total). Lá, digite quantos plantões o militar já tirou no semestre. Quem tem número menor (dívida), vai ser escalado primeiro automaticamente!</li>
-             <li>No empate de Quadradinhos e Data, o <b>mais moderno</b> entra de Diurno e o seguinte de Noturno.</li>
-             <li>Gestantes, Férias, Licenças e Atestados homologados são ignorados da escala.</li>
+             <li>O sistema lê as colunas <b>Plantao 1</b>, <b>Plantao 2</b> e <b>Plantao 3</b> na aba Oficiais do Google Sheets.</li>
+             <li>Militares com colunas vazias estão em dívida! Elas ganham <b>Prioridade Máxima</b> e são escaladas repetidamente até igualarem os quadradinhos do restante do grupo.</li>
+             <li>A fila é ordenada pela Data. Quem tirou plantão há mais tempo, vai primeiro.</li>
+             <li>No empate, o <b>mais moderno</b> (com maior número na Antiguidade) entra primeiro na fila (Diurno).</li>
+             <li>Militares marcadas como <b>Gestantes</b> são ignoradas da Escala Vermelha automaticamente.</li>
+             <li>A escala cruza com as abas de Férias, Licenças e Atestados e pula quem está indisponível.</li>
           </ul>
           <div className="mt-4">
              <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
