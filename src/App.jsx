@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer, CheckCircle
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DE CONEXÃO ---
@@ -469,8 +469,10 @@ const GanttViewer = ({ feriasData }) => {
   );
 };
 
-// --- COMPONENTE GERADOR DA ESCALA VERMELHA (BETA) ---
-const EscalaVermelhaGenerator = ({ appData }) => {
+
+// --- COMPONENTE GESTOR DE ESCALAS (OFICIAL E BETA) ---
+const EscalaManager = ({ appData }) => {
+  const [activeSubTab, setActiveSubTab] = useState('oficial');
   const [mesStr, setMesStr] = useState("2026-03"); 
   const [feriados, setFeriados] = useState("");
   const [escalaGerada, setEscalaGerada] = useState(null);
@@ -505,21 +507,17 @@ const EscalaVermelhaGenerator = ({ appData }) => {
          return null;
       };
 
-      let indisp = checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
-      return indisp;
+      return checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
   };
 
   const gerarEscalaAlgoritmo = () => {
      setIsGerando(true);
-     
-     // BUSCA AS 3 DATAS DO PASSADO E CONTA QUANTOS BURACOS (DÍVIDAS) A PESSOA TEM
      let poolOficiais = (appData.officers || []).map(o => {
         let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
         let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
         let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
         let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
-        // LÓGICA DE AUDITORIA: Conta quadradinhos vazios (Dívida de plantões)
         let vazios = 0;
         if (!rawD1) vazios++;
         if (!rawD2) vazios++;
@@ -529,8 +527,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
            nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
            nomeCurto: getVal(o, ['nome']),
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
-           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, // Dica: Numeração maior = Mais Moderno
-           
+           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, 
            vazios: vazios, 
            d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
            d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
@@ -553,30 +550,20 @@ const EscalaVermelhaGenerator = ({ appData }) => {
                if (o.isGestante) return false; 
                if (!o.servico.includes(setor)) return false;
                if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
-               // Trava de segurança: Ninguém faz 2 plantões no mesmo dia
                if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
                return true;
             });
 
-            // NOVA LÓGICA IMPLACÁVEL (COM COBRANÇA DE DÍVIDAS)
             disponiveis.sort((a, b) => {
-               // 1. Quem tem mais buracos (vazios), vai primeiro para pagar a dívida!
                if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
-               // 2. Empatou na dívida? Quem tirou o plantão mais recente há mais tempo
                if (a.d1 !== b.d1) return a.d1 - b.d1; 
-               // 3. Empatou de novo? Desempata pelo penúltimo plantão
                if (a.d2 !== b.d2) return a.d2 - b.d2; 
-               // 4. Empatou de novo? Desempata pelo antepenúltimo plantão
                if (a.d3 !== b.d3) return a.d3 - b.d3; 
-               // 5. Tudo empatado? O mais moderno (maior nº de antiguidade) vai primeiro
                return b.antiguidade - a.antiguidade;  
             });
 
             if (disponiveis.length > 0) {
                let escalado = disponiveis[0];
-               
-               // ATUALIZA A MEMÓRIA DO ROBÔ PARA O PRÓXIMO LOOP
-               // Diminui a dívida (vazios - 1) e arrasta as datas para trás
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
                     ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
@@ -588,7 +575,6 @@ const EscalaVermelhaGenerator = ({ appData }) => {
          };
 
          schedule[d] = {
-             // O 1º da fila pega sempre o Diurno, o 2º pega sempre o Noturno
              upiD: getNext('UPI'),
              upiN: getNext('UPI'),
              utiD: getNext('UTI'),
@@ -602,7 +588,7 @@ const EscalaVermelhaGenerator = ({ appData }) => {
      }, 600); 
   };
 
-  const renderSlot = (nomeBase, dia) => {
+  const renderSlot = (nomeBase) => {
      if (!nomeBase) return "-";
      return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black print:text-red-600' : 'text-slate-800 print:text-black'}>{nomeBase}</span>;
   };
@@ -610,89 +596,126 @@ const EscalaVermelhaGenerator = ({ appData }) => {
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
        
-       {/* CABEÇALHO EXCLUSIVO PARA IMPRESSÃO (PDF) */}
        <div className="hidden print:block text-center mb-6">
           <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Escala de Enfermagem - Vermelha</h2>
           <p className="text-sm font-bold text-gray-600 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
           <div className="w-full h-px bg-black my-4"></div>
        </div>
 
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
-         <div>
-            <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cobrança de Dívidas</p>
-         </div>
-         <div className="flex gap-2 w-full md:w-auto">
-            <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
-            <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
-               {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
-            </button>
-            
-            {/* BOTÃO DE IMPRIMIR / PDF */}
-            <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
-               <Printer size={14}/> PDF
-            </button>
-         </div>
-       </div>
-
-       <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
-          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Regras Atuais do Algoritmo:</p>
-          <ul className="list-disc pl-5 space-y-1">
-             <li>O sistema lê as colunas <b>Plantao 1</b>, <b>Plantao 2</b> e <b>Plantao 3</b> na aba Oficiais do Google Sheets.</li>
-             <li>Militares com colunas vazias estão em dívida! Elas ganham <b>Prioridade Máxima</b> e são escaladas repetidamente até igualarem os quadradinhos do restante do grupo.</li>
-             <li>A fila é ordenada pela Data. Quem tirou plantão há mais tempo, vai primeiro.</li>
-             <li>No empate, o <b>mais moderno</b> (com maior número na Antiguidade) entra primeiro na fila (Diurno).</li>
-             <li>Militares marcadas como <b>Gestantes</b> são ignoradas da Escala Vermelha automaticamente.</li>
-             <li>A escala cruza com as abas de Férias, Licenças e Atestados e pula quem está indisponível.</li>
-          </ul>
-          <div className="mt-4">
-             <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
-             <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
+       <div className="print:hidden">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
+             <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
+             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
           </div>
        </div>
 
-       {escalaGerada && (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
-             <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
-                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
-                   <tr>
-                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
-                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
-                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
-                      <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
-                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 print:divide-gray-300">
-                   {daysArray.map(d => {
-                      const dt = new Date(ano, mes, d);
-                      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                      const isFeriado = feriadosArray.includes(d);
-                      const isVermelha = isWeekend || isFeriado;
-                      const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
-                      
-                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
-                      const assignment = escalaGerada[String(d)];
+       {activeSubTab === 'oficial' ? (
+          <div className="animate-fadeIn print:block">
+             <div className="flex justify-between items-end mb-4 print:hidden">
+                <div>
+                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados fixos extraídos da aba "EscalaVermelha"</p>
+                </div>
+                <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
+                   <Printer size={14}/> PDF
+                </button>
+             </div>
 
-                      // Se o modo impressão estiver ativo, esconde dias normais
-                      if (!isVermelha) return null;
+             <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+                <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                   <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
+                      <tr>
+                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Data</th>
+                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                         <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                         <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                         <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                         <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                      {(appData.escalasVermelhas || []).length > 0 ? (
+                         (appData.escalasVermelhas || []).map((linha, i) => (
+                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                               <td className="p-3 font-black text-slate-600 print:border print:border-gray-300 print:text-black">{formatDate(getVal(linha, ['data', 'dia']))}</td>
+                               <td className="p-3 font-bold text-slate-400 print:border print:border-gray-300 print:text-black">{getVal(linha, ['semana', 'dia da semana'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi diurno', 'upi d'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi noturno', 'upi n'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['uti diurno', 'uti d'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300">{getVal(linha, ['uti noturno', 'uti n'])}</td>
+                            </tr>
+                         ))
+                      ) : (
+                         <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Nenhuma Escala Publicada no Google Sheets</td></tr>
+                      )}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+       ) : (
+          <div className="animate-fadeIn print:block">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
+               <div className="flex gap-2 w-full md:w-auto">
+                  <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
+                  <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
+                     {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
+                  </button>
+                  <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
+                     <Printer size={14}/> PDF
+                  </button>
+               </div>
+             </div>
 
-                      return (
-                         <tr key={d} className={`transition-colors ${bgRow}`}>
-                            <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
-                            <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
-                               {isFeriado ? 'FER' : diaNome}
-                            </td>
-                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
-                            <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+             <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
+                <div className="mt-2">
+                   <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
+                   <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
+                </div>
+             </div>
+
+             {escalaGerada && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+                   <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                      <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
+                         <tr>
+                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
+                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                            <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                            <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                            <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                            <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
                          </tr>
-                      )
-                   })}
-                </tbody>
-             </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                         {daysArray.map(d => {
+                            const dt = new Date(ano, mes, d);
+                            const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                            const isFeriado = feriadosArray.includes(d);
+                            const isVermelha = isWeekend || isFeriado;
+                            const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+                            
+                            const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
+                            const assignment = escalaGerada[String(d)];
+
+                            if (!isVermelha) return null;
+
+                            return (
+                               <tr key={d} className={`transition-colors ${bgRow}`}>
+                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
+                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
+                                     {isFeriado ? 'FER' : diaNome}
+                                  </td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                                  <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+                               </tr>
+                            )
+                         })}
+                      </tbody>
+                   </table>
+                </div>
+             )}
           </div>
        )}
     </div>
@@ -1466,7 +1489,11 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
-         return <EscalaVermelhaGenerator appData={appData} />;
+         return (
+            <div className="animate-fadeIn">
+               <EscalaManager appData={appData} />
+            </div>
+         );
       default: return null;
     }
   };
@@ -1483,7 +1510,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'efetivo', label: 'Efetivo', icon: Users },
-               isCimirro && { id: 'escala', label: 'Escala (Beta)', icon: Calendar }, 
+               { id: 'escala', label: isCimirro ? 'Escala Mensal' : 'Escala (Beta)', icon: Calendar }, 
                { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
@@ -1689,7 +1716,7 @@ export default function App() {
       const cached = localStorage.getItem('sga_app_cache');
       if (cached) return JSON.parse(cached);
     } catch(e) {}
-    return { officers: [], atestados: [], permutas: [], ferias: [], licencas: [], upi: {leitosOcupados: 0, acamados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
+    return { officers: [], atestados: [], permutas: [], ferias: [], licencas: [], escalasVermelhas: [], upi: {leitosOcupados: 0, acamados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
   });
 
   const fetchSafeJSON = async (url) => {
@@ -1717,6 +1744,7 @@ export default function App() {
         permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
         ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
         licencas: Array.isArray(resG.licencas) ? resG.licencas : [], 
+        escalasVermelhas: Array.isArray(resG.escalasVermelhas) ? resG.escalasVermelhas : [], 
         upi: {
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
           acamados: getVal(resG.upiStats, ['acamados']) || 0, 
