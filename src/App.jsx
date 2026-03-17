@@ -1545,4 +1545,52 @@ export default function App() {
         upi: {
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
           acamados: getVal(resG.upiStats, ['acamados']) || 0, 
-          mediaBraden: safeParseFloat(get
+          mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
+          mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
+          dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
+        }
+      };
+      
+      setAppData(newData);
+      localStorage.setItem('sga_app_cache', JSON.stringify(newData));
+      if (showFeedback) alert("Sistema Atualizado!");
+    } catch(e) {
+      setSyncError(e.message);
+      if (showFeedback) alert(e.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => { syncData(); }, []);
+
+  const handleLogin = (u, r) => { 
+    setUser(u); 
+    setRole(r); 
+    setAdminModeActive(true); 
+    localStorage.setItem('sga_app_user', u);
+    localStorage.setItem('sga_app_role', r);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setRole(null);
+    setAdminModeActive(true);
+    localStorage.removeItem('sga_app_user');
+    localStorage.removeItem('sga_app_role');
+  }
+  
+  const isCimirro = String(user).toLowerCase().includes('cimirro');
+
+  return (
+    <ErrorBoundary>
+      {!user ? (
+        <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
+      ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
+        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} isCimirro={isCimirro} />
+      ) : (
+        <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
+      )}
+    </ErrorBoundary>
+  );
+}
