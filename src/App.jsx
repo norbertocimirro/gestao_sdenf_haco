@@ -297,7 +297,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
     }, [reports]);
 
     return (
-        <div className="relative w-full h-[85vh] bg-slate-50 rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-200 flex flex-col font-sans">
+        <div className="relative w-full h-full min-h-[85vh] bg-slate-50 rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-200 flex flex-col font-sans">
             <style dangerouslySetInnerHTML={{__html: `
                 .passagem-select { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; }
             `}} />
@@ -485,10 +485,10 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 };
 
 // =========================================================================
-// --- COMPONENTES DA GESTÃO E ERROS ---
+// --- COMPONENTES BASE DO SISTEMA (GESTAO) ---
 // =========================================================================
 
-class ErrorBoundaryGestao extends React.Component {
+class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
   render() {
@@ -501,460 +501,7 @@ class ErrorBoundaryGestao extends React.Component {
   }
 }
 
-const ModalGestao = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans print:hidden">
-    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn border border-slate-200">
-      <div className="p-5 border-b flex justify-between items-center bg-slate-50">
-        <h3 className="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2">{title}</h3>
-        <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-all"><CloseIcon size={20}/></button>
-      </div>
-      <div className="p-6 max-h-[85vh] overflow-y-auto">{children}</div>
-    </div>
-  </div>
-);
-
-const FileUploadGestao = ({ onFileSelect }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [fileName, setFileName] = useState("");
-
-  const handleChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setIsProcessing(true); setFileName("A processar ficheiro...");
-    try {
-      if (file.type.startsWith('image/')) {
-        const compressedFile = await compressImage(file);
-        onFileSelect(compressedFile); setFileName(`✅ Imagem otimizada (${file.name})`);
-      } else if (file.type === 'application/pdf') {
-        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
-        const reader = new FileReader();
-        reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
-        reader.readAsDataURL(file);
-      } else { alert("Apenas PDF ou Imagens."); e.target.value = ""; setFileName(""); }
-    } catch (err) { alert("Erro ao processar."); setFileName(""); } 
-    finally { setIsProcessing(false); }
-  };
-
-  return (
-    <div className="mt-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl relative overflow-hidden transition-all hover:bg-slate-100">
-      <div className="flex items-center gap-3 mb-2"><Paperclip size={16} className="text-slate-500"/><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Anexar Documento / Foto</label></div>
-      <input type="file" accept="image/*,application/pdf" onChange={handleChange} disabled={isProcessing} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
-      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando...</div>}
-      {fileName && !isProcessing && <div className="mt-3 text-[10px] font-bold text-green-600 bg-green-50 p-2 rounded-lg">{fileName}</div>}
-    </div>
-  );
-};
-
-const WeatherWidgetMiniGestao = () => {
-  const [weather, setWeather] = useState(null);
-
-  useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-29.92&longitude=-51.18&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,relative_humidity_2m,cloud_cover&timezone=America%2FSao_Paulo");
-        const data = await res.json();
-        setWeather(data.current);
-      } catch (e) {
-        console.error("Erro clima", e);
-      }
-    };
-    fetchWeather();
-  }, []);
-
-  if (!weather) return null;
-
-  return (
-    <div className="flex items-center gap-2 md:gap-3 bg-white px-3 md:px-4 py-1.5 rounded-full border border-slate-200 shadow-sm text-[9px] md:text-[10px] font-black text-slate-600 tracking-widest ml-auto print:hidden" title={`Canoas/RS`}>
-      <div className="flex items-center gap-1 text-slate-800">
-         {weather.precipitation > 0 ? <CloudRain size={14} className="text-blue-500"/> : weather.cloud_cover > 50 ? <Cloud size={14} className="text-slate-500"/> : <Sun size={14} className="text-yellow-500"/>}
-         <span className="text-[10px]">{weather.temperature_2m}°C</span>
-      </div>
-      <div className="hidden md:flex items-center gap-2 md:gap-3 text-slate-400">
-         <span className="w-px h-3 bg-slate-200"></span>
-         <span title="Sensação Térmica">S: {weather.apparent_temperature}°</span>
-         <span className="w-px h-3 bg-slate-200"></span>
-         <span className="flex items-center gap-0.5" title="Umidade Relativa"><Droplets size={10} className="text-blue-400"/> {weather.relative_humidity_2m}%</span>
-         <span className="w-px h-3 bg-slate-200"></span>
-         <span className="flex items-center gap-0.5" title="Vento"><Wind size={10} className="text-slate-400"/> {weather.wind_speed_10m} km/h</span>
-         {weather.precipitation > 0 && (
-            <>
-               <span className="w-px h-3 bg-slate-200"></span>
-               <span className="flex items-center gap-0.5 text-blue-500" title="Chuva"><CloudRain size={10}/> {weather.precipitation}mm</span>
-            </>
-         )}
-      </div>
-    </div>
-  );
-};
-
-const BirthdayWidgetGestao = ({ staff }) => {
-  const list = Array.isArray(staff) ? staff : [];
-  const currentMonth = new Date().getMonth();
-  const birthdays = list.filter(p => {
-    const d = parseDate(getVal(p, ['nasc']));
-    return d && d.getMonth() === currentMonth;
-  }).sort((a, b) => (parseDate(getVal(a, ['nasc']))?.getDate() || 0) - (parseDate(getVal(b, ['nasc']))?.getDate() || 0));
-
-  return (
-    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full font-sans min-h-[200px]">
-      <div className="p-4 bg-gradient-to-br from-pink-500 to-rose-600 text-white flex justify-between items-center">
-        <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest"><Cake size={14} /> Aniversariantes do Mês</h3>
-      </div>
-      <div className="p-3 flex-1 overflow-y-auto max-h-[250px] space-y-2">
-        {birthdays.map((p, i) => (
-           <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100">
-              <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
-              <div className="flex-1">
-                 <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente']) || getVal(p, ['setor', 'alocacao']) || 'Sem Expediente'}</p>
-              </div>
-           </div>
-        ))}
-        {birthdays.length === 0 && <p className="text-center py-6 text-slate-400 text-[10px] font-black uppercase tracking-widest">Nenhum aniversariante</p>}
-      </div>
-    </div>
-  );
-};
-
-const GanttViewerGestao = ({ feriasData }) => {
-  const [mesFiltro, setMesFiltro] = useState(() => {
-     const d = new Date();
-     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
-
-  const handleMudarMes = (direcao) => {
-     let dataBase = new Date();
-     if (mesFiltro) {
-        const [ano, mes] = mesFiltro.split('-');
-        dataBase = new Date(ano, parseInt(mes) - 1, 1);
-     }
-     dataBase.setMonth(dataBase.getMonth() + direcao);
-     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
-  };
-
-  const obterNomeMes = (referencia) => {
-     if (!referencia) return "MÊS ATUAL";
-     const [ano, mes] = referencia.split('-');
-     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
-     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
-  };
-
-  let anoStrF = new Date().getFullYear();
-  let mesStrF = new Date().getMonth();
-  if (mesFiltro) {
-      [anoStrF, mesStrF] = mesFiltro.split('-');
-      anoStrF = parseInt(anoStrF);
-      mesStrF = parseInt(mesStrF) - 1;
-  }
-  const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
-  const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
-
-  const feriasHomologadas = feriasData.filter(f => {
-     const st = String(getVal(f, ['status']) || '').trim().toLowerCase();
-     return st.includes('homologado') || st === ''; 
-  });
-
-  const feriasListFiltradas = feriasHomologadas.filter(f => {
-     const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
-     const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; 
-     if (!start) return false;
-     
-     const end = new Date(start);
-     end.setDate(end.getDate() + dias - 1);
-     
-     const monthStart = new Date(anoStrF, mesStrF, 1, 0, 0, 0);
-     const monthEnd = new Date(anoStrF, mesStrF + 1, 0, 23, 59, 59);
-
-     return start <= monthEnd && end >= monthStart;
-  });
-
-  return (
-    <div className="w-full">
-       <div className="flex items-center gap-2 mb-4 justify-between bg-slate-50 p-2 rounded-2xl border border-slate-200">
-          <button onClick={() => handleMudarMes(-1)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-white rounded-xl transition-all active:scale-95"><ChevronLeft size={16}/></button>
-          <div className="text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
-            {obterNomeMes(mesFiltro)}
-          </div>
-          <button onClick={() => handleMudarMes(1)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-white rounded-xl transition-all active:scale-95"><ChevronRight size={16}/></button>
-       </div>
-       
-       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <div className="min-w-[800px]">
-             <div className="bg-slate-100 flex border-b border-slate-200">
-                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
-                   Militar
-                </div>
-                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
-                   Período
-                </div>
-                <div className="flex-1 flex">
-                   {daysArrayF.map(d => {
-                      const dt = new Date(anoStrF, mesStrF, d);
-                      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                      return (
-                        <div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>
-                           {d}
-                        </div>
-                   )})}
-                </div>
-             </div>
-             
-             {feriasListFiltradas.length > 0 ? feriasListFiltradas.map((f, i) => {
-                const militar = getVal(f, ['militar', 'nome', 'oficial']);
-                const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
-                const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30;
-                const end = start ? new Date(start) : null;
-                if (end) end.setDate(end.getDate() + dias - 1);
-
-                return (
-                   <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
-                         {militar}
-                      </div>
-                      <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0 relative">
-                         <span className="font-mono">{formatDate(start)}</span>
-                         <span className="font-mono opacity-60 text-[7px]">até {formatDate(end)}</span>
-                         <span className="absolute top-1 right-1 text-[7px] font-black uppercase bg-amber-200 px-1 rounded text-amber-800">{dias}d</span>
-                      </div>
-                      <div className="flex-1 flex">
-                         {daysArrayF.map(d => {
-                            const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
-                            const isVacation = start && end && currentDate >= start && currentDate <= end;
-                            const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
-                            
-                            let bgClass = "bg-transparent";
-                            if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
-                            else if (isWeekend) bgClass = "bg-slate-100/50";
-
-                            return (
-                               <div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
-                            )
-                         })}
-                      </div>
-                   </div>
-                )
-             }) : (
-                <div className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Sem férias homologadas neste mês.</div>
-             )}
-          </div>
-       </div>
-    </div>
-  );
-};
-
-const EscalaVermelhaGeneratorGestao = ({ appData }) => {
-  const [mesStr, setMesStr] = useState("2026-03"); 
-  const [feriados, setFeriados] = useState("");
-  const [escalaGerada, setEscalaGerada] = useState(null);
-  const [isGerando, setIsGerando] = useState(false);
-
-  const ano = parseInt(mesStr.split('-')[0]);
-  const mes = parseInt(mesStr.split('-')[1]) - 1;
-  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
-  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
-
-  const feriadosArray = feriados.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
-
-  const checkIndisponibilidade = (nome, dateObj) => {
-      if (!nome) return null;
-      const n = String(nome).toLowerCase().trim();
-      
-      const checkAfastamento = (lista, tipo) => {
-         for (let item of (lista || [])) {
-             if (String(getVal(item, ['status'])).toLowerCase().includes('rejeitado')) continue;
-             if (String(getVal(item, ['militar', 'nome', 'oficial'])).toLowerCase().includes(n) || n.includes(String(getVal(item, ['militar'])).toLowerCase())) {
-                 const start = parseDate(getVal(item, ['inicio', 'data', 'saida']));
-                 const dias = parseInt(getVal(item, ['dias', 'quantidade'])) || 0;
-                 if (start) {
-                     const end = new Date(start);
-                     end.setDate(end.getDate() + dias - 1);
-                     end.setHours(23, 59, 59);
-                     start.setHours(0, 0, 0);
-                     if (dateObj >= start && dateObj <= end) return tipo;
-                 }
-             }
-         }
-         return null;
-      };
-
-      let indisp = checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
-      return indisp;
-  };
-
-  const gerarEscalaAlgoritmo = () => {
-     setIsGerando(true);
-     
-     let poolOficiais = (appData.officers || []).map(o => {
-        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
-        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
-        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
-        let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
-
-        let vazios = 0;
-        if (!rawD1) vazios++;
-        if (!rawD2) vazios++;
-        if (!rawD3) vazios++;
-
-        return {
-           nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
-           nomeCurto: getVal(o, ['nome']),
-           servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
-           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0,
-           vazios: vazios, 
-           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
-           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
-           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
-           isGestante: isGestante
-        }
-     });
-
-     let schedule = {};
-
-     for (let d of daysArray) {
-         let dt = new Date(ano, mes, d, 12, 0, 0); 
-         let isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-         let isFeriado = feriadosArray.includes(d);
-
-         if (!isWeekend && !isFeriado) continue; 
-
-         const getNext = (setor) => {
-            let disponiveis = poolOficiais.filter(o => {
-               if (o.isGestante) return false; 
-               if (!o.servico.includes(setor)) return false;
-               if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
-               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
-               return true;
-            });
-
-            disponiveis.sort((a, b) => {
-               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
-               if (a.d1 !== b.d1) return a.d1 - b.d1; 
-               if (a.d2 !== b.d2) return a.d2 - b.d2; 
-               if (a.d3 !== b.d3) return a.d3 - b.d3; 
-               return b.antiguidade - a.antiguidade;  
-            });
-
-            if (disponiveis.length > 0) {
-               let escalado = disponiveis[0];
-               poolOficiais = poolOficiais.map(o => 
-                  o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
-                    : o
-               );
-               return escalado.nomeCompleto;
-            }
-            return "SEM ESCALA";
-         };
-
-         schedule[d] = {
-             upiD: getNext('UPI'),
-             upiN: getNext('UPI'),
-             utiD: getNext('UTI'),
-             utiN: getNext('UTI')
-         };
-     }
-
-     setTimeout(() => {
-        setEscalaGerada(schedule);
-        setIsGerando(false);
-     }, 600); 
-  };
-
-  const renderSlot = (nomeBase) => {
-     if (!nomeBase) return "-";
-     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black print:text-red-600' : 'text-slate-800 print:text-black'}>{nomeBase}</span>;
-  };
-
-  return (
-    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
-       
-       <div className="hidden print:block text-center mb-6">
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Escala de Enfermagem - Vermelha</h2>
-          <p className="text-sm font-bold text-gray-600 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
-          <div className="w-full h-px bg-black my-4"></div>
-       </div>
-
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
-         <div>
-            <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter flex items-center gap-2"><Wand2 className="text-purple-600"/> Gerador de Escala (Beta)</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Algoritmo de Quadradinhos c/ Cobrança de Dívidas</p>
-         </div>
-         <div className="flex gap-2 w-full md:w-auto">
-            <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
-            <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
-               {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
-            </button>
-            <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
-               <Printer size={14}/> PDF
-            </button>
-         </div>
-       </div>
-
-       <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
-          <p className="font-bold flex items-center gap-1 mb-2"><AlertCircle size={14}/> Regras Atuais do Algoritmo:</p>
-          <ul className="list-disc pl-5 space-y-1">
-             <li>Busca as colunas <b>Plantao 1</b> (Mais Recente), <b>Plantao 2</b> e <b>Plantao 3</b> na aba Oficiais.</li>
-             <li>Militares com colunas vazias estão "a dever". Elas têm <b>Prioridade Máxima</b> e são escaladas repetidamente (pagando a dívida) até igualarem os restantes.</li>
-             <li>No empate, verifica a data mais antiga. Mantendo o empate, o <b>mais moderno</b> entra primeiro na fila.</li>
-             <li>O 1º da fila é escalado de <b>Diurno</b>. O 2º da fila é escalado de <b>Noturno</b> no mesmo dia.</li>
-             <li>Militares marcadas como <b>Gestantes</b> são sumariamente ignoradas.</li>
-             <li>A escala cruza com as abas de Férias, Licenças e Atestados (apenas homologados) para evitar choques de data.</li>
-          </ul>
-          <div className="mt-4">
-             <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
-             <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
-          </div>
-       </div>
-
-       {escalaGerada && (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
-             <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
-                <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
-                   <tr>
-                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
-                      <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
-                      <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
-                      <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
-                      <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
-                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 print:divide-gray-300">
-                   {daysArray.map(d => {
-                      const dt = new Date(ano, mes, d);
-                      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                      const isFeriado = feriadosArray.includes(d);
-                      const isVermelha = isWeekend || isFeriado;
-                      const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
-                      
-                      const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
-                      const assignment = escalaGerada[String(d)];
-
-                      // Se o modo impressão estiver ativo, esconde dias normais
-                      if (!isVermelha) return null;
-
-                      return (
-                         <tr key={d} className={`transition-colors ${bgRow}`}>
-                            <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
-                            <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
-                               {isFeriado ? 'FER' : diaNome}
-                            </td>
-                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
-                            <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
-                            <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
-                         </tr>
-                      )
-                   })}
-                </tbody>
-             </table>
-          </div>
-       )}
-    </div>
-  );
-};
-
-const LoginScreenGestao = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
+const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
   const [roleGroup, setRoleGroup] = useState('chefia');
   const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
@@ -1045,7 +592,7 @@ const LoginScreenGestao = ({ onLogin, appData, isSyncing, syncError, onForceSync
   );
 };
 
-const UserDashboardGestao = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
+const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSaving, setIsSaving] = useState(false);
   const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false });
@@ -1239,7 +786,7 @@ const UserDashboardGestao = ({ user, onLogout, appData, syncData, isSyncing, isA
 
 // --- PAINEL CHEFIA (ADMIN) ---
 
-const MainSystemGestao = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
+const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
@@ -1429,7 +976,7 @@ const MainSystemGestao = ({ user, role, onLogout, appData, syncData, isSyncing, 
                 </div>
 
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
-                   <BirthdayWidgetGestao staff={appData.officers}/>
+                   <BirthdayWidget staff={appData.officers}/>
                 </div>
             </div>
           </div>
@@ -1643,7 +1190,7 @@ const MainSystemGestao = ({ user, role, onLogout, appData, syncData, isSyncing, 
                     <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala de Férias</h3>
                     {!isApenasRT && <button onClick={() => setShowFeriasModal(true)} className="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançamento Direto</button>}
                   </div>
-                  <GanttViewerGestao feriasData={appData.ferias || []} />
+                  <GanttViewer feriasData={appData.ferias || []} />
                </div>
             </div>
          );
@@ -1726,14 +1273,19 @@ const MainSystemGestao = ({ user, role, onLogout, appData, syncData, isSyncing, 
             </div>
          );
       case 'escala':
-         // ABRE SOMENTE SE ESTIVER NA ABA ESCALA (EXCLUSIVO BETA TESTER)
-         return <EscalaVermelhaGeneratorGestao appData={appData} />;
+         // BLOQUEIO DUPLO: Apenas Cimirro vê esta tela
+         if (!isCimirro) return null;
+         return (
+            <div className="animate-fadeIn">
+               <EscalaVermelhaGenerator appData={appData} />
+            </div>
+         );
       
       // NOVO BLOCO QUE ENCAPSULA A PASSAGEM DE TURNO NO ADMIN
       case 'passagem':
          return (
              <div className="animate-fadeIn w-full">
-                 <PassagemTurno currentUser={user} />
+                 <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
              </div>
          );
       default: return null;
@@ -1753,7 +1305,7 @@ const MainSystemGestao = ({ user, role, onLogout, appData, syncData, isSyncing, 
                { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'efetivo', label: 'Efetivo', icon: Users },
-               isCimirro && { id: 'escala', label: 'Escala Mensal', icon: Calendar }, 
+               isCimirro && { id: 'escala', label: 'Escala (Beta)', icon: Calendar }, 
                { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
@@ -1993,52 +1545,4 @@ export default function App() {
         upi: {
           leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
           acamados: getVal(resG.upiStats, ['acamados']) || 0, 
-          mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
-          mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
-          dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
-        }
-      };
-      
-      setAppData(newData);
-      localStorage.setItem('sga_app_cache', JSON.stringify(newData));
-      if (showFeedback) alert("Sistema Atualizado!");
-    } catch(e) {
-      setSyncError(e.message);
-      if (showFeedback) alert(e.message);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  useEffect(() => { syncData(); }, []);
-
-  const handleLogin = (u, r) => { 
-    setUser(u); 
-    setRole(r); 
-    setAdminModeActive(true); 
-    localStorage.setItem('sga_app_user', u);
-    localStorage.setItem('sga_app_role', r);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setRole(null);
-    setAdminModeActive(true);
-    localStorage.removeItem('sga_app_user');
-    localStorage.removeItem('sga_app_role');
-  }
-  
-  const isCimirro = String(user).toLowerCase().includes('cimirro');
-
-  return (
-    <ErrorBoundary>
-      {!user ? (
-        <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
-      ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
-        <MainSystemGestao user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} isCimirro={isCimirro} />
-      ) : (
-        <UserDashboardGestao user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
-      )}
-    </ErrorBoundary>
-  );
-}
+          mediaBraden: safeParseFloat(get
