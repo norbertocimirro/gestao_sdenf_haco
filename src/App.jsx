@@ -192,23 +192,297 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
 };
 
 // =========================================================================
+// --- COMPONENTES VISUAIS E COMPARTILHADOS ---
+// =========================================================================
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) return (
+        <div className="min-h-screen bg-slate-100 p-8 flex flex-col items-center justify-center font-sans print:hidden">
+          <div className="bg-white p-8 rounded-3xl shadow-xl border border-red-200 text-center">
+             <AlertCircle size={64} className="text-red-500 mx-auto mb-4" />
+             <h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Erro de Interface</h1>
+             <p className="text-slate-500 mb-4 text-sm">{this.state.error?.toString()}</p>
+             <button onClick={() => {localStorage.removeItem('sga_app_cache'); window.location.reload();}} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Limpar Cache e Recarregar</button>
+          </div>
+        </div>
+      );
+    return this.props.children;
+  }
+}
+
+const Modal = ({ title, onClose, children }) => (
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans print:hidden">
+    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn border border-slate-200">
+      <div className="p-5 border-b flex justify-between items-center bg-slate-50">
+        <h3 className="font-black text-slate-800 uppercase tracking-tighter text-lg flex items-center gap-2">{title}</h3>
+        <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-all"><CloseIcon size={20}/></button>
+      </div>
+      <div className="p-6 max-h-[85vh] overflow-y-auto">{children}</div>
+    </div>
+  </div>
+);
+
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIMENSION = 4000; 
+        let width = img.width;
+        let height = img.height;
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+           if (width > height) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; } 
+           else { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
+        }
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        resolve({ name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", type: 'image/jpeg', base64: dataUrl.split(',')[1] });
+      };
+    };
+  });
+};
+
+const FileUpload = ({ onFileSelect }) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [fileName, setFileName] = useState("");
+
+  const handleChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsProcessing(true); setFileName("A processar ficheiro...");
+    try {
+      if (file.type.startsWith('image/')) {
+        const compressedFile = await compressImage(file);
+        onFileSelect(compressedFile); setFileName(`✅ Imagem otimizada (${file.name})`);
+      } else if (file.type === 'application/pdf') {
+        if (file.size > 10 * 1024 * 1024) { alert("O PDF excede 10MB."); e.target.value = ""; setIsProcessing(false); setFileName(""); return; }
+        const reader = new FileReader();
+        reader.onloadend = () => { onFileSelect({ name: file.name, type: file.type, base64: reader.result.split(',')[1] }); setFileName(`✅ PDF anexado (${file.name})`); };
+        reader.readAsDataURL(file);
+      } else { alert("Apenas PDF ou Imagens."); e.target.value = ""; setFileName(""); }
+    } catch (err) { alert("Erro ao processar."); setFileName(""); } 
+    finally { setIsProcessing(false); }
+  };
+
+  return (
+    <div className="mt-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl relative overflow-hidden transition-all hover:bg-slate-100">
+      <div className="flex items-center gap-3 mb-2"><Paperclip size={16} className="text-slate-500"/><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Anexar Documento / Foto</label></div>
+      <input type="file" accept="image/*,application/pdf" onChange={handleChange} disabled={isProcessing} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
+      {isProcessing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center gap-2 text-blue-600 font-bold text-xs"><Loader2 size={16} className="animate-spin"/> Otimizando...</div>}
+      {fileName && !isProcessing && <div className="mt-3 text-[10px] font-bold text-green-600 bg-green-50 p-2 rounded-lg">{fileName}</div>}
+    </div>
+  );
+};
+
+const WeatherWidgetMini = () => {
+  const [weather, setWeather] = useState(null);
+
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-29.92&longitude=-51.18&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,relative_humidity_2m,cloud_cover&timezone=America%2FSao_Paulo");
+        const data = await res.json();
+        setWeather(data.current);
+      } catch (e) {
+        console.error("Erro clima", e);
+      }
+    };
+    fetchWeather();
+  }, []);
+
+  if (!weather) return null;
+
+  return (
+    <div className="flex items-center gap-2 md:gap-3 bg-white px-3 md:px-4 py-1.5 rounded-full border border-slate-200 shadow-sm text-[9px] md:text-[10px] font-black text-slate-600 tracking-widest ml-auto print:hidden" title={`Canoas/RS`}>
+      <div className="flex items-center gap-1 text-slate-800">
+         {weather.precipitation > 0 ? <CloudRain size={14} className="text-blue-500"/> : weather.cloud_cover > 50 ? <Cloud size={14} className="text-slate-500"/> : <Sun size={14} className="text-yellow-500"/>}
+         <span className="text-[10px]">{weather.temperature_2m}°C</span>
+      </div>
+      <div className="hidden md:flex items-center gap-2 md:gap-3 text-slate-400">
+         <span className="w-px h-3 bg-slate-200"></span>
+         <span title="Sensação Térmica">S: {weather.apparent_temperature}°</span>
+         <span className="w-px h-3 bg-slate-200"></span>
+         <span className="flex items-center gap-0.5" title="Umidade Relativa"><Droplets size={10} className="text-blue-400"/> {weather.relative_humidity_2m}%</span>
+         <span className="w-px h-3 bg-slate-200"></span>
+         <span className="flex items-center gap-0.5" title="Vento"><Wind size={10} className="text-slate-400"/> {weather.wind_speed_10m} km/h</span>
+         {weather.precipitation > 0 && (
+            <>
+               <span className="w-px h-3 bg-slate-200"></span>
+               <span className="flex items-center gap-0.5 text-blue-500" title="Chuva"><CloudRain size={10}/> {weather.precipitation}mm</span>
+            </>
+         )}
+      </div>
+    </div>
+  );
+};
+
+const BirthdayWidget = ({ staff }) => {
+  const list = Array.isArray(staff) ? staff : [];
+  const currentMonth = new Date().getMonth();
+  const birthdays = list.filter(p => {
+    const d = parseDate(getVal(p, ['nasc']));
+    return d && d.getMonth() === currentMonth;
+  }).sort((a, b) => (parseDate(getVal(a, ['nasc']))?.getDate() || 0) - (parseDate(getVal(b, ['nasc']))?.getDate() || 0));
+
+  return (
+    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full font-sans min-h-[200px]">
+      <div className="p-4 bg-gradient-to-br from-pink-500 to-rose-600 text-white flex justify-between items-center">
+        <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest"><Cake size={14} /> Aniversariantes do Mês</h3>
+      </div>
+      <div className="p-3 flex-1 overflow-y-auto max-h-[250px] space-y-2">
+        {birthdays.map((p, i) => (
+           <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-black shadow-sm">{parseDate(getVal(p, ['nasc']))?.getDate() || '-'}</div>
+              <div className="flex-1">
+                 <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">{getVal(p, ['patente', 'posto'])} {getVal(p, ['nome'])}</p>
+                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{getVal(p, ['expediente']) || getVal(p, ['setor', 'alocacao']) || 'Sem Expediente'}</p>
+              </div>
+           </div>
+        ))}
+        {birthdays.length === 0 && <p className="text-center py-6 text-slate-400 text-[10px] font-black uppercase tracking-widest">Nenhum aniversariante</p>}
+      </div>
+    </div>
+  );
+};
+
+const GanttViewer = ({ feriasData }) => {
+  const [mesFiltro, setMesFiltro] = useState(() => {
+     const d = new Date();
+     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const handleMudarMes = (direcao) => {
+     let dataBase = new Date();
+     if (mesFiltro) {
+        const [ano, mes] = mesFiltro.split('-');
+        dataBase = new Date(ano, parseInt(mes) - 1, 1);
+     }
+     dataBase.setMonth(dataBase.getMonth() + direcao);
+     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const obterNomeMes = (referencia) => {
+     if (!referencia) return "MÊS ATUAL";
+     const [ano, mes] = referencia.split('-');
+     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
+     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  };
+
+  let anoStrF = new Date().getFullYear();
+  let mesStrF = new Date().getMonth();
+  if (mesFiltro) {
+      [anoStrF, mesStrF] = mesFiltro.split('-');
+      anoStrF = parseInt(anoStrF);
+      mesStrF = parseInt(mesStrF) - 1;
+  }
+  const daysInMonthF = new Date(anoStrF, mesStrF + 1, 0).getDate();
+  const daysArrayF = Array.from({length: daysInMonthF}, (_, i) => i + 1);
+
+  const feriasHomologadas = feriasData.filter(f => {
+     const st = String(getVal(f, ['status']) || '').trim().toLowerCase();
+     return st.includes('homologado') || st === ''; 
+  });
+
+  const feriasListFiltradas = feriasHomologadas.filter(f => {
+     const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
+     const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30; 
+     if (!start) return false;
+     
+     const end = new Date(start);
+     end.setDate(end.getDate() + dias - 1);
+     
+     const monthStart = new Date(anoStrF, mesStrF, 1, 0, 0, 0);
+     const monthEnd = new Date(anoStrF, mesStrF + 1, 0, 23, 59, 59);
+
+     return start <= monthEnd && end >= monthStart;
+  });
+
+  return (
+    <div className="w-full">
+       <div className="flex items-center gap-2 mb-4 justify-between bg-slate-50 p-2 rounded-2xl border border-slate-200">
+          <button onClick={() => handleMudarMes(-1)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-white rounded-xl transition-all active:scale-95"><ChevronLeft size={16}/></button>
+          <div className="text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">
+            {obterNomeMes(mesFiltro)}
+          </div>
+          <button onClick={() => handleMudarMes(1)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-white rounded-xl transition-all active:scale-95"><ChevronRight size={16}/></button>
+       </div>
+       
+       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <div className="min-w-[800px]">
+             <div className="bg-slate-100 flex border-b border-slate-200">
+                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                   Militar
+                </div>
+                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                   Período
+                </div>
+                <div className="flex-1 flex">
+                   {daysArrayF.map(d => {
+                      const dt = new Date(anoStrF, mesStrF, d);
+                      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                      return (
+                        <div key={d} className={`flex-1 min-w-[20px] flex justify-center items-center py-2 border-r border-slate-200/60 text-[8px] font-bold ${isWeekend ? 'bg-slate-200 text-slate-400' : 'text-slate-600'}`}>
+                           {d}
+                        </div>
+                   )})}
+                </div>
+             </div>
+             
+             {feriasListFiltradas.length > 0 ? feriasListFiltradas.map((f, i) => {
+                const militar = getVal(f, ['militar', 'nome', 'oficial']);
+                const start = parseDate(getVal(f, ['inicio', 'data', 'saida']));
+                const dias = parseInt(getVal(f, ['dias', 'quantidade'])) || 30;
+                const end = start ? new Date(start) : null;
+                if (end) end.setDate(end.getDate() + dias - 1);
+
+                return (
+                   <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
+                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
+                         {militar}
+                      </div>
+                      <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0 relative">
+                         <span className="font-mono">{formatDate(start)}</span>
+                         <span className="font-mono opacity-60 text-[7px]">até {formatDate(end)}</span>
+                         <span className="absolute top-1 right-1 text-[7px] font-black uppercase bg-amber-200 px-1 rounded text-amber-800">{dias}d</span>
+                      </div>
+                      <div className="flex-1 flex">
+                         {daysArrayF.map(d => {
+                            const currentDate = new Date(anoStrF, mesStrF, d, 12, 0, 0); 
+                            const isVacation = start && end && currentDate >= start && currentDate <= end;
+                            const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                            
+                            let bgClass = "bg-transparent";
+                            if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
+                            else if (isWeekend) bgClass = "bg-slate-100/50";
+
+                            return (
+                               <div key={d} className={`flex-1 min-w-[20px] border-r border-slate-100 ${bgClass}`} title={isVacation ? `Férias: ${militar} (Dia ${d})` : ''}></div>
+                            )
+                         })}
+                      </div>
+                   </div>
+                )
+             }) : (
+                <div className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Sem férias homologadas neste mês.</div>
+             )}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+// =========================================================================
 // --- NOVO MÓDULO: PASSAGEM DE TURNO ---
 // =========================================================================
-const SECTORS_PASS = [
-    { id: 'UPI', name: 'UPI (Clínica/Cirúrgica)', type: 'ward' },
-    { id: 'UTI', name: 'UTI (Intensiva)', type: 'ward' },
-    { id: 'UCC', name: 'UCC (Centro Cirúrgico)', type: 'surgery' },
-    { id: 'UPA', name: 'UPA (Pronto Atendimento)', type: 'er' },
-    { id: 'CAIS', name: 'CAIS (ESF)', type: 'er' }
-];
-
-const SHIFTS_PASS = [
-    { id: 'Manhã', color: 'bg-amber-100 text-amber-700' },
-    { id: 'Tarde', color: 'bg-orange-100 text-orange-700' },
-    { id: 'Noite', color: 'bg-indigo-100 text-indigo-700' }
-];
-
-const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 const PassagemTurno = ({ currentUser, onBack }) => {
     const [view, setView] = useState('dashboard'); 
@@ -485,306 +759,262 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 };
 
 // =========================================================================
-// --- COMPONENTES BASE DO SISTEMA (GESTAO) ---
+// --- COMPONENTE GESTOR DA ESCALA VERMELHA ---
 // =========================================================================
+const EscalaManager = ({ appData }) => {
+  const [activeSubTab, setActiveSubTab] = useState('oficial');
+  const [mesStr, setMesStr] = useState("2026-03"); 
+  const [feriados, setFeriados] = useState("");
+  const [escalaGerada, setEscalaGerada] = useState(null);
+  const [isGerando, setIsGerando] = useState(false);
 
-class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  render() {
-    if (this.state.hasError) return (
-        <div className="min-h-screen bg-slate-100 p-8 flex flex-col items-center justify-center font-sans print:hidden">
-          <div className="bg-white p-8 rounded-3xl shadow-xl border border-red-200 text-center"><AlertCircle size={64} className="text-red-500 mx-auto mb-4" /><h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Erro de Interface</h1><p className="text-slate-500 mb-4 text-sm">{this.state.error?.toString()}</p><button onClick={() => {localStorage.removeItem('sga_app_cache'); window.location.reload();}} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Limpar Cache e Recarregar</button></div>
-        </div>
-      );
-    return this.props.children;
-  }
-}
+  const ano = parseInt(mesStr.split('-')[0]);
+  const mes = parseInt(mesStr.split('-')[1]) - 1;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
 
-const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
-  const [roleGroup, setRoleGroup] = useState('chefia');
-  const [user, setUser] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  
-  const list = Array.isArray(appData?.officers) ? appData.officers : [];
+  const feriadosArray = feriados.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 
-  const filtered = roleGroup === 'chefia' 
-    ? list.filter(o => {
-        const r = String(getVal(o, ['role'])).toLowerCase();
-        const n = String(getVal(o, ['nome']));
-        return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini') || n.includes('Renata');
-      }) 
-    : list.filter(o => {
-        const r = String(getVal(o, ['role'])).toLowerCase();
-        const n = String(getVal(o, ['nome']));
-        return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini') && !n.includes('Renata');
-      });
-
-  const handleAuth = () => {
-    setLoginError('');
-    const selectedUser = list.find(o => getVal(o, ['nome']) === user);
-    if (selectedUser) {
-       const correctPasswordRaw = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
-       const correctPassword = String(correctPasswordRaw).trim();
-       const inputPassword = String(password).trim();
-       
-       if (inputPassword === correctPassword) {
-           const nome = getVal(selectedUser, ['nome']);
-           let role = getVal(selectedUser, ['role']) || 'user';
-           if (nome.includes('Cimirro') || nome.includes('Zanini') || nome.includes('Renata')) {
-              role = nome.includes('Renata') ? 'rt' : 'admin'; 
-           }
-           onLogin(nome, role);
-       } else {
-           setLoginError('Senha incorreta.');
-       }
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden print:hidden">
-      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
+  const checkIndisponibilidade = (nome, dateObj) => {
+      if (!nome) return null;
+      const n = String(nome).toLowerCase().trim();
       
-      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
-        <div className="text-center mb-8">
-           <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
-              <Plane size={32} className="text-white transform -rotate-12"/>
-           </div>
-           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">Enfermagem HACO</h1>
-           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
-        </div>
-        
-        {syncError && (
-           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
-              <span>⚠️ Falha na Leitura</span>
-              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
-           </div>
-        )}
+      const checkAfastamento = (lista, tipo) => {
+         for (let item of (lista || [])) {
+             if (String(getVal(item, ['status'])).toLowerCase().includes('rejeitado')) continue;
+             if (String(getVal(item, ['militar', 'nome', 'oficial'])).toLowerCase().includes(n) || n.includes(String(getVal(item, ['militar'])).toLowerCase())) {
+                 const start = parseDate(getVal(item, ['inicio', 'data', 'saida']));
+                 const dias = parseInt(getVal(item, ['dias', 'quantidade'])) || 0;
+                 if (start) {
+                     const end = new Date(start);
+                     end.setDate(end.getDate() + dias - 1);
+                     end.setHours(23, 59, 59);
+                     start.setHours(0, 0, 0);
+                     if (dateObj >= start && dateObj <= end) return tipo;
+                 }
+             }
+         }
+         return null;
+      };
 
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
-           <button onClick={() => {setRoleGroup('chefia'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
-           <button onClick={() => {setRoleGroup('tropa'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
-        </div>
+      return checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
+  };
 
-        <div className="space-y-4">
-          <div className="relative">
-            <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
-            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
-               {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
-            </select>
-          </div>
+  const gerarEscalaAlgoritmo = () => {
+     setIsGerando(true);
+     let poolOficiais = (appData.officers || []).map(o => {
+        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
+        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
+        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
+        let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
-          {user && (
-            <div className="relative animate-fadeIn">
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Senha de Acesso</label>
-              <input type="password" value={password} onChange={e => {setPassword(e.target.value); setLoginError('');}} placeholder="Digite sua senha" onKeyDown={e => e.key === 'Enter' && handleAuth()} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
-              {loginError && <p className="text-red-500 text-[10px] font-bold mt-2 ml-1">{loginError}</p>}
-            </div>
-          )}
+        let vazios = 0;
+        if (!rawD1) vazios++;
+        if (!rawD2) vazios++;
+        if (!rawD3) vazios++;
 
-          <button onClick={handleAuth} disabled={!user || !password || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user && password ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Entrar no Sistema</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+        return {
+           nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
+           nomeCurto: getVal(o, ['nome']),
+           servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
+           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, 
+           vazios: vazios, 
+           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
+           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
+           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
+           isGestante: isGestante
+        }
+     });
 
-const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSaving, setIsSaving] = useState(false);
-  const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false });
-  const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
-  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
-  const [fileData, setFileData] = useState(null);
+     let schedule = {};
 
-  const [mesFiltro, setMesFiltro] = useState(() => {
-     const d = new Date();
-     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
+     for (let d of daysArray) {
+         let dt = new Date(ano, mes, d, 12, 0, 0); 
+         let isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+         let isFeriado = feriadosArray.includes(d);
 
-  const handleMudarMes = (direcao) => {
-     let dataBase = new Date();
-     if (mesFiltro) {
-        const [ano, mes] = mesFiltro.split('-');
-        dataBase = new Date(ano, parseInt(mes) - 1, 1);
+         if (!isWeekend && !isFeriado) continue; 
+
+         const getNext = (setor) => {
+            let disponiveis = poolOficiais.filter(o => {
+               if (o.isGestante) return false; 
+               if (!o.servico.includes(setor)) return false;
+               if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
+               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
+               return true;
+            });
+
+            disponiveis.sort((a, b) => {
+               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
+               if (a.d1 !== b.d1) return a.d1 - b.d1; 
+               if (a.d2 !== b.d2) return a.d2 - b.d2; 
+               if (a.d3 !== b.d3) return a.d3 - b.d3; 
+               return b.antiguidade - a.antiguidade;  
+            });
+
+            if (disponiveis.length > 0) {
+               let escalado = disponiveis[0];
+               poolOficiais = poolOficiais.map(o => 
+                  o.nomeCurto === escalado.nomeCurto 
+                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
+                    : o
+               );
+               return escalado.nomeCompleto;
+            }
+            return "SEM ESCALA";
+         };
+
+         schedule[d] = {
+             upiD: getNext('UPI'),
+             upiN: getNext('UPI'),
+             utiD: getNext('UTI'),
+             utiN: getNext('UTI')
+         };
      }
-     dataBase.setMonth(dataBase.getMonth() + direcao);
-     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+
+     setTimeout(() => {
+        setEscalaGerada(schedule);
+        setIsGerando(false);
+     }, 600); 
   };
 
-  const obterNomeMes = (referencia) => {
-     if (!referencia) return "TODOS OS REGISTOS";
-     const [ano, mes] = referencia.split('-');
-     const d = new Date(ano, parseInt(mes) - 1, 1);
-     return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  const renderSlot = (nomeBase) => {
+     if (!nomeBase) return "-";
+     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black print:text-red-600' : 'text-slate-800 print:text-black'}>{nomeBase}</span>;
   };
-
-  const userSafeName = String(user).toLowerCase().trim();
-
-  const atestadosFiltrados = (appData.atestados || []).filter(a => {
-     const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(a,['inicio', 'data']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
-
-  const permutasFiltradas = (appData.permutas || []).filter(p => {
-     const nomeSolicitante = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
-     const nomeSubstituto = String(getVal(p, ['substituto'])).toLowerCase();
-     if (!nomeSolicitante.includes(userSafeName) && !userSafeName.includes(nomeSolicitante) &&
-         !nomeSubstituto.includes(userSafeName) && !userSafeName.includes(nomeSubstituto)) return false;
-     
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(p,['sai', 'datasai']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(p => ({...p, _tipo: 'Permuta'})).reverse();
-
-  const feriasFiltradas = (appData.ferias || []).filter(f => {
-     const nomeF = String(getVal(f, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeF.includes(userSafeName) && !userSafeName.includes(nomeF)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(f => ({...f, _tipo: 'Férias'})).reverse();
-
-  const licencasFiltradas = (appData.licencas || []).filter(l => {
-     const nomeL = String(getVal(l, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeL.includes(userSafeName) && !userSafeName.includes(nomeL)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(l,['inicio', 'data']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(l => ({...l, _tipo: 'Licença'})).reverse();
-
-  const handleSend = async (action, payload) => {
-    setIsSaving(true);
-    try {
-      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
-      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); syncData(true); }, 1500);
-    } catch(e) { setIsSaving(false); alert("Erro ao enviar."); }
-  };
-
-  const closeModals = () => { setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); }
-
-  const handleChangePassword = (e) => {
-     e.preventDefault();
-     if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
-     if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
-     const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
-     if(!myOfficerData) return alert("Erro ao localizar perfil.");
-     handleSend('saveOfficer', { ...myOfficerData, senha: passForm.new });
-  };
-
-  if (activeTab === 'passagem') {
-     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col font-sans p-2 md:p-6 pb-0">
-           <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
-        </div>
-     );
-  }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-md text-xl">HA</div>
-          <div><h1 className="font-black text-slate-800 text-sm uppercase tracking-tighter">Ten {user}</h1><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Painel Individual</p></div>
-        </div>
-        <div className="flex items-center gap-2">
-           <WeatherWidgetMini />
-           {isAdmin && (
-              <button onClick={onToggleAdmin} className="bg-blue-50 p-2.5 rounded-xl text-blue-600 font-black flex items-center gap-2 text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all active:scale-90 border border-blue-200">
-                 <Shield size={14}/> Gestão
-              </button>
-           )}
-           <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90"><Key size={16}/></button>
-           <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
-        </div>
-      </header>
-      <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
-        <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
-        
-        <div className="grid grid-cols-5 gap-2">
-          <button onClick={() => setActiveTab('passagem')} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-emerald-50 text-emerald-500 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all"><BookOpen size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Turno</span></button>
-          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
-          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
-          <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-amber-50 text-amber-500 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
-          <button onClick={() => setModals({...modals, licenca: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-pink-50 text-pink-500 rounded-xl group-hover:bg-pink-500 group-hover:text-white transition-all"><Baby size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Licença</span></button>
-        </div>
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
+       
+       <div className="hidden print:block text-center mb-6">
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Escala de Enfermagem - Vermelha</h2>
+          <p className="text-sm font-bold text-gray-600 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
+          <div className="w-full h-px bg-black my-4"></div>
+       </div>
 
-        <button onClick={() => setModals({...modals, gantt: true})} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
-           <CalendarDays size={16}/> Visualizar Escala de Férias Geral
-        </button>
-
-        <div className="pt-4">
-           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
-                Meus Registros 
-                <button onClick={()=>syncData(true)} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button>
-             </h3>
-             <div className="flex items-center gap-2">
-                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                    <button onClick={() => handleMudarMes(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
-                    <div className="w-28 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
-                    <button onClick={() => handleMudarMes(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
-                 </div>
-                 {mesFiltro && (<button onClick={() => setMesFiltro('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>)}
-             </div>
-           </div>
-
-          <div className="space-y-2">
-            {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas, ...licencasFiltradas].sort((a,b) => {
-                const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
-                const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
-                return dateB - dateA;
-            }).map((item, i) => {
-              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-              let titulo = ""; let icon = null;
-              if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
-              if (item._tipo === 'Permuta') { 
-                  const eSub = String(getVal(item,['substituto'])).toLowerCase().includes(userSafeName);
-                  titulo = eSub ? `Cobriu: ${getVal(item,['solicitante'])}` : `Pediu Troca: ${getVal(item,['substituto'])}`; 
-                  icon = <ArrowRightLeft size={12} className={eSub ? "text-green-500 inline mr-1" : "text-indigo-500 inline mr-1"}/>; 
-              }
-              if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
-              if (item._tipo === 'Licença') { titulo = `Licença: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Baby size={12} className="text-pink-500 inline mr-1"/>; }
-
-              const statusAtual = getVal(item,['status']) || 'Homologado'; 
-              const isRejected = statusAtual.toLowerCase().includes('rejeitado');
-
-              return (
-              <div key={i} className={`bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center ${isRejected ? 'border-red-200' : 'border-slate-100'}`}>
-                <div className="text-xs">
-                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1 flex items-center">{icon} {titulo}</p>
-                  <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
-                    <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
-                    {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
-                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
-                  </div>
-                </div>
-                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest text-right max-w-[100px] leading-tight ${isRejected ? 'bg-red-50 text-red-600' : statusAtual==='Pendente' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{statusAtual}</span>
-              </div>
-            )})}
-            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0 && feriasFiltradas.length === 0 && licencasFiltradas.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
+       <div className="print:hidden">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
+             <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
+             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
           </div>
-        </div>
-      </main>
+       </div>
 
-      {/* MODAIS USER */}
-      {modals.gantt && <Modal title={<><CalendarDays size={18}/> Escala Geral de Férias</>} onClose={closeModals}><GanttViewer feriasData={appData.ferias} /></Modal>}
-      {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
-      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
-      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
-      {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
-      {modals.licenca && <Modal title={<><Baby size={18}/> Solicitar Licença-Maternidade</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveLicenca',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Duração da Licença</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Licença"}</button></form></Modal>}
+       {activeSubTab === 'oficial' ? (
+          <div className="animate-fadeIn print:block">
+             <div className="flex justify-between items-end mb-4 print:hidden">
+                <div>
+                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados fixos extraídos da aba "EscalaVermelha"</p>
+                </div>
+                <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
+                   <Printer size={14}/> PDF
+                </button>
+             </div>
+
+             <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+                <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                   <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
+                      <tr>
+                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Data</th>
+                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                         <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                         <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                         <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                         <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                      {(appData.escalasVermelhas || []).length > 0 ? (
+                         (appData.escalasVermelhas || []).map((linha, i) => (
+                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                               <td className="p-3 font-black text-slate-600 print:border print:border-gray-300 print:text-black">{formatDate(getVal(linha, ['data', 'dia']))}</td>
+                               <td className="p-3 font-bold text-slate-400 print:border print:border-gray-300 print:text-black">{getVal(linha, ['semana', 'dia da semana'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi diurno', 'upi d'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi noturno', 'upi n'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['uti diurno', 'uti d'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300">{getVal(linha, ['uti noturno', 'uti n'])}</td>
+                            </tr>
+                         ))
+                      ) : (
+                         <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Nenhuma Escala Publicada no Google Sheets</td></tr>
+                      )}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+       ) : (
+          <div className="animate-fadeIn print:block">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
+               <div className="flex gap-2 w-full md:w-auto">
+                  <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
+                  <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
+                     {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
+                  </button>
+                  <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
+                     <Printer size={14}/> PDF
+                  </button>
+               </div>
+             </div>
+
+             <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
+                <div className="mt-2">
+                   <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
+                   <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
+                </div>
+             </div>
+
+             {escalaGerada && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+                   <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                      <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
+                         <tr>
+                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
+                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                            <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                            <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                            <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                            <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                         {daysArray.map(d => {
+                            const dt = new Date(ano, mes, d);
+                            const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                            const isFeriado = feriadosArray.includes(d);
+                            const isVermelha = isWeekend || isFeriado;
+                            const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+                            
+                            const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
+                            const assignment = escalaGerada[String(d)];
+
+                            if (!isVermelha) return null;
+
+                            return (
+                               <tr key={d} className={`transition-colors ${bgRow}`}>
+                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
+                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
+                                     {isFeriado ? 'FER' : diaNome}
+                                  </td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                                  <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+                               </tr>
+                            )
+                         })}
+                      </tbody>
+                   </table>
+                </div>
+             )}
+          </div>
+       )}
     </div>
   );
 };
 
-// --- PAINEL CHEFIA (ADMIN) ---
+// =========================================================================
+// --- PAINEL PRINCIPAL CHEFIA (ADMIN) ---
+// =========================================================================
 
 const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -914,6 +1144,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
+            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
@@ -1277,7 +1508,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          if (!isCimirro) return null;
          return (
             <div className="animate-fadeIn">
-               <EscalaVermelhaGenerator appData={appData} />
+               <EscalaManager appData={appData} />
             </div>
          );
       
@@ -1299,13 +1530,13 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
             {/* Menu da Chefia / RT */}
             {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, 
-               { id: 'passagem', label: 'Passagem Turno', icon: BookOpen }, // NOVA ABA ADMIN
+               { id: 'passagem', label: 'Passagem Turno', icon: BookOpen }, 
                { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: isApenasRT ? 0 : (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: isApenasRT ? 0 : (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
                { id: 'efetivo', label: 'Efetivo', icon: Users },
-               isCimirro && { id: 'escala', label: 'Escala (Beta)', icon: Calendar }, 
+               isCimirro && { id: 'escala', label: 'Escala Mensal', icon: Calendar }, 
                { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
                  <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
@@ -1498,7 +1729,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   );
 };
 
+// =========================================================================
 // --- APP ENTRY COM LOGIN E CACHE SEGURO ---
+// =========================================================================
 
 export default function App() {
   const [user, setUser] = useState(() => localStorage.getItem('sga_app_user') || null);
