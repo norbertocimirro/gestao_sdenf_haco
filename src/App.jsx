@@ -12,13 +12,29 @@ import {
 } from 'lucide-react';
 
 // =========================================================================
-// --- CONFIGURAÇÕES DE CONEXÃO (DUAS BASES DE DADOS DISTINTAS) ---
+// --- CONFIGURAÇÕES GLOBAIS DE CONEXÃO E DADOS ---
 // =========================================================================
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
 const API_URL_PASSAGEM = "https://script.google.com/macros/s/AKfycbyHw6wCJGdI1I1NX7kIwqdyW3BLRcIwBVX28HsimrdElZ2EOY82c4p3Kt73XY0n1vsbww/exec";
 
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
+
+const SECTORS_PASS = [
+    { id: 'UPI', name: 'UPI (Clínica/Cirúrgica)', type: 'ward' },
+    { id: 'UTI', name: 'UTI (Intensiva)', type: 'ward' },
+    { id: 'UCC', name: 'UCC (Centro Cirúrgico)', type: 'surgery' },
+    { id: 'UPA', name: 'UPA (Pronto Atendimento)', type: 'er' },
+    { id: 'CAIS', name: 'CAIS (ESF)', type: 'er' }
+];
+
+const SHIFTS_PASS = [
+    { id: 'Manhã', color: 'bg-amber-100 text-amber-700' },
+    { id: 'Tarde', color: 'bg-orange-100 text-orange-700' },
+    { id: 'Noite', color: 'bg-indigo-100 text-indigo-700' }
+];
+
+const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 // =========================================================================
 // --- HELPERS E FUNÇÕES DE LEITURA ---
@@ -192,7 +208,7 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
 };
 
 // =========================================================================
-// --- COMPONENTES VISUAIS E COMPARTILHADOS ---
+// --- COMPONENTES VISUAIS GERAIS ---
 // =========================================================================
 
 class ErrorBoundary extends React.Component {
@@ -481,7 +497,7 @@ const GanttViewer = ({ feriasData }) => {
 };
 
 // =========================================================================
-// --- NOVO MÓDULO: PASSAGEM DE TURNO ---
+// --- MÓDULO PASSAGEM DE TURNO ---
 // =========================================================================
 
 const PassagemTurno = ({ currentUser, onBack }) => {
@@ -759,8 +775,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 };
 
 // =========================================================================
-// --- COMPONENTE GESTOR DA ESCALA VERMELHA ---
+// --- MÓDULO GERADOR DA ESCALA VERMELHA ---
 // =========================================================================
+
 const EscalaManager = ({ appData }) => {
   const [activeSubTab, setActiveSubTab] = useState('oficial');
   const [mesStr, setMesStr] = useState("2026-03"); 
@@ -904,7 +921,7 @@ const EscalaManager = ({ appData }) => {
              <div className="flex justify-between items-end mb-4 print:hidden">
                 <div>
                    <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados fixos extraídos da aba "EscalaVermelha"</p>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados extraídos da aba "EscalaVermelha"</p>
                 </div>
                 <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
                    <Printer size={14}/> PDF
@@ -1012,9 +1029,293 @@ const EscalaManager = ({ appData }) => {
   );
 };
 
+
 // =========================================================================
-// --- PAINEL PRINCIPAL CHEFIA (ADMIN) ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN, USER E ADMIN) ---
 // =========================================================================
+
+const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
+  const [roleGroup, setRoleGroup] = useState('chefia');
+  const [user, setUser] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
+  const list = Array.isArray(appData?.officers) ? appData.officers : [];
+
+  const filtered = roleGroup === 'chefia' 
+    ? list.filter(o => {
+        const r = String(getVal(o, ['role'])).toLowerCase();
+        const n = String(getVal(o, ['nome']));
+        return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini') || n.includes('Renata');
+      }) 
+    : list.filter(o => {
+        const r = String(getVal(o, ['role'])).toLowerCase();
+        const n = String(getVal(o, ['nome']));
+        return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini') && !n.includes('Renata');
+      });
+
+  const handleAuth = () => {
+    setLoginError('');
+    const selectedUser = list.find(o => getVal(o, ['nome']) === user);
+    if (selectedUser) {
+       const correctPasswordRaw = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
+       const correctPassword = String(correctPasswordRaw).trim();
+       const inputPassword = String(password).trim();
+       
+       if (inputPassword === correctPassword) {
+           const nome = getVal(selectedUser, ['nome']);
+           let role = getVal(selectedUser, ['role']) || 'user';
+           if (nome.includes('Cimirro') || nome.includes('Zanini') || nome.includes('Renata')) {
+              role = nome.includes('Renata') ? 'rt' : 'admin'; 
+           }
+           onLogin(nome, role);
+       } else {
+           setLoginError('Senha incorreta.');
+       }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden print:hidden">
+      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
+      
+      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
+        <div className="text-center mb-8">
+           <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
+              <Plane size={32} className="text-white transform -rotate-12"/>
+           </div>
+           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">Enfermagem HACO</h1>
+           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
+        </div>
+        
+        {syncError && (
+           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
+              <span>⚠️ Falha na Leitura</span>
+              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
+           </div>
+        )}
+
+        <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
+           <button onClick={() => {setRoleGroup('chefia'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
+           <button onClick={() => {setRoleGroup('tropa'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="relative">
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
+            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
+               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
+               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
+               {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
+            </select>
+          </div>
+
+          {user && (
+            <div className="relative animate-fadeIn">
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Senha de Acesso</label>
+              <input type="password" value={password} onChange={e => {setPassword(e.target.value); setLoginError('');}} placeholder="Digite sua senha" onKeyDown={e => e.key === 'Enter' && handleAuth()} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
+              {loginError && <p className="text-red-500 text-[10px] font-bold mt-2 ml-1">{loginError}</p>}
+            </div>
+          )}
+
+          <button onClick={handleAuth} disabled={!user || !password || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user && password ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Entrar no Sistema</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSaving, setIsSaving] = useState(false);
+  const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false });
+  const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
+  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
+  const [fileData, setFileData] = useState(null);
+
+  const [mesFiltro, setMesFiltro] = useState(() => {
+     const d = new Date();
+     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const handleMudarMes = (direcao) => {
+     let dataBase = new Date();
+     if (mesFiltro) {
+        const [ano, mes] = mesFiltro.split('-');
+        dataBase = new Date(ano, parseInt(mes) - 1, 1);
+     }
+     dataBase.setMonth(dataBase.getMonth() + direcao);
+     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const obterNomeMes = (referencia) => {
+     if (!referencia) return "TODOS OS REGISTOS";
+     const [ano, mes] = referencia.split('-');
+     const d = new Date(ano, parseInt(mes) - 1, 1);
+     return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  };
+
+  const userSafeName = String(user).toLowerCase().trim();
+
+  const atestadosFiltrados = (appData.atestados || []).filter(a => {
+     const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
+     if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
+     if (!mesFiltro) return true;
+     const d = parseDate(getVal(a,['inicio', 'data']));
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
+
+  const permutasFiltradas = (appData.permutas || []).filter(p => {
+     const nomeSolicitante = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
+     const nomeSubstituto = String(getVal(p, ['substituto'])).toLowerCase();
+     if (!nomeSolicitante.includes(userSafeName) && !userSafeName.includes(nomeSolicitante) &&
+         !nomeSubstituto.includes(userSafeName) && !userSafeName.includes(nomeSubstituto)) return false;
+     
+     if (!mesFiltro) return true;
+     const d = parseDate(getVal(p,['sai', 'datasai']));
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(p => ({...p, _tipo: 'Permuta'})).reverse();
+
+  const feriasFiltradas = (appData.ferias || []).filter(f => {
+     const nomeF = String(getVal(f, ['militar', 'nome', 'oficial'])).toLowerCase();
+     if (!nomeF.includes(userSafeName) && !userSafeName.includes(nomeF)) return false;
+     if (!mesFiltro) return true;
+     const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(f => ({...f, _tipo: 'Férias'})).reverse();
+
+  const licencasFiltradas = (appData.licencas || []).filter(l => {
+     const nomeL = String(getVal(l, ['militar', 'nome', 'oficial'])).toLowerCase();
+     if (!nomeL.includes(userSafeName) && !userSafeName.includes(nomeL)) return false;
+     if (!mesFiltro) return true;
+     const d = parseDate(getVal(l,['inicio', 'data']));
+     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+  }).map(l => ({...l, _tipo: 'Licença'})).reverse();
+
+  const handleSend = async (action, payload) => {
+    setIsSaving(true);
+    try {
+      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
+      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); syncData(true); }, 1500);
+    } catch(e) { setIsSaving(false); alert("Erro ao enviar."); }
+  };
+
+  const closeModals = () => { setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); }
+
+  const handleChangePassword = (e) => {
+     e.preventDefault();
+     if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
+     if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
+     const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
+     if(!myOfficerData) return alert("Erro ao localizar perfil.");
+     handleSend('saveOfficer', { ...myOfficerData, senha: passForm.new });
+  };
+
+  if (activeTab === 'passagem') {
+     return (
+        <div className="min-h-screen bg-slate-100 flex flex-col font-sans p-2 md:p-6 pb-0">
+           <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
+        </div>
+     );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-md text-xl">HA</div>
+          <div><h1 className="font-black text-slate-800 text-sm uppercase tracking-tighter">Ten {user}</h1><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Painel Individual</p></div>
+        </div>
+        <div className="flex items-center gap-2">
+           <WeatherWidgetMini />
+           {isAdmin && (
+              <button onClick={onToggleAdmin} className="bg-blue-50 p-2.5 rounded-xl text-blue-600 font-black flex items-center gap-2 text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all active:scale-90 border border-blue-200">
+                 <Shield size={14}/> Gestão
+              </button>
+           )}
+           <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90"><Key size={16}/></button>
+           <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
+        </div>
+      </header>
+      <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
+        <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
+        
+        <div className="grid grid-cols-5 gap-2">
+          <button onClick={() => setActiveTab('passagem')} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-emerald-50 text-emerald-500 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all"><BookOpen size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Turno</span></button>
+          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
+          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
+          <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-amber-50 text-amber-500 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
+          <button onClick={() => setModals({...modals, licenca: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-pink-50 text-pink-500 rounded-xl group-hover:bg-pink-500 group-hover:text-white transition-all"><Baby size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Licença</span></button>
+        </div>
+
+        <button onClick={() => setModals({...modals, gantt: true})} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
+           <CalendarDays size={16}/> Visualizar Escala de Férias Geral
+        </button>
+
+        <div className="pt-4">
+           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
+                Meus Registros 
+                <button onClick={()=>syncData(true)} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button>
+             </h3>
+             <div className="flex items-center gap-2">
+                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
+                    <button onClick={() => handleMudarMes(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
+                    <div className="w-28 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
+                    <button onClick={() => handleMudarMes(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
+                 </div>
+                 {mesFiltro && (<button onClick={() => setMesFiltro('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>)}
+             </div>
+           </div>
+
+          <div className="space-y-2">
+            {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas, ...licencasFiltradas].sort((a,b) => {
+                const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
+                const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
+                return dateB - dateA;
+            }).map((item, i) => {
+              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
+              let titulo = ""; let icon = null;
+              if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
+              if (item._tipo === 'Permuta') { 
+                  const eSub = String(getVal(item,['substituto'])).toLowerCase().includes(userSafeName);
+                  titulo = eSub ? `Cobriu: ${getVal(item,['solicitante'])}` : `Pediu Troca: ${getVal(item,['substituto'])}`; 
+                  icon = <ArrowRightLeft size={12} className={eSub ? "text-green-500 inline mr-1" : "text-indigo-500 inline mr-1"}/>; 
+              }
+              if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
+              if (item._tipo === 'Licença') { titulo = `Licença: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Baby size={12} className="text-pink-500 inline mr-1"/>; }
+
+              const statusAtual = getVal(item,['status']) || 'Homologado'; 
+              const isRejected = statusAtual.toLowerCase().includes('rejeitado');
+
+              return (
+              <div key={i} className={`bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center ${isRejected ? 'border-red-200' : 'border-slate-100'}`}>
+                <div className="text-xs">
+                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1 flex items-center">{icon} {titulo}</p>
+                  <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
+                    <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
+                    {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
+                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
+                  </div>
+                </div>
+                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest text-right max-w-[100px] leading-tight ${isRejected ? 'bg-red-50 text-red-600' : statusAtual==='Pendente' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{statusAtual}</span>
+              </div>
+            )})}
+            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0 && feriasFiltradas.length === 0 && licencasFiltradas.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
+          </div>
+        </div>
+      </main>
+
+      {/* MODAIS USER */}
+      {modals.gantt && <Modal title={<><CalendarDays size={18}/> Escala Geral de Férias</>} onClose={closeModals}><GanttViewer feriasData={appData.ferias} /></Modal>}
+      {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
+      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
+      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
+      {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
+      {modals.licenca && <Modal title={<><Baby size={18}/> Solicitar Licença-Maternidade</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveLicenca',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Duração da Licença</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Licença"}</button></form></Modal>}
+    </div>
+  );
+};
 
 const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1504,18 +1805,15 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
-         // BLOQUEIO DUPLO: Apenas Cimirro vê esta tela
          if (!isCimirro) return null;
          return (
             <div className="animate-fadeIn">
                <EscalaManager appData={appData} />
             </div>
          );
-      
-      // NOVO BLOCO QUE ENCAPSULA A PASSAGEM DE TURNO NO ADMIN
       case 'passagem':
          return (
-             <div className="animate-fadeIn w-full">
+             <div className="animate-fadeIn w-full h-full flex flex-col pt-4">
                  <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
              </div>
          );
