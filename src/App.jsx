@@ -35,6 +35,15 @@ const SHIFTS_PASS = [
 
 const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
+// Estilo seguro para os Selects da Passagem de Turno
+const selectStyle = {
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 1rem center',
+    backgroundSize: '1em'
+};
+
 // =========================================================================
 // --- HELPERS INTELIGENTES (TRADUTORES UNIVERSAIS DE COLUNAS) ---
 // =========================================================================
@@ -527,6 +536,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         transfers: '', procedures: '', consultations: ''
     });
 
+    const getField = (obj, field) => obj && (obj[field] !== undefined ? obj[field] : obj[field.toLowerCase()]);
+
     const fetchSheetData = async () => {
         if (!API_URL_PASSAGEM || API_URL_PASSAGEM === "") return;
         setLoading(true);
@@ -632,7 +643,6 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                             const latest = reports.find(r => r && (getExactVal(r, ['selectedSectorId', 'sectorid', 'setor']).toUpperCase() === s.id.toUpperCase()));
                             const shiftVal = latest ? getExactVal(latest, ['shift', 'turno']) : null;
                             const shift = shiftVal ? SHIFTS_PASS.find(sh => sh.id === shiftVal) : null;
-                            // Trocado Stethoscope por Bed para maior compatibilidade
                             const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
                             
                             let timeString = '--:--';
@@ -983,7 +993,7 @@ const EscalaManager = ({ appData }) => {
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados extraídos da aba "EscalaVermelha"</p>
                 </div>
                 <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
-                   <Printer size={14}/> PDF
+                   <Save size={14}/> PDF
                 </button>
              </div>
 
@@ -1880,8 +1890,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                <EscalaManager appData={appData} />
             </div>
          );
-      
-      // ABA: PASSAGEM DE TURNO NO ADMIN
       case 'passagem':
          return (
              <div className="animate-fadeIn w-full h-full flex flex-col pt-4">
@@ -1913,7 +1921,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          </nav>
          <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-3">
             {sidebarOpen && <div className="text-center w-full"><div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center font-black shadow-md bg-slate-800 text-white border border-slate-700 mb-2">{user.substring(0,2).toUpperCase()}</div><p className="font-black text-xs tracking-tight truncate w-full uppercase">{user}</p><p className="text-[8px] text-blue-400 uppercase font-bold tracking-widest">{role}</p></div>}
-            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-50 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all"><UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}</button>
+            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all"><UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}</button>
             <button onClick={() => setShowPassModal(true)} className="flex items-center justify-center gap-3 text-slate-500 hover:text-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><Key size={16}/> {sidebarOpen && 'Trocar Senha'}</button>
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
          </div>
