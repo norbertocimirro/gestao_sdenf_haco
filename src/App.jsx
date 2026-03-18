@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer, CheckCircle
 } from 'lucide-react';
 
 // =========================================================================
@@ -35,19 +35,11 @@ const SHIFTS_PASS = [
 
 const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// Estilo seguro para os Selects da Passagem de Turno
-const selectStyle = {
-    appearance: 'none',
-    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 1rem center',
-    backgroundSize: '1em'
-};
-
 // =========================================================================
-// --- HELPERS E FUNÇÕES DE LEITURA ---
+// --- HELPERS INTELIGENTES (TRADUTORES UNIVERSAIS DE COLUNAS) ---
 // =========================================================================
 
+// Leitor flexível para a Gestão
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
   const keys = Object.keys(obj);
@@ -55,6 +47,18 @@ const getVal = (obj, searchTerms) => {
     searchTerms.some(term => String(k).toLowerCase().includes(term.toLowerCase()))
   );
   return foundKey ? obj[foundKey] : "";
+};
+
+// Leitor super-preciso para a Passagem de Turno (Ignora Maiúsculas/Minúsculas do Sheets)
+const getExactVal = (obj, searchTerms) => {
+    if (!obj || typeof obj !== 'object') return "";
+    const keys = Object.keys(obj);
+    for (let term of searchTerms) {
+        const t = term.toLowerCase();
+        const foundKey = keys.find(k => k.toLowerCase() === t);
+        if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null) return obj[foundKey];
+    }
+    return "";
 };
 
 const parseDate = (dateStr) => {
@@ -523,8 +527,6 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         transfers: '', procedures: '', consultations: ''
     });
 
-    const getField = (obj, field) => obj && (obj[field] !== undefined ? obj[field] : obj[field.toLowerCase()]);
-
     const fetchSheetData = async () => {
         if (!API_URL_PASSAGEM || API_URL_PASSAGEM === "") return;
         setLoading(true);
@@ -533,8 +535,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const data = await response.json();
             if (data && Array.isArray(data)) {
                 setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
-                    const timeA = new Date(getField(a, 'timestamp')).getTime() || 0;
-                    const timeB = new Date(getField(b, 'timestamp')).getTime() || 0;
+                    const timeA = new Date(getExactVal(a, ['timestamp', 'carimbo de data/hora', 'data'])).getTime() || 0;
+                    const timeB = new Date(getExactVal(b, ['timestamp', 'carimbo de data/hora', 'data'])).getTime() || 0;
                     return timeB - timeA;
                 }));
             }
@@ -560,11 +562,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         };
 
         try {
-            await fetch(API_URL_PASSAGEM, { 
-                method: 'POST', 
-                mode: 'no-cors', 
-                body: JSON.stringify(payload) 
-            });
+            await fetch(API_URL_PASSAGEM, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
             setTimeout(() => { 
                 fetchSheetData(); 
                 setView('dashboard'); 
@@ -579,9 +577,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
     const filteredAndGrouped = useMemo(() => {
         const filtered = reports.filter(r => {
-            const ts = getField(r, 'timestamp');
-            if (!r || !ts) return false;
-            const d = new Date(ts);
+            const tsRaw = getExactVal(r, ['timestamp', 'carimbo de data/hora', 'data']);
+            if (!r || !tsRaw) return false;
+            const d = new Date(tsRaw);
             if (isNaN(d.getTime())) return false;
             const dayMatch = !filterDay || d.getDate() === parseInt(filterDay);
             const monthMatch = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
@@ -590,9 +588,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         });
         const groups = {};
         filtered.forEach(r => {
-            const ts = getField(r, 'timestamp');
-            if (!ts) return;
-            const d = new Date(ts);
+            const tsRaw = getExactVal(r, ['timestamp', 'carimbo de data/hora', 'data']);
+            if (!tsRaw) return;
+            const d = new Date(tsRaw);
             if (isNaN(d.getTime())) return;
             const ds = d.toLocaleDateString('pt-BR');
             if (!groups[ds]) groups[ds] = [];
@@ -603,9 +601,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
     const availableYears = useMemo(() => {
         const years = [...new Set(reports.map(r => {
-           const ts = getField(r, 'timestamp');
-           if (!ts) return null;
-           const d = new Date(ts);
+           const tsRaw = getExactVal(r, ['timestamp', 'carimbo de data/hora', 'data']);
+           if (!tsRaw) return null;
+           const d = new Date(tsRaw);
            return isNaN(d.getTime()) ? null : d.getFullYear();
         }))].filter(y => y !== null);
         return years.sort((a,b) => b-a);
@@ -631,15 +629,19 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                 {view === 'dashboard' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
                         {SECTORS_PASS.map(s => {
-                            const latest = reports.find(r => r && (getField(r, 'selectedSectorId') === s.id || getField(r, 'sectorId') === s.id));
-                            const shiftVal = latest ? getField(latest, 'shift') : null;
+                            const latest = reports.find(r => r && (getExactVal(r, ['selectedSectorId', 'sectorid', 'setor']).toUpperCase() === s.id.toUpperCase()));
+                            const shiftVal = latest ? getExactVal(latest, ['shift', 'turno']) : null;
                             const shift = shiftVal ? SHIFTS_PASS.find(sh => sh.id === shiftVal) : null;
+                            // Trocado Stethoscope por Bed para maior compatibilidade
                             const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
                             
                             let timeString = '--:--';
-                            if (latest && getField(latest, 'timestamp')) {
-                               const dTemp = new Date(getField(latest, 'timestamp'));
-                               if (!isNaN(dTemp.getTime())) timeString = dTemp.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+                            if (latest) {
+                               const tsRaw = getExactVal(latest, ['timestamp', 'carimbo de data/hora', 'data']);
+                               if (tsRaw) {
+                                   const dTemp = new Date(tsRaw);
+                                   if (!isNaN(dTemp.getTime())) timeString = dTemp.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+                               }
                             }
 
                             return (
@@ -662,21 +664,24 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                             </div>
                                             <div className="grid grid-cols-4 gap-2">
                                                 {s.type === 'ward' ? (
-                                                    ['Pac', 'Alt', 'Baix', 'Trn'].map((l, i) => (
-                                                        <div key={l} className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
-                                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">{l}</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{getField(latest, ['patients', 'discharges', 'admissions', 'transfers'][i]) || 0}</p>
-                                                        </div>
-                                                    ))
+                                                    ['Pac', 'Alt', 'Baix', 'Trn'].map((l, i) => {
+                                                        const keySearch = [['patients', 'pacientes'], ['discharges', 'altas'], ['admissions', 'baixas'], ['transfers', 'transferencias']][i];
+                                                        return (
+                                                            <div key={l} className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
+                                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">{l}</p>
+                                                                <p className="text-sm font-black text-slate-800 leading-none">{getExactVal(latest, keySearch) || 0}</p>
+                                                            </div>
+                                                        )
+                                                    })
                                                 ) : (
                                                     <div className="col-span-4 bg-slate-50 p-4 rounded-2xl flex justify-between items-center px-6 border border-slate-100/50">
                                                         <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Produção Turno</span>
-                                                        <span className="font-black text-emerald-700 text-lg leading-none">{getField(latest, 'procedures') || getField(latest, 'consultations') || 0}</span>
+                                                        <span className="font-black text-emerald-700 text-lg leading-none">{getExactVal(latest, ['procedures', 'procedimentos']) || getExactVal(latest, ['consultations', 'atendimentos']) || 0}</span>
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="pt-4 border-t border-slate-50">
-                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{getField(latest, 'nurseName')}</span></p>
+                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{getExactVal(latest, ['nurseName', 'enfermeiro'])}</span></p>
                                             </div>
                                         </div>
                                     ) : <div className="py-12 text-center text-slate-200 font-black text-[10px] uppercase tracking-[0.3em] border-2 border-dashed border-slate-50 rounded-[2rem]">Sem registro hoje</div>}
@@ -768,14 +773,15 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     <div className="h-px bg-slate-200 flex-1"></div>
                                 </div>
                                 {filteredAndGrouped[date].map((r, i) => {
-                                    const sId = getField(r, 'selectedSectorId') || getField(r, 'sectorId');
-                                    const shiftId = getField(r, 'shift');
+                                    const sId = getExactVal(r, ['selectedSectorId', 'sectorid', 'setor']);
+                                    const shiftId = getExactVal(r, ['shift', 'turno']);
                                     const shift = SHIFTS_PASS.find(s => s.id === shiftId);
-                                    const isWard = ['UPI', 'UTI'].includes(sId);
+                                    const isWard = ['UPI', 'UTI'].includes(String(sId).toUpperCase());
                                     
                                     let timeStr = '--:--';
-                                    if (getField(r, 'timestamp')) {
-                                       const dTemp = new Date(getField(r, 'timestamp'));
+                                    const tsRaw = getExactVal(r, ['timestamp', 'carimbo de data/hora', 'data']);
+                                    if (tsRaw) {
+                                       const dTemp = new Date(tsRaw);
                                        if (!isNaN(dTemp.getTime())) timeStr = dTemp.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
                                     }
 
@@ -793,22 +799,22 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                             <div className="bg-slate-50 p-3 rounded-2xl mb-4 flex gap-4 overflow-x-auto border border-slate-100">
                                                 {isWard ? (
                                                     <>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{getField(r, 'patients') || 0}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{getField(r, 'discharges') || 0}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{getField(r, 'admissions') || 0}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{getField(r, 'transfers') || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{getExactVal(r, ['patients', 'pacientes']) || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{getExactVal(r, ['discharges', 'altas']) || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{getExactVal(r, ['admissions', 'baixas']) || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{getExactVal(r, ['transfers', 'transferencias']) || 0}</p></div>
                                                     </>
                                                 ) : (
-                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{getField(r, 'procedures') || getField(r, 'consultations') || 0}</p></div>
+                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{getExactVal(r, ['procedures', 'procedimentos']) || getExactVal(r, ['consultations', 'atendimentos']) || 0}</p></div>
                                                 )}
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {getField(r, 'nurseName') || '-'}</p>
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {getField(r, 'sgtsNames') || '-'}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {getExactVal(r, ['nurseName', 'enfermeiro']) || '-'}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {getExactVal(r, ['sgtsNames', 'sargentos']) || '-'}</p>
                                             </div>
-                                            {getField(r, 'intercurrences') && (
-                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{getField(r, 'intercurrences')}"</div>
+                                            {getExactVal(r, ['intercurrences', 'obs']) && (
+                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{getExactVal(r, ['intercurrences', 'obs'])}"</div>
                                             )}
                                         </div>
                                     );
@@ -965,7 +971,7 @@ const EscalaManager = ({ appData }) => {
        <div className="print:hidden">
           <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
              <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
-             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Star size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
+             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
           </div>
        </div>
 
@@ -973,11 +979,11 @@ const EscalaManager = ({ appData }) => {
           <div className="animate-fadeIn print:block">
              <div className="flex justify-between items-end mb-4 print:hidden">
                 <div>
-                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckSquare className="text-green-500"/> Escala Oficial do Mês</h3>
+                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados extraídos da aba "EscalaVermelha"</p>
                 </div>
                 <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
-                   <Save size={14}/> PDF
+                   <Printer size={14}/> PDF
                 </button>
              </div>
 
@@ -1083,7 +1089,7 @@ const EscalaManager = ({ appData }) => {
 };
 
 // =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO E LOGIN ---
 // =========================================================================
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
@@ -1868,7 +1874,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
-         // BLOQUEIO DUPLO: Apenas Cimirro vê esta tela
          if (!isCimirro) return null;
          return (
             <div className="animate-fadeIn">
@@ -1908,11 +1913,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          </nav>
          <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-3">
             {sidebarOpen && <div className="text-center w-full"><div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center font-black shadow-md bg-slate-800 text-white border border-slate-700 mb-2">{user.substring(0,2).toUpperCase()}</div><p className="font-black text-xs tracking-tight truncate w-full uppercase">{user}</p><p className="text-[8px] text-blue-400 uppercase font-bold tracking-widest">{role}</p></div>}
-            
-            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all">
-               <UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}
-            </button>
-
+            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-50 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all"><UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}</button>
             <button onClick={() => setShowPassModal(true)} className="flex items-center justify-center gap-3 text-slate-500 hover:text-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><Key size={16}/> {sidebarOpen && 'Trocar Senha'}</button>
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
          </div>
@@ -1927,13 +1928,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                 <button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button>
              </header>
          )}
+         {renderContent()}
          
-         {/* CONTEÚDO PRINCIPAL COM PROTEÇÃO RT */}
-         {(() => {
-            return renderContent();
-         })()}
-
-         {/* MODAIS (Só Lança se não for APENAS RT) */}
+         {/* MODAIS GESTÃO */}
          {showOfficerModal && !isApenasRT && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -1943,7 +1940,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
-                    
                     <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
                       <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
                         {LOCAIS_EXPEDIENTE.map(local => (
@@ -1951,7 +1947,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                         ))}
                       </div>
                     </div>
-
                     <div className="col-span-2 pt-3"><label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
                       <div className="flex gap-3">
                         {LOCAIS_SERVICO.map(serv => (
@@ -1961,7 +1956,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                         ))}
                       </div>
                     </div>
-
                     <div className="col-span-2 pt-3">
                        <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-pink-500 bg-pink-50 p-4 rounded-2xl border border-pink-200 cursor-pointer hover:bg-pink-100 transition-colors">
                          <input type="checkbox" className="w-4 h-4 accent-pink-500" checked={formOfficer.gestante === 'Sim'} onChange={e => setFormOfficer({...formOfficer, gestante: e.target.checked ? 'Sim' : ''})} />
@@ -1973,7 +1967,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
               </form>
            </Modal>
          )}
-
          {showPassModal && (
            <Modal title="Trocar Senha de Acesso" onClose={() => setShowPassModal(false)}>
               <form onSubmit={handleChangePassword} className="space-y-4">
@@ -1984,210 +1977,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
               </form>
            </Modal>
          )}
-
-         {/* Lançamento de Férias Direto (Admin pula homologação) */}
-         {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
-
-         {/* Lançamento de Licença Direto (Admin) */}
-         {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-
-         {/* Lançamento de Atestados e Permutas (Admin) */}
-         {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         
-         {/* MODAL: HISTÓRICO DO MILITAR (Dossiê) */}
-         {historyOfficer && (() => {
-            const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
-            
-            const feriasHist = (appData.ferias||[]).filter(f => {
-               const nomeF = String(getVal(f,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeF.includes(nomeAlvo) || nomeAlvo.includes(nomeF);
-            });
-            const licencasHist = (appData.licencas||[]).filter(l => {
-               const nomeL = String(getVal(l,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeL.includes(nomeAlvo) || nomeAlvo.includes(nomeL);
-            });
-            const atestadosHist = (appData.atestados||[]).filter(a => {
-               const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeA.includes(nomeAlvo) || nomeAlvo.includes(nomeA);
-            });
-            const permutasHist = (appData.permutas||[]).filter(p => {
-               const nomeP_solicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
-               const nomeP_substituto = String(getVal(p,['substituto'])).trim().toLowerCase();
-               return nomeP_solicitante.includes(nomeAlvo) || nomeAlvo.includes(nomeP_solicitante) || 
-                      nomeP_substituto.includes(nomeAlvo) || nomeAlvo.includes(nomeP_substituto);
-            });
-
-            return (
-               <Modal title={<><History size={18}/> Dossiê: {getVal(historyOfficer,['patente','posto'])} {getVal(historyOfficer,['nome'])}</>} onClose={() => setHistoryOfficer(null)}>
-                  <div className="space-y-6">
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-pink-500 tracking-widest mb-2 border-b border-pink-100 pb-1 flex items-center gap-1"><Baby size={12}/> Licenças</h4>
-                        <ul className="space-y-2">
-                           {licencasHist.length > 0 ? licencasHist.map((l, i) => {
-                                 const st = getVal(l,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 return (
-                                 <li key={i} className="flex justify-between items-center text-xs bg-pink-50/50 p-2 rounded-lg border border-pink-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(l,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(l,['dias', 'quantidade'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1 flex items-center gap-1"><Sun size={12}/> Férias</h4>
-                        <ul className="space-y-2">
-                           {feriasHist.length > 0 ? feriasHist.map((f, i) => {
-                                 const st = getVal(f,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 return (
-                                 <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias', 'quantidade'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1 flex items-center gap-1"><ShieldAlert size={12}/> Atestados Médicos</h4>
-                        <ul className="space-y-2">
-                           {atestadosHist.length > 0 ? atestadosHist.map((a, i) => {
-                                 const st = getVal(a,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 return (
-                                 <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1 flex items-center gap-1"><ArrowRightLeft size={12}/> Permutas</h4>
-                        <ul className="space-y-2">
-                           {permutasHist.length > 0 ? permutasHist.map((p, i) => {
-                                 const st = getVal(p,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 const foiSolicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase().includes(nomeAlvo);
-                                 
-                                 return (
-                                 <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
-                                    <div className="flex justify-between items-center">
-                                       <span className="font-bold text-slate-700">
-                                          {foiSolicitante ? `Substituto: ${getVal(p,['substituto'])}` : `Cobriu: ${getVal(p,['solicitante'])}`}
-                                       </span>
-                                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                    </div>
-                                    <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai', 'datasai']))} / E: {formatDate(getVal(p,['entra', 'dataentra']))}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                  </div>
-               </Modal>
-            )
-         })()}
       </main>
     </div>
-  );
-};
-
-// =========================================================================
-// --- APP ENTRY COM LOGIN E CACHE SEGURO ---
-// =========================================================================
-
-export default function App() {
-  const [user, setUser] = useState(() => localStorage.getItem('sga_app_user') || null);
-  const [role, setRole] = useState(() => localStorage.getItem('sga_app_role') || null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState("");
-  
-  const [adminModeActive, setAdminModeActive] = useState(true); 
-  
-  const [appData, setAppData] = useState(() => {
-    try {
-      const cached = localStorage.getItem('sga_app_cache');
-      if (cached) return JSON.parse(cached);
-    } catch(e) {}
-    return { officers: [], atestados: [], permutas: [], ferias: [], licencas: [], escalasVermelhas: [], upi: {leitosOcupados: 0, acamados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
-  });
-
-  const fetchSafeJSON = async (url) => {
-     try {
-       const res = await fetch(url);
-       const text = await res.text();
-       if (text.trim().startsWith('<')) throw new Error("Acesso negado (HTML). Verifique se o Apps Script foi implantado como 'Qualquer pessoa'.");
-       return JSON.parse(text);
-     } catch (e) {
-       console.warn("Fetch falhou:", e);
-       return null;
-     }
-  };
-
-  const syncData = async (showFeedback = false) => {
-    setIsSyncing(true);
-    setSyncError("");
-    try {
-      const resG = await fetchSafeJSON(`${API_URL_GESTAO}?action=getData`);
-      if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
-
-      const newData = {
-        officers: Array.isArray(resG.officers) ? resG.officers : [],
-        atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
-        permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
-        ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
-        licencas: Array.isArray(resG.licencas) ? resG.licencas : [], 
-        escalasVermelhas: Array.isArray(resG.escalasVermelhas) ? resG.escalasVermelhas : [], 
-        upi: {
-          leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
-          acamados: getVal(resG.upiStats, ['acamados']) || 0, 
-          mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
-          mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
-          dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
-        }
-      };
-      
-      setAppData(newData);
-      localStorage.setItem('sga_app_cache', JSON.stringify(newData));
-      if (showFeedback) alert("Sistema Atualizado!");
-    } catch(e) {
-      setSyncError(e.message);
-      if (showFeedback) alert(e.message);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  useEffect(() => { syncData(); }, []);
-
-  const handleLogin = (u, r) => { 
-    setUser(u); 
-    setRole(r); 
-    setAdminModeActive(true); 
-    localStorage.setItem('sga_app_user', u);
-    localStorage.setItem('sga_app_role', r);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setRole(null);
-    setAdminModeActive(true);
-    localStorage.removeItem('sga_app_user');
-    localStorage.removeItem('sga_app_role');
-  }
-  
-  const isCimirro = String(user).toLowerCase().includes('cimirro');
-
-  return (
-    <ErrorBoundary>
-      {!user ? (
-        <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
-      ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
-        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} isCimirro={isCimirro} />
-      ) : (
-        <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
-      )}
-    </ErrorBoundary>
   );
 }
