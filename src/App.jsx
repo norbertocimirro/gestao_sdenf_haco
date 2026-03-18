@@ -775,263 +775,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 };
 
 // =========================================================================
-// --- MÓDULO GERADOR DA ESCALA VERMELHA ---
-// =========================================================================
-
-const EscalaManager = ({ appData }) => {
-  const [activeSubTab, setActiveSubTab] = useState('oficial');
-  const [mesStr, setMesStr] = useState("2026-03"); 
-  const [feriados, setFeriados] = useState("");
-  const [escalaGerada, setEscalaGerada] = useState(null);
-  const [isGerando, setIsGerando] = useState(false);
-
-  const ano = parseInt(mesStr.split('-')[0]);
-  const mes = parseInt(mesStr.split('-')[1]) - 1;
-  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
-  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
-
-  const feriadosArray = feriados.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
-
-  const checkIndisponibilidade = (nome, dateObj) => {
-      if (!nome) return null;
-      const n = String(nome).toLowerCase().trim();
-      
-      const checkAfastamento = (lista, tipo) => {
-         for (let item of (lista || [])) {
-             if (String(getVal(item, ['status'])).toLowerCase().includes('rejeitado')) continue;
-             if (String(getVal(item, ['militar', 'nome', 'oficial'])).toLowerCase().includes(n) || n.includes(String(getVal(item, ['militar'])).toLowerCase())) {
-                 const start = parseDate(getVal(item, ['inicio', 'data', 'saida']));
-                 const dias = parseInt(getVal(item, ['dias', 'quantidade'])) || 0;
-                 if (start) {
-                     const end = new Date(start);
-                     end.setDate(end.getDate() + dias - 1);
-                     end.setHours(23, 59, 59);
-                     start.setHours(0, 0, 0);
-                     if (dateObj >= start && dateObj <= end) return tipo;
-                 }
-             }
-         }
-         return null;
-      };
-
-      return checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
-  };
-
-  const gerarEscalaAlgoritmo = () => {
-     setIsGerando(true);
-     let poolOficiais = (appData.officers || []).map(o => {
-        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
-        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
-        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
-        let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
-
-        let vazios = 0;
-        if (!rawD1) vazios++;
-        if (!rawD2) vazios++;
-        if (!rawD3) vazios++;
-
-        return {
-           nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
-           nomeCurto: getVal(o, ['nome']),
-           servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
-           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, 
-           vazios: vazios, 
-           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
-           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
-           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
-           isGestante: isGestante
-        }
-     });
-
-     let schedule = {};
-
-     for (let d of daysArray) {
-         let dt = new Date(ano, mes, d, 12, 0, 0); 
-         let isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-         let isFeriado = feriadosArray.includes(d);
-
-         if (!isWeekend && !isFeriado) continue; 
-
-         const getNext = (setor) => {
-            let disponiveis = poolOficiais.filter(o => {
-               if (o.isGestante) return false; 
-               if (!o.servico.includes(setor)) return false;
-               if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
-               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
-               return true;
-            });
-
-            disponiveis.sort((a, b) => {
-               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
-               if (a.d1 !== b.d1) return a.d1 - b.d1; 
-               if (a.d2 !== b.d2) return a.d2 - b.d2; 
-               if (a.d3 !== b.d3) return a.d3 - b.d3; 
-               return b.antiguidade - a.antiguidade;  
-            });
-
-            if (disponiveis.length > 0) {
-               let escalado = disponiveis[0];
-               poolOficiais = poolOficiais.map(o => 
-                  o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
-                    : o
-               );
-               return escalado.nomeCompleto;
-            }
-            return "SEM ESCALA";
-         };
-
-         schedule[d] = {
-             upiD: getNext('UPI'),
-             upiN: getNext('UPI'),
-             utiD: getNext('UTI'),
-             utiN: getNext('UTI')
-         };
-     }
-
-     setTimeout(() => {
-        setEscalaGerada(schedule);
-        setIsGerando(false);
-     }, 600); 
-  };
-
-  const renderSlot = (nomeBase) => {
-     if (!nomeBase) return "-";
-     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black print:text-red-600' : 'text-slate-800 print:text-black'}>{nomeBase}</span>;
-  };
-
-  return (
-    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
-       
-       <div className="hidden print:block text-center mb-6">
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Escala de Enfermagem - Vermelha</h2>
-          <p className="text-sm font-bold text-gray-600 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
-          <div className="w-full h-px bg-black my-4"></div>
-       </div>
-
-       <div className="print:hidden">
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
-             <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
-             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
-          </div>
-       </div>
-
-       {activeSubTab === 'oficial' ? (
-          <div className="animate-fadeIn print:block">
-             <div className="flex justify-between items-end mb-4 print:hidden">
-                <div>
-                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados extraídos da aba "EscalaVermelha"</p>
-                </div>
-                <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
-                   <Printer size={14}/> PDF
-                </button>
-             </div>
-
-             <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
-                <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
-                   <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
-                      <tr>
-                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Data</th>
-                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
-                         <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
-                         <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
-                         <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
-                         <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100 print:divide-gray-300">
-                      {(appData.escalasVermelhas || []).length > 0 ? (
-                         (appData.escalasVermelhas || []).map((linha, i) => (
-                            <tr key={i} className="hover:bg-slate-50 transition-colors">
-                               <td className="p-3 font-black text-slate-600 print:border print:border-gray-300 print:text-black">{formatDate(getVal(linha, ['data', 'dia']))}</td>
-                               <td className="p-3 font-bold text-slate-400 print:border print:border-gray-300 print:text-black">{getVal(linha, ['semana', 'dia da semana'])}</td>
-                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi diurno', 'upi d'])}</td>
-                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi noturno', 'upi n'])}</td>
-                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['uti diurno', 'uti d'])}</td>
-                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300">{getVal(linha, ['uti noturno', 'uti n'])}</td>
-                            </tr>
-                         ))
-                      ) : (
-                         <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Nenhuma Escala Publicada no Google Sheets</td></tr>
-                      )}
-                   </tbody>
-                </table>
-             </div>
-          </div>
-       ) : (
-          <div className="animate-fadeIn print:block">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
-               <div className="flex gap-2 w-full md:w-auto">
-                  <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
-                  <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
-                     {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
-                  </button>
-                  <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
-                     <Printer size={14}/> PDF
-                  </button>
-               </div>
-             </div>
-
-             <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
-                <div className="mt-2">
-                   <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
-                   <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
-                </div>
-             </div>
-
-             {escalaGerada && (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
-                   <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
-                      <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
-                         <tr>
-                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
-                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
-                            <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
-                            <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
-                            <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
-                            <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
-                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 print:divide-gray-300">
-                         {daysArray.map(d => {
-                            const dt = new Date(ano, mes, d);
-                            const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
-                            const isFeriado = feriadosArray.includes(d);
-                            const isVermelha = isWeekend || isFeriado;
-                            const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
-                            
-                            const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
-                            const assignment = escalaGerada[String(d)];
-
-                            if (!isVermelha) return null;
-
-                            return (
-                               <tr key={d} className={`transition-colors ${bgRow}`}>
-                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
-                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
-                                     {isFeriado ? 'FER' : diaNome}
-                                  </td>
-                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
-                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
-                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
-                                  <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
-                               </tr>
-                            )
-                         })}
-                      </tbody>
-                   </table>
-                </div>
-             )}
-          </div>
-       )}
-    </div>
-  );
-};
-
-
-// =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN, USER E ADMIN) ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
 // =========================================================================
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
@@ -1240,12 +984,26 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
         <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
         
-        <div className="grid grid-cols-5 gap-2">
-          <button onClick={() => setActiveTab('passagem')} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-emerald-50 text-emerald-500 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all"><BookOpen size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Turno</span></button>
-          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
-          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
-          <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-amber-50 text-amber-500 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
-          <button onClick={() => setModals({...modals, licenca: true})} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-pink-50 text-pink-500 rounded-xl group-hover:bg-pink-500 group-hover:text-white transition-all"><Baby size={16}/></div><span className="font-black text-[7px] uppercase text-slate-700 tracking-widest text-center">Licença</span></button>
+        {/* NOVO BOTÃO GIGANTE PARA PASSAGEM DE TURNO NO PAINEL DO USUÁRIO */}
+        <button onClick={() => setActiveTab('passagem')} className="w-full bg-emerald-600 text-white p-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/30 flex items-center justify-between active:scale-95 transition-all group border border-emerald-500 hover:bg-emerald-500">
+           <div className="flex items-center gap-4">
+              <div className="bg-white/20 p-3 rounded-2xl group-hover:scale-110 transition-transform">
+                 <Stethoscope size={24} className="text-white"/>
+              </div>
+              <div className="text-left">
+                 <span className="block text-lg tracking-tighter leading-none mb-1">Passagem de Turno</span>
+                 <span className="block text-[9px] text-emerald-100 opacity-90">Registrar Censo e Intercorrências</span>
+              </div>
+           </div>
+           <ChevronRight size={24} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all"/>
+        </button>
+
+        {/* GRELA ORIGINAL A 4 COLUNAS */}
+        <div className="grid grid-cols-4 gap-2">
+          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
+          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
+          <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-amber-50 text-amber-500 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
+          <button onClick={() => setModals({...modals, licenca: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-pink-50 text-pink-500 rounded-xl group-hover:bg-pink-500 group-hover:text-white transition-all"><Baby size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Licença</span></button>
         </div>
 
         <button onClick={() => setModals({...modals, gantt: true})} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
