@@ -515,6 +515,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         transfers: '', procedures: '', consultations: ''
     });
 
+    const getField = (obj, field) => obj && (obj[field] !== undefined ? obj[field] : obj[field.toLowerCase()]);
+
     const fetchSheetData = async () => {
         if (!API_URL_PASSAGEM || API_URL_PASSAGEM === "") return;
         setLoading(true);
@@ -522,7 +524,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const response = await fetch(API_URL_PASSAGEM);
             const data = await response.json();
             if (data && Array.isArray(data)) {
-                setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => b.timestamp - a.timestamp));
+                setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => getField(b, 'timestamp') - getField(a, 'timestamp')));
             }
         } catch (error) { 
             console.error("Erro ao carregar dados:", error); 
@@ -565,8 +567,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
     const filteredAndGrouped = useMemo(() => {
         const filtered = reports.filter(r => {
-            if (!r || !r.timestamp) return false;
-            const d = new Date(r.timestamp);
+            const ts = getField(r, 'timestamp');
+            if (!r || !ts) return false;
+            const d = new Date(ts);
             const dayMatch = !filterDay || d.getDate() === parseInt(filterDay);
             const monthMatch = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
             const yearMatch = !filterYear || d.getFullYear() === parseInt(filterYear);
@@ -574,7 +577,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         });
         const groups = {};
         filtered.forEach(r => {
-            const ds = new Date(r.timestamp).toLocaleDateString('pt-BR');
+            const ds = new Date(getField(r, 'timestamp')).toLocaleDateString('pt-BR');
             if (!groups[ds]) groups[ds] = [];
             groups[ds].push(r);
         });
@@ -582,7 +585,10 @@ const PassagemTurno = ({ currentUser, onBack }) => {
     }, [reports, filterDay, filterMonth, filterYear]);
 
     const availableYears = useMemo(() => {
-        const years = [...new Set(reports.map(r => r && r.timestamp ? new Date(r.timestamp).getFullYear() : null))].filter(y => y !== null);
+        const years = [...new Set(reports.map(r => {
+           const ts = getField(r, 'timestamp');
+           return ts ? new Date(ts).getFullYear() : null;
+        }))].filter(y => y !== null);
         return years.sort((a,b) => b-a);
     }, [reports]);
 
@@ -609,8 +615,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                 {view === 'dashboard' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
                         {SECTORS_PASS.map(s => {
-                            const latest = reports.find(r => r && r.sectorId === s.id);
-                            const shift = latest ? SHIFTS_PASS.find(sh => sh.id === latest.shift) : null;
+                            const latest = reports.find(r => r && (getField(r, 'selectedSectorId') === s.id || getField(r, 'sectorId') === s.id));
+                            const shiftVal = latest ? getField(latest, 'shift') : null;
+                            const shift = shiftVal ? SHIFTS_PASS.find(sh => sh.id === shiftVal) : null;
                             const IconRender = s.id === 'UPI' ? Stethoscope : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
                             
                             return (
@@ -628,26 +635,26 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     {latest ? (
                                         <div className="space-y-5">
                                             <div className="flex justify-between items-center">
-                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{latest.shift}</span>
-                                                <span className="text-[10px] text-slate-300 italic font-bold">{new Date(latest.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftVal}</span>
+                                                <span className="text-[10px] text-slate-300 italic font-bold">{new Date(getField(latest, 'timestamp')).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
                                             </div>
                                             <div className="grid grid-cols-4 gap-2">
                                                 {s.type === 'ward' ? (
                                                     ['Pac', 'Alt', 'Baix', 'Trn'].map((l, i) => (
                                                         <div key={l} className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">{l}</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest[['patients', 'discharges', 'admissions', 'transfers'][i]] || 0}</p>
+                                                            <p className="text-sm font-black text-slate-800 leading-none">{getField(latest, ['patients', 'discharges', 'admissions', 'transfers'][i]) || 0}</p>
                                                         </div>
                                                     ))
                                                 ) : (
                                                     <div className="col-span-4 bg-slate-50 p-4 rounded-2xl flex justify-between items-center px-6 border border-slate-100/50">
                                                         <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Produção Turno</span>
-                                                        <span className="font-black text-emerald-700 text-lg leading-none">{latest.procedures || latest.consultations || 0}</span>
+                                                        <span className="font-black text-emerald-700 text-lg leading-none">{getField(latest, 'procedures') || getField(latest, 'consultations') || 0}</span>
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="pt-4 border-t border-slate-50">
-                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{latest.nurseName}</span></p>
+                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{getField(latest, 'nurseName')}</span></p>
                                             </div>
                                         </div>
                                     ) : <div className="py-12 text-center text-slate-200 font-black text-[10px] uppercase tracking-[0.3em] border-2 border-dashed border-slate-50 rounded-[2rem]">Sem registro hoje</div>}
@@ -708,11 +715,11 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Intercorrências</label>
-                                <textarea value={formData.intercurrences} onChange={e => setFormData({...formData, intercurrences: e.target.value})} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2rem] h-40 outline-none font-bold text-sm shadow-inner" placeholder="Relate as intercorrências..."></textarea>
+                                <textarea value={formData.intercurrences} onChange={e => setFormData({...formData, intercurrences: e.target.value})} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2rem] h-40 outline-none font-bold text-sm shadow-inner" placeholder="Relate as novidades..."></textarea>
                             </div>
 
                             <button type="submit" disabled={submitting} className={`w-full ${submitting ? 'bg-slate-400 animate-pulse' : 'bg-emerald-700 hover:bg-emerald-800'} text-white font-black py-7 rounded-[2rem] text-xl italic shadow-xl shadow-emerald-900/20`}>
-                                {submitting ? 'PROCESSANDO...' : 'ENVIAR OS DADOS'}
+                                {submitting ? 'PROCESSANDO...' : 'ENVIAR PARA PLANILHA'}
                             </button>
                         </form>
                     </div>
@@ -739,22 +746,41 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     <div className="h-px bg-slate-200 flex-1"></div>
                                 </div>
                                 {filteredAndGrouped[date].map((r, i) => {
-                                    const shift = SHIFTS_PASS.find(s => s.id === r.shift);
+                                    const sId = getField(r, 'selectedSectorId') || getField(r, 'sectorId');
+                                    const shiftId = getField(r, 'shift');
+                                    const shift = SHIFTS_PASS.find(s => s.id === shiftId);
+                                    const isWard = ['UPI', 'UTI'].includes(sId);
+
                                     return (
                                         <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm transition-all hover:shadow-lg">
-                                            <div className="flex justify-between items-start mb-6">
+                                            <div className="flex justify-between items-start mb-4">
                                                 <div className="flex gap-3">
-                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{r.sectorId}</span>
-                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{r.shift}</span>
+                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{sId}</span>
+                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftId}</span>
                                                 </div>
-                                                <span className="text-[10px] text-slate-300 font-bold">{new Date(r.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                <span className="text-[10px] text-slate-300 font-bold">{new Date(getField(r, 'timestamp')).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
                                             </div>
+                                            
+                                            {/* NOVO: CARD COM MÉTRICAS NO HISTÓRICO */}
+                                            <div className="bg-slate-50 p-3 rounded-2xl mb-4 flex gap-4 overflow-x-auto border border-slate-100">
+                                                {isWard ? (
+                                                    <>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{getField(r, 'patients') || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{getField(r, 'discharges') || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{getField(r, 'admissions') || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{getField(r, 'transfers') || 0}</p></div>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{getField(r, 'procedures') || getField(r, 'consultations') || 0}</p></div>
+                                                )}
+                                            </div>
+
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {r.nurseName}</p>
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {r.sgtsNames}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {getField(r, 'nurseName')}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {getField(r, 'sgtsNames')}</p>
                                             </div>
-                                            {r.intercurrences && (
-                                                <div className="bg-slate-50 p-6 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-100/50">"{r.intercurrences}"</div>
+                                            {getField(r, 'intercurrences') && (
+                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{getField(r, 'intercurrences')}"</div>
                                             )}
                                         </div>
                                     );
@@ -775,305 +801,263 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 };
 
 // =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
+// --- MÓDULO GERADOR DA ESCALA VERMELHA ---
 // =========================================================================
+const EscalaManager = ({ appData }) => {
+  const [activeSubTab, setActiveSubTab] = useState('oficial');
+  const [mesStr, setMesStr] = useState("2026-03"); 
+  const [feriados, setFeriados] = useState("");
+  const [escalaGerada, setEscalaGerada] = useState(null);
+  const [isGerando, setIsGerando] = useState(false);
 
-const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
-  const [roleGroup, setRoleGroup] = useState('chefia');
-  const [user, setUser] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  
-  const list = Array.isArray(appData?.officers) ? appData.officers : [];
+  const ano = parseInt(mesStr.split('-')[0]);
+  const mes = parseInt(mesStr.split('-')[1]) - 1;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
 
-  const filtered = roleGroup === 'chefia' 
-    ? list.filter(o => {
-        const r = String(getVal(o, ['role'])).toLowerCase();
-        const n = String(getVal(o, ['nome']));
-        return r === 'admin' || r === 'rt' || n.includes('Cimirro') || n.includes('Zanini') || n.includes('Renata');
-      }) 
-    : list.filter(o => {
-        const r = String(getVal(o, ['role'])).toLowerCase();
-        const n = String(getVal(o, ['nome']));
-        return r !== 'admin' && r !== 'rt' && !n.includes('Cimirro') && !n.includes('Zanini') && !n.includes('Renata');
-      });
+  const feriadosArray = feriados.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 
-  const handleAuth = () => {
-    setLoginError('');
-    const selectedUser = list.find(o => getVal(o, ['nome']) === user);
-    if (selectedUser) {
-       const correctPasswordRaw = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
-       const correctPassword = String(correctPasswordRaw).trim();
-       const inputPassword = String(password).trim();
-       
-       if (inputPassword === correctPassword) {
-           const nome = getVal(selectedUser, ['nome']);
-           let role = getVal(selectedUser, ['role']) || 'user';
-           if (nome.includes('Cimirro') || nome.includes('Zanini') || nome.includes('Renata')) {
-              role = nome.includes('Renata') ? 'rt' : 'admin'; 
-           }
-           onLogin(nome, role);
-       } else {
-           setLoginError('Senha incorreta.');
-       }
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans relative overflow-hidden print:hidden">
-      {isSyncing && <div className="absolute top-6 right-6 flex items-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest bg-blue-900/30 px-4 py-2 rounded-full border border-blue-800/50"><Loader2 size={14} className="animate-spin"/> Conectando ao Banco</div>}
+  const checkIndisponibilidade = (nome, dateObj) => {
+      if (!nome) return null;
+      const n = String(nome).toLowerCase().trim();
       
-      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 relative z-10">
-        <div className="text-center mb-8">
-           <div className="bg-blue-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
-              <Plane size={32} className="text-white transform -rotate-12"/>
-           </div>
-           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">Enfermagem HACO</h1>
-           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
-        </div>
-        
-        {syncError && (
-           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
-              <span>⚠️ Falha na Leitura</span>
-              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
-           </div>
-        )}
+      const checkAfastamento = (lista, tipo) => {
+         for (let item of (lista || [])) {
+             if (String(getVal(item, ['status'])).toLowerCase().includes('rejeitado')) continue;
+             if (String(getVal(item, ['militar', 'nome', 'oficial'])).toLowerCase().includes(n) || n.includes(String(getVal(item, ['militar'])).toLowerCase())) {
+                 const start = parseDate(getVal(item, ['inicio', 'data', 'saida']));
+                 const dias = parseInt(getVal(item, ['dias', 'quantidade'])) || 0;
+                 if (start) {
+                     const end = new Date(start);
+                     end.setDate(end.getDate() + dias - 1);
+                     end.setHours(23, 59, 59);
+                     start.setHours(0, 0, 0);
+                     if (dateObj >= start && dateObj <= end) return tipo;
+                 }
+             }
+         }
+         return null;
+      };
 
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
-           <button onClick={() => {setRoleGroup('chefia'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
-           <button onClick={() => {setRoleGroup('tropa'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
-        </div>
+      return checkAfastamento(appData.ferias, "Férias") || checkAfastamento(appData.licencas, "Licença") || checkAfastamento(appData.atestados, "Atestado");
+  };
 
-        <div className="space-y-4">
-          <div className="relative">
-            <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
-            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
-               {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
-            </select>
-          </div>
+  const gerarEscalaAlgoritmo = () => {
+     setIsGerando(true);
+     let poolOficiais = (appData.officers || []).map(o => {
+        let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
+        let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
+        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
+        let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
 
-          {user && (
-            <div className="relative animate-fadeIn">
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Senha de Acesso</label>
-              <input type="password" value={password} onChange={e => {setPassword(e.target.value); setLoginError('');}} placeholder="Digite sua senha" onKeyDown={e => e.key === 'Enter' && handleAuth()} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
-              {loginError && <p className="text-red-500 text-[10px] font-bold mt-2 ml-1">{loginError}</p>}
-            </div>
-          )}
+        let vazios = 0;
+        if (!rawD1) vazios++;
+        if (!rawD2) vazios++;
+        if (!rawD3) vazios++;
 
-          <button onClick={handleAuth} disabled={!user || !password || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user && password ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Entrar no Sistema</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+        return {
+           nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
+           nomeCurto: getVal(o, ['nome']),
+           servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
+           antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, 
+           vazios: vazios, 
+           d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
+           d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
+           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
+           isGestante: isGestante
+        }
+     });
 
-const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, onToggleAdmin }) => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSaving, setIsSaving] = useState(false);
-  const [modals, setModals] = useState({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false });
-  const [form, setForm] = useState({ dias: '', inicio: '', sub: '', sai: '', entra: '' });
-  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
-  const [fileData, setFileData] = useState(null);
+     let schedule = {};
 
-  const [mesFiltro, setMesFiltro] = useState(() => {
-     const d = new Date();
-     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
+     for (let d of daysArray) {
+         let dt = new Date(ano, mes, d, 12, 0, 0); 
+         let isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+         let isFeriado = feriadosArray.includes(d);
 
-  const handleMudarMes = (direcao) => {
-     let dataBase = new Date();
-     if (mesFiltro) {
-        const [ano, mes] = mesFiltro.split('-');
-        dataBase = new Date(ano, parseInt(mes) - 1, 1);
+         if (!isWeekend && !isFeriado) continue; 
+
+         const getNext = (setor) => {
+            let disponiveis = poolOficiais.filter(o => {
+               if (o.isGestante) return false; 
+               if (!o.servico.includes(setor)) return false;
+               if (checkIndisponibilidade(o.nomeCurto, dt)) return false;
+               if (new Date(o.d1).getDate() === d && new Date(o.d1).getMonth() === mes) return false; 
+               return true;
+            });
+
+            disponiveis.sort((a, b) => {
+               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
+               if (a.d1 !== b.d1) return a.d1 - b.d1; 
+               if (a.d2 !== b.d2) return a.d2 - b.d2; 
+               if (a.d3 !== b.d3) return a.d3 - b.d3; 
+               return b.antiguidade - a.antiguidade;  
+            });
+
+            if (disponiveis.length > 0) {
+               let escalado = disponiveis[0];
+               poolOficiais = poolOficiais.map(o => 
+                  o.nomeCurto === escalado.nomeCurto 
+                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
+                    : o
+               );
+               return escalado.nomeCompleto;
+            }
+            return "SEM ESCALA";
+         };
+
+         schedule[d] = {
+             upiD: getNext('UPI'),
+             upiN: getNext('UPI'),
+             utiD: getNext('UTI'),
+             utiN: getNext('UTI')
+         };
      }
-     dataBase.setMonth(dataBase.getMonth() + direcao);
-     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
+
+     setTimeout(() => {
+        setEscalaGerada(schedule);
+        setIsGerando(false);
+     }, 600); 
   };
 
-  const obterNomeMes = (referencia) => {
-     if (!referencia) return "TODOS OS REGISTOS";
-     const [ano, mes] = referencia.split('-');
-     const d = new Date(ano, parseInt(mes) - 1, 1);
-     return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  const renderSlot = (nomeBase) => {
+     if (!nomeBase) return "-";
+     return <span className={nomeBase === 'SEM ESCALA' ? 'text-red-600 font-black print:text-red-600' : 'text-slate-800 print:text-black'}>{nomeBase}</span>;
   };
-
-  const userSafeName = String(user).toLowerCase().trim();
-
-  const atestadosFiltrados = (appData.atestados || []).filter(a => {
-     const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(a,['inicio', 'data']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
-
-  const permutasFiltradas = (appData.permutas || []).filter(p => {
-     const nomeSolicitante = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
-     const nomeSubstituto = String(getVal(p, ['substituto'])).toLowerCase();
-     if (!nomeSolicitante.includes(userSafeName) && !userSafeName.includes(nomeSolicitante) &&
-         !nomeSubstituto.includes(userSafeName) && !userSafeName.includes(nomeSubstituto)) return false;
-     
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(p,['sai', 'datasai']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(p => ({...p, _tipo: 'Permuta'})).reverse();
-
-  const feriasFiltradas = (appData.ferias || []).filter(f => {
-     const nomeF = String(getVal(f, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeF.includes(userSafeName) && !userSafeName.includes(nomeF)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(f => ({...f, _tipo: 'Férias'})).reverse();
-
-  const licencasFiltradas = (appData.licencas || []).filter(l => {
-     const nomeL = String(getVal(l, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeL.includes(userSafeName) && !userSafeName.includes(nomeL)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(l,['inicio', 'data']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(l => ({...l, _tipo: 'Licença'})).reverse();
-
-  const handleSend = async (action, payload) => {
-    setIsSaving(true);
-    try {
-      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
-      setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); syncData(true); }, 1500);
-    } catch(e) { setIsSaving(false); alert("Erro ao enviar."); }
-  };
-
-  const closeModals = () => { setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); }
-
-  const handleChangePassword = (e) => {
-     e.preventDefault();
-     if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
-     if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
-     const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
-     if(!myOfficerData) return alert("Erro ao localizar perfil.");
-     handleSend('saveOfficer', { ...myOfficerData, senha: passForm.new });
-  };
-
-  if (activeTab === 'passagem') {
-     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col font-sans p-2 md:p-6 pb-0">
-           <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
-        </div>
-     );
-  }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-md text-xl">HA</div>
-          <div><h1 className="font-black text-slate-800 text-sm uppercase tracking-tighter">Ten {user}</h1><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Painel Individual</p></div>
-        </div>
-        <div className="flex items-center gap-2">
-           <WeatherWidgetMini />
-           {isAdmin && (
-              <button onClick={onToggleAdmin} className="bg-blue-50 p-2.5 rounded-xl text-blue-600 font-black flex items-center gap-2 text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all active:scale-90 border border-blue-200">
-                 <Shield size={14}/> Gestão
-              </button>
-           )}
-           <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90"><Key size={16}/></button>
-           <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
-        </div>
-      </header>
-      <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
-        <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
-        
-        {/* NOVO BOTÃO GIGANTE PARA PASSAGEM DE TURNO NO PAINEL DO USUÁRIO */}
-        <button onClick={() => setActiveTab('passagem')} className="w-full bg-emerald-600 text-white p-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/30 flex items-center justify-between active:scale-95 transition-all group border border-emerald-500 hover:bg-emerald-500">
-           <div className="flex items-center gap-4">
-              <div className="bg-white/20 p-3 rounded-2xl group-hover:scale-110 transition-transform">
-                 <Stethoscope size={24} className="text-white"/>
-              </div>
-              <div className="text-left">
-                 <span className="block text-lg tracking-tighter leading-none mb-1">Passagem de Turno</span>
-                 <span className="block text-[9px] text-emerald-100 opacity-90">Registrar Censo e Intercorrências</span>
-              </div>
-           </div>
-           <ChevronRight size={24} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all"/>
-        </button>
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans print:shadow-none print:border-none print:p-0">
+       
+       <div className="hidden print:block text-center mb-6">
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Escala de Enfermagem - Vermelha</h2>
+          <p className="text-sm font-bold text-gray-600 uppercase tracking-widest mt-1">Mês Ref: {mesStr} | Setores: UPI / UTI</p>
+          <div className="w-full h-px bg-black my-4"></div>
+       </div>
 
-        {/* GRELA ORIGINAL A 4 COLUNAS */}
-        <div className="grid grid-cols-4 gap-2">
-          <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
-          <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
-          <button onClick={() => setModals({...modals, ferias: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-amber-50 text-amber-500 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all"><Sun size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Férias</span></button>
-          <button onClick={() => setModals({...modals, licenca: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-pink-50 text-pink-500 rounded-xl group-hover:bg-pink-500 group-hover:text-white transition-all"><Baby size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Licença</span></button>
-        </div>
-
-        <button onClick={() => setModals({...modals, gantt: true})} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
-           <CalendarDays size={16}/> Visualizar Escala de Férias Geral
-        </button>
-
-        <div className="pt-4">
-           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
-                Meus Registros 
-                <button onClick={()=>syncData(true)} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button>
-             </h3>
-             <div className="flex items-center gap-2">
-                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                    <button onClick={() => handleMudarMes(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
-                    <div className="w-28 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
-                    <button onClick={() => handleMudarMes(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
-                 </div>
-                 {mesFiltro && (<button onClick={() => setMesFiltro('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>)}
-             </div>
-           </div>
-
-          <div className="space-y-2">
-            {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas, ...licencasFiltradas].sort((a,b) => {
-                const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
-                const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
-                return dateB - dateA;
-            }).map((item, i) => {
-              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-              let titulo = ""; let icon = null;
-              if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
-              if (item._tipo === 'Permuta') { 
-                  const eSub = String(getVal(item,['substituto'])).toLowerCase().includes(userSafeName);
-                  titulo = eSub ? `Cobriu: ${getVal(item,['solicitante'])}` : `Pediu Troca: ${getVal(item,['substituto'])}`; 
-                  icon = <ArrowRightLeft size={12} className={eSub ? "text-green-500 inline mr-1" : "text-indigo-500 inline mr-1"}/>; 
-              }
-              if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
-              if (item._tipo === 'Licença') { titulo = `Licença: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Baby size={12} className="text-pink-500 inline mr-1"/>; }
-
-              const statusAtual = getVal(item,['status']) || 'Homologado'; 
-              const isRejected = statusAtual.toLowerCase().includes('rejeitado');
-
-              return (
-              <div key={i} className={`bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center ${isRejected ? 'border-red-200' : 'border-slate-100'}`}>
-                <div className="text-xs">
-                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1 flex items-center">{icon} {titulo}</p>
-                  <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
-                    <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
-                    {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
-                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
-                  </div>
-                </div>
-                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest text-right max-w-[100px] leading-tight ${isRejected ? 'bg-red-50 text-red-600' : statusAtual==='Pendente' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{statusAtual}</span>
-              </div>
-            )})}
-            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0 && feriasFiltradas.length === 0 && licencasFiltradas.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
+       <div className="print:hidden">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
+             <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
+             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
           </div>
-        </div>
-      </main>
+       </div>
 
-      {/* MODAIS USER */}
-      {modals.gantt && <Modal title={<><CalendarDays size={18}/> Escala Geral de Férias</>} onClose={closeModals}><GanttViewer feriasData={appData.ferias} /></Modal>}
-      {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
-      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
-      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
-      {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
-      {modals.licenca && <Modal title={<><Baby size={18}/> Solicitar Licença-Maternidade</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveLicenca',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Duração da Licença</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Licença"}</button></form></Modal>}
+       {activeSubTab === 'oficial' ? (
+          <div className="animate-fadeIn print:block">
+             <div className="flex justify-between items-end mb-4 print:hidden">
+                <div>
+                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados extraídos da aba "EscalaVermelha"</p>
+                </div>
+                <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
+                   <Printer size={14}/> PDF
+                </button>
+             </div>
+
+             <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+                <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                   <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
+                      <tr>
+                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Data</th>
+                         <th className="p-3 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                         <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                         <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                         <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                         <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                      {(appData.escalasVermelhas || []).length > 0 ? (
+                         (appData.escalasVermelhas || []).map((linha, i) => (
+                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                               <td className="p-3 font-black text-slate-600 print:border print:border-gray-300 print:text-black">{formatDate(getVal(linha, ['data', 'dia']))}</td>
+                               <td className="p-3 font-bold text-slate-400 print:border print:border-gray-300 print:text-black">{getVal(linha, ['semana', 'dia da semana'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi diurno', 'upi d'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['upi noturno', 'upi n'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter border-r border-slate-100 print:border print:border-gray-300">{getVal(linha, ['uti diurno', 'uti d'])}</td>
+                               <td className="p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300">{getVal(linha, ['uti noturno', 'uti n'])}</td>
+                            </tr>
+                         ))
+                      ) : (
+                         <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-bold uppercase tracking-widest text-[9px]">Nenhuma Escala Publicada no Google Sheets</td></tr>
+                      )}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+       ) : (
+          <div className="animate-fadeIn print:block">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
+               <div className="flex gap-2 w-full md:w-auto">
+                  <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
+                  <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
+                     {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
+                  </button>
+                  <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
+                     <Printer size={14}/> PDF
+                  </button>
+               </div>
+             </div>
+
+             <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
+                <div className="mt-2">
+                   <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
+                   <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
+                </div>
+             </div>
+
+             {escalaGerada && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 print:overflow-visible print:border-none print:w-full">
+                   <table className="w-full text-left text-xs font-sans min-w-[800px] print:min-w-full print:border-collapse">
+                      <thead className="bg-slate-100 text-[9px] text-slate-500 font-black uppercase tracking-widest border-b border-slate-200 print:bg-gray-100 print:text-black">
+                         <tr>
+                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Dia</th>
+                            <th className="p-3 text-center w-16 border-r border-slate-200 print:border print:border-gray-300">Semana</th>
+                            <th className="p-3 border-r border-slate-200 text-blue-800 bg-blue-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Diurno</th>
+                            <th className="p-3 border-r border-slate-200 text-blue-900 bg-blue-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UPI Noturno</th>
+                            <th className="p-3 border-r border-slate-200 text-indigo-800 bg-indigo-50 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Diurno</th>
+                            <th className="p-3 text-indigo-900 bg-indigo-100 print:bg-transparent print:border print:border-gray-300 print:text-black">UTI Noturno</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                         {daysArray.map(d => {
+                            const dt = new Date(ano, mes, d);
+                            const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+                            const isFeriado = feriadosArray.includes(d);
+                            const isVermelha = isWeekend || isFeriado;
+                            const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+                            
+                            const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
+                            const assignment = escalaGerada[String(d)];
+
+                            // Se o modo impressão estiver ativo, esconde dias normais
+                            if (!isVermelha) return null;
+
+                            return (
+                               <tr key={d} className={`transition-colors ${bgRow}`}>
+                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
+                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
+                                     {isFeriado ? 'FER' : diaNome}
+                                  </td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD, d) : '-'}</td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN, d) : '-'}</td>
+                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD, d) : '-'}</td>
+                                  <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN, d) : '-'}</td>
+                               </tr>
+                            )
+                         })}
+                      </tbody>
+                   </table>
+                </div>
+             )}
+          </div>
+       )}
     </div>
   );
 };
+
+// =========================================================================
+// --- PAINEL CHEFIA (ADMIN) ---
+// =========================================================================
 
 const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1498,7 +1482,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                   <div className="bg-white rounded-3xl shadow-sm border border-pink-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
                      <div className="absolute top-0 left-0 w-1 h-full bg-pink-500"></div>
                      <h3 className="font-black text-pink-600 text-lg uppercase tracking-tighter mb-4 flex items-center gap-2"><Baby size={20}/> Licenças Pendentes</h3>
-                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4 text-right">Ações</th></tr></thead>
+                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th>{!isApenasRT && <th className="p-4 text-right">Ações</th>}</tr></thead>
                         <tbody className="divide-y divide-slate-50">
                           {licencasPendentes.map((l, i) => {
                              const anexoUrl = getVal(l, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
@@ -1569,6 +1553,8 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                <EscalaManager appData={appData} />
             </div>
          );
+      
+      // ABA: PASSAGEM DE TURNO NO ADMIN
       case 'passagem':
          return (
              <div className="animate-fadeIn w-full h-full flex flex-col pt-4">
@@ -1584,7 +1570,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
       <aside className={`print:hidden ${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">ENF-HACO</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {/* Menu da Chefia / RT */}
             {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, 
                { id: 'passagem', label: 'Passagem Turno', icon: BookOpen }, 
                { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: isApenasRT ? 0 : (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
@@ -1600,11 +1585,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          </nav>
          <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-3">
             {sidebarOpen && <div className="text-center w-full"><div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center font-black shadow-md bg-slate-800 text-white border border-slate-700 mb-2">{user.substring(0,2).toUpperCase()}</div><p className="font-black text-xs tracking-tight truncate w-full uppercase">{user}</p><p className="text-[8px] text-blue-400 uppercase font-bold tracking-widest">{role}</p></div>}
-            
-            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all">
-               <UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}
-            </button>
-
+            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all"><UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}</button>
             <button onClick={() => setShowPassModal(true)} className="flex items-center justify-center gap-3 text-slate-500 hover:text-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><Key size={16}/> {sidebarOpen && 'Trocar Senha'}</button>
             <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
          </div>
@@ -1619,13 +1600,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                 <button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button>
              </header>
          )}
+         {renderContent()}
          
-         {/* CONTEÚDO PRINCIPAL COM PROTEÇÃO RT */}
-         {(() => {
-            return renderContent();
-         })()}
-
-         {/* MODAIS (Só Lança se não for APENAS RT) */}
+         {/* MODAIS GESTÃO */}
          {showOfficerModal && !isApenasRT && (
            <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
               <form onSubmit={handleSaveOfficer} className="space-y-4">
@@ -1635,7 +1612,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
-                    
                     <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
                       <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
                         {LOCAIS_EXPEDIENTE.map(local => (
@@ -1643,7 +1619,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                         ))}
                       </div>
                     </div>
-
                     <div className="col-span-2 pt-3"><label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
                       <div className="flex gap-3">
                         {LOCAIS_SERVICO.map(serv => (
@@ -1653,7 +1628,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                         ))}
                       </div>
                     </div>
-
                     <div className="col-span-2 pt-3">
                        <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-pink-500 bg-pink-50 p-4 rounded-2xl border border-pink-200 cursor-pointer hover:bg-pink-100 transition-colors">
                          <input type="checkbox" className="w-4 h-4 accent-pink-500" checked={formOfficer.gestante === 'Sim'} onChange={e => setFormOfficer({...formOfficer, gestante: e.target.checked ? 'Sim' : ''})} />
@@ -1665,7 +1639,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
               </form>
            </Modal>
          )}
-
          {showPassModal && (
            <Modal title="Trocar Senha de Acesso" onClose={() => setShowPassModal(false)}>
               <form onSubmit={handleChangePassword} className="space-y-4">
@@ -1676,110 +1649,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
               </form>
            </Modal>
          )}
-
-         {/* Lançamento de Férias Direto (Admin pula homologação) */}
-         {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
-
-         {/* Lançamento de Licença Direto (Admin) */}
-         {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-
-         {/* Lançamento de Atestados e Permutas (Admin) */}
-         {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
-         
-         {/* MODAL: HISTÓRICO DO MILITAR (Dossiê) */}
-         {historyOfficer && (() => {
-            const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
-            
-            const feriasHist = (appData.ferias||[]).filter(f => {
-               const nomeF = String(getVal(f,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeF.includes(nomeAlvo) || nomeAlvo.includes(nomeF);
-            });
-            const licencasHist = (appData.licencas||[]).filter(l => {
-               const nomeL = String(getVal(l,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeL.includes(nomeAlvo) || nomeAlvo.includes(nomeL);
-            });
-            const atestadosHist = (appData.atestados||[]).filter(a => {
-               const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
-               return nomeA.includes(nomeAlvo) || nomeAlvo.includes(nomeA);
-            });
-            const permutasHist = (appData.permutas||[]).filter(p => {
-               const nomeP_solicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
-               const nomeP_substituto = String(getVal(p,['substituto'])).trim().toLowerCase();
-               return nomeP_solicitante.includes(nomeAlvo) || nomeAlvo.includes(nomeP_solicitante) || 
-                      nomeP_substituto.includes(nomeAlvo) || nomeAlvo.includes(nomeP_substituto);
-            });
-
-            return (
-               <Modal title={<><History size={18}/> Dossiê: {getVal(historyOfficer,['patente','posto'])} {getVal(historyOfficer,['nome'])}</>} onClose={() => setHistoryOfficer(null)}>
-                  <div className="space-y-6">
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-pink-500 tracking-widest mb-2 border-b border-pink-100 pb-1 flex items-center gap-1"><Baby size={12}/> Licenças</h4>
-                        <ul className="space-y-2">
-                           {licencasHist.length > 0 ? licencasHist.map((l, i) => {
-                                 const st = getVal(l,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 return (
-                                 <li key={i} className="flex justify-between items-center text-xs bg-pink-50/50 p-2 rounded-lg border border-pink-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(l,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(l,['dias', 'quantidade'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1 flex items-center gap-1"><Sun size={12}/> Férias</h4>
-                        <ul className="space-y-2">
-                           {feriasHist.length > 0 ? feriasHist.map((f, i) => {
-                                 const st = getVal(f,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 return (
-                                 <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias', 'quantidade'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1 flex items-center gap-1"><ShieldAlert size={12}/> Atestados Médicos</h4>
-                        <ul className="space-y-2">
-                           {atestadosHist.length > 0 ? atestadosHist.map((a, i) => {
-                                 const st = getVal(a,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 return (
-                                 <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
-                                    <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1 flex items-center gap-1"><ArrowRightLeft size={12}/> Permutas</h4>
-                        <ul className="space-y-2">
-                           {permutasHist.length > 0 ? permutasHist.map((p, i) => {
-                                 const st = getVal(p,['status']) || 'Homologado';
-                                 const isRej = String(st).toLowerCase().includes('rejeitado');
-                                 const foiSolicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase().includes(nomeAlvo);
-                                 
-                                 return (
-                                 <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
-                                    <div className="flex justify-between items-center">
-                                       <span className="font-bold text-slate-700">
-                                          {foiSolicitante ? `Substituto: ${getVal(p,['substituto'])}` : `Cobriu: ${getVal(p,['solicitante'])}`}
-                                       </span>
-                                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
-                                    </div>
-                                    <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai', 'datasai']))} / E: {formatDate(getVal(p,['entra', 'dataentra']))}</span>
-                                 </li>
-                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
-                        </ul>
-                     </div>
-                  </div>
-               </Modal>
-            )
-         })()}
       </main>
     </div>
   );
