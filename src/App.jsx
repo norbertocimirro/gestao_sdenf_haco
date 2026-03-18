@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer, CheckCircle
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw
 } from 'lucide-react';
 
 // =========================================================================
@@ -965,7 +965,7 @@ const EscalaManager = ({ appData }) => {
        <div className="print:hidden">
           <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
              <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
-             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
+             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Star size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
           </div>
        </div>
 
@@ -973,11 +973,11 @@ const EscalaManager = ({ appData }) => {
           <div className="animate-fadeIn print:block">
              <div className="flex justify-between items-end mb-4 print:hidden">
                 <div>
-                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckCircle className="text-green-500"/> Escala Oficial do Mês</h3>
+                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-tighter flex items-center gap-2"><CheckSquare className="text-green-500"/> Escala Oficial do Mês</h3>
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Dados extraídos da aba "EscalaVermelha"</p>
                 </div>
                 <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
-                   <Printer size={14}/> PDF
+                   <Save size={14}/> PDF
                 </button>
              </div>
 
@@ -1021,7 +1021,7 @@ const EscalaManager = ({ appData }) => {
                      {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
                   </button>
                   <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
-                     <Printer size={14}/> PDF
+                     <Save size={14}/> PDF
                   </button>
                </div>
              </div>
@@ -1083,7 +1083,7 @@ const EscalaManager = ({ appData }) => {
 };
 
 // =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO E LOGIN ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
 // =========================================================================
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
@@ -1509,7 +1509,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
-            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
@@ -1869,6 +1868,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
+         // BLOQUEIO DUPLO: Apenas Cimirro vê esta tela
          if (!isCimirro) return null;
          return (
             <div className="animate-fadeIn">
@@ -1984,7 +1984,210 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
               </form>
            </Modal>
          )}
+
+         {/* Lançamento de Férias Direto (Admin pula homologação) */}
+         {showFeriasModal && !isApenasRT && <Modal title="Lançar Férias Direto (Admin)" onClose={() => setShowFeriasModal(false)}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveFerias',{id:Date.now().toString(),status:'Homologado',militar:formFerias.militar,inicio:formFerias.inicio,dias:formFerias.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormFerias({...formFerias,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Total de Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setFormFerias({...formFerias,dias:e.target.value})}><option value="">Selecione...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias</option></select></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"A Enviar...":"Salvar e Homologar"}</button></form></Modal>}
+
+         {/* Lançamento de Licença Direto (Admin) */}
+         {showLicencaModal && !isApenasRT && <Modal title="Lançar Licença Direto (Admin)" onClose={() => { setShowLicencaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveLicenca',{id:Date.now().toString(),status:'Homologado',militar:formLicenca.militar,inicio:formLicenca.inicio,dias:formLicenca.dias,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormLicenca({...formLicenca,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+
+         {/* Lançamento de Atestados e Permutas (Admin) */}
+         {showAtestadoModal && !isApenasRT && <Modal title="Lançar Atestado Direto (Admin)" onClose={() => { setShowAtestadoModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('saveAtestado',{id:Date.now().toString(),status:'Homologado',militar:formAtestado.militar,inicio:formAtestado.inicio,dias:formAtestado.dias,data:formAtestado.inicio,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Militar</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,militar:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormAtestado({...formAtestado,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         {showPermutaModal && !isApenasRT && <Modal title="Lançar Permuta Direto (Admin)" onClose={() => { setShowPermutaModal(false); setFileData(null); }}><form onSubmit={(e)=>{e.preventDefault(); sendData('savePermuta',{id:Date.now().toString(),status:'Homologado',solicitante:formPermuta.solicitante,substituto:formPermuta.sub,datasai:formPermuta.sai,dataentra:formPermuta.entra,file:fileData});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Solicitante (Sai)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,solicitante:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Substituto (Entra)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setFormPermuta({...formPermuta,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest">{isSaving?"Enviando...":"Gravar e Homologar"}</button></form></Modal>}
+         
+         {/* MODAL: HISTÓRICO DO MILITAR (Dossiê) */}
+         {historyOfficer && (() => {
+            const nomeAlvo = String(getVal(historyOfficer,['nome'])).trim().toLowerCase();
+            
+            const feriasHist = (appData.ferias||[]).filter(f => {
+               const nomeF = String(getVal(f,['militar', 'nome', 'oficial'])).trim().toLowerCase();
+               return nomeF.includes(nomeAlvo) || nomeAlvo.includes(nomeF);
+            });
+            const licencasHist = (appData.licencas||[]).filter(l => {
+               const nomeL = String(getVal(l,['militar', 'nome', 'oficial'])).trim().toLowerCase();
+               return nomeL.includes(nomeAlvo) || nomeAlvo.includes(nomeL);
+            });
+            const atestadosHist = (appData.atestados||[]).filter(a => {
+               const nomeA = String(getVal(a,['militar', 'nome', 'oficial'])).trim().toLowerCase();
+               return nomeA.includes(nomeAlvo) || nomeAlvo.includes(nomeA);
+            });
+            const permutasHist = (appData.permutas||[]).filter(p => {
+               const nomeP_solicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase();
+               const nomeP_substituto = String(getVal(p,['substituto'])).trim().toLowerCase();
+               return nomeP_solicitante.includes(nomeAlvo) || nomeAlvo.includes(nomeP_solicitante) || 
+                      nomeP_substituto.includes(nomeAlvo) || nomeAlvo.includes(nomeP_substituto);
+            });
+
+            return (
+               <Modal title={<><History size={18}/> Dossiê: {getVal(historyOfficer,['patente','posto'])} {getVal(historyOfficer,['nome'])}</>} onClose={() => setHistoryOfficer(null)}>
+                  <div className="space-y-6">
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-pink-500 tracking-widest mb-2 border-b border-pink-100 pb-1 flex items-center gap-1"><Baby size={12}/> Licenças</h4>
+                        <ul className="space-y-2">
+                           {licencasHist.length > 0 ? licencasHist.map((l, i) => {
+                                 const st = getVal(l,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 return (
+                                 <li key={i} className="flex justify-between items-center text-xs bg-pink-50/50 p-2 rounded-lg border border-pink-100/50">
+                                    <span className="font-bold text-slate-700">{formatDate(getVal(l,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(l,['dias', 'quantidade'])}d)</span></span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
+                                 </li>
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 border-b border-amber-100 pb-1 flex items-center gap-1"><Sun size={12}/> Férias</h4>
+                        <ul className="space-y-2">
+                           {feriasHist.length > 0 ? feriasHist.map((f, i) => {
+                                 const st = getVal(f,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 return (
+                                 <li key={i} className="flex justify-between items-center text-xs bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
+                                    <span className="font-bold text-slate-700">{formatDate(getVal(f,['inicio', 'data', 'saida']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(f,['dias', 'quantidade'])}d)</span></span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
+                                 </li>
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 border-b border-red-100 pb-1 flex items-center gap-1"><ShieldAlert size={12}/> Atestados Médicos</h4>
+                        <ul className="space-y-2">
+                           {atestadosHist.length > 0 ? atestadosHist.map((a, i) => {
+                                 const st = getVal(a,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 return (
+                                 <li key={i} className="flex justify-between items-center text-xs bg-red-50/50 p-2 rounded-lg border border-red-100/50">
+                                    <span className="font-bold text-slate-700">{formatDate(getVal(a,['inicio', 'data']))} <span className="text-[9px] text-slate-400 font-mono">({getVal(a,['dias'])}d)</span></span>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
+                                 </li>
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
+                     <div>
+                        <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 border-b border-indigo-100 pb-1 flex items-center gap-1"><ArrowRightLeft size={12}/> Permutas</h4>
+                        <ul className="space-y-2">
+                           {permutasHist.length > 0 ? permutasHist.map((p, i) => {
+                                 const st = getVal(p,['status']) || 'Homologado';
+                                 const isRej = String(st).toLowerCase().includes('rejeitado');
+                                 const foiSolicitante = String(getVal(p,['solicitante', 'nome', 'militar'])).trim().toLowerCase().includes(nomeAlvo);
+                                 
+                                 return (
+                                 <li key={i} className="flex flex-col text-xs bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/50 gap-1">
+                                    <div className="flex justify-between items-center">
+                                       <span className="font-bold text-slate-700">
+                                          {foiSolicitante ? `Substituto: ${getVal(p,['substituto'])}` : `Cobriu: ${getVal(p,['solicitante'])}`}
+                                       </span>
+                                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded max-w-[150px] text-right truncate ${isRej ? 'bg-red-100 text-red-700' : st==='Pendente' ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'}`} title={st}>{st}</span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-500 font-mono">S: {formatDate(getVal(p,['sai', 'datasai']))} / E: {formatDate(getVal(p,['entra', 'dataentra']))}</span>
+                                 </li>
+                              )}) : <li className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nenhum registo</li>}
+                        </ul>
+                     </div>
+                  </div>
+               </Modal>
+            )
+         })()}
       </main>
     </div>
+  );
+};
+
+// =========================================================================
+// --- APP ENTRY COM LOGIN E CACHE SEGURO ---
+// =========================================================================
+
+export default function App() {
+  const [user, setUser] = useState(() => localStorage.getItem('sga_app_user') || null);
+  const [role, setRole] = useState(() => localStorage.getItem('sga_app_role') || null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  
+  const [adminModeActive, setAdminModeActive] = useState(true); 
+  
+  const [appData, setAppData] = useState(() => {
+    try {
+      const cached = localStorage.getItem('sga_app_cache');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return { officers: [], atestados: [], permutas: [], ferias: [], licencas: [], escalasVermelhas: [], upi: {leitosOcupados: 0, acamados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
+  });
+
+  const fetchSafeJSON = async (url) => {
+     try {
+       const res = await fetch(url);
+       const text = await res.text();
+       if (text.trim().startsWith('<')) throw new Error("Acesso negado (HTML). Verifique se o Apps Script foi implantado como 'Qualquer pessoa'.");
+       return JSON.parse(text);
+     } catch (e) {
+       console.warn("Fetch falhou:", e);
+       return null;
+     }
+  };
+
+  const syncData = async (showFeedback = false) => {
+    setIsSyncing(true);
+    setSyncError("");
+    try {
+      const resG = await fetchSafeJSON(`${API_URL_GESTAO}?action=getData`);
+      if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
+
+      const newData = {
+        officers: Array.isArray(resG.officers) ? resG.officers : [],
+        atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
+        permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
+        ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
+        licencas: Array.isArray(resG.licencas) ? resG.licencas : [], 
+        escalasVermelhas: Array.isArray(resG.escalasVermelhas) ? resG.escalasVermelhas : [], 
+        upi: {
+          leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
+          acamados: getVal(resG.upiStats, ['acamados']) || 0, 
+          mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
+          mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
+          dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
+        }
+      };
+      
+      setAppData(newData);
+      localStorage.setItem('sga_app_cache', JSON.stringify(newData));
+      if (showFeedback) alert("Sistema Atualizado!");
+    } catch(e) {
+      setSyncError(e.message);
+      if (showFeedback) alert(e.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => { syncData(); }, []);
+
+  const handleLogin = (u, r) => { 
+    setUser(u); 
+    setRole(r); 
+    setAdminModeActive(true); 
+    localStorage.setItem('sga_app_user', u);
+    localStorage.setItem('sga_app_role', r);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setRole(null);
+    setAdminModeActive(true);
+    localStorage.removeItem('sga_app_user');
+    localStorage.removeItem('sga_app_role');
+  }
+  
+  const isCimirro = String(user).toLowerCase().includes('cimirro');
+
+  return (
+    <ErrorBoundary>
+      {!user ? (
+        <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
+      ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
+        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} isCimirro={isCimirro} />
+      ) : (
+        <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
+      )}
+    </ErrorBoundary>
   );
 }
