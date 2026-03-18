@@ -7,8 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer, CheckCircle,
-  Stethoscope
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer, CheckCircle
 } from 'lucide-react';
 
 // =========================================================================
@@ -524,7 +523,12 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const response = await fetch(API_URL_PASSAGEM);
             const data = await response.json();
             if (data && Array.isArray(data)) {
-                setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => getField(b, 'timestamp') - getField(a, 'timestamp')));
+                // Ordenação ultra-segura à prova de datas inválidas
+                setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
+                    const timeA = new Date(getField(a, 'timestamp')).getTime() || 0;
+                    const timeB = new Date(getField(b, 'timestamp')).getTime() || 0;
+                    return timeB - timeA;
+                }));
             }
         } catch (error) { 
             console.error("Erro ao carregar dados:", error); 
@@ -570,6 +574,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const ts = getField(r, 'timestamp');
             if (!r || !ts) return false;
             const d = new Date(ts);
+            if (isNaN(d.getTime())) return false; // Ignora se data for inválida
             const dayMatch = !filterDay || d.getDate() === parseInt(filterDay);
             const monthMatch = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
             const yearMatch = !filterYear || d.getFullYear() === parseInt(filterYear);
@@ -587,7 +592,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
     const availableYears = useMemo(() => {
         const years = [...new Set(reports.map(r => {
            const ts = getField(r, 'timestamp');
-           return ts ? new Date(ts).getFullYear() : null;
+           if (!ts) return null;
+           const d = new Date(ts);
+           return isNaN(d.getTime()) ? null : d.getFullYear();
         }))].filter(y => y !== null);
         return years.sort((a,b) => b-a);
     }, [reports]);
@@ -618,8 +625,11 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                             const latest = reports.find(r => r && (getField(r, 'selectedSectorId') === s.id || getField(r, 'sectorId') === s.id));
                             const shiftVal = latest ? getField(latest, 'shift') : null;
                             const shift = shiftVal ? SHIFTS_PASS.find(sh => sh.id === shiftVal) : null;
-                            const IconRender = s.id === 'UPI' ? Stethoscope : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
-                            
+                            // Alterado de Stethoscope para Bed para evitar bugs em versões antigas do Lucide
+                            const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
+                            const ts = latest ? getField(latest, 'timestamp') : null;
+                            const timeString = ts ? new Date(ts).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--';
+
                             return (
                                 <div key={s.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-7 transition-all hover:shadow-xl hover:border-emerald-100">
                                     <div className="flex justify-between items-start mb-6">
@@ -635,8 +645,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     {latest ? (
                                         <div className="space-y-5">
                                             <div className="flex justify-between items-center">
-                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftVal}</span>
-                                                <span className="text-[10px] text-slate-300 italic font-bold">{new Date(getField(latest, 'timestamp')).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftVal || 'TURNO'}</span>
+                                                <span className="text-[10px] text-slate-300 italic font-bold">{timeString}</span>
                                             </div>
                                             <div className="grid grid-cols-4 gap-2">
                                                 {s.type === 'ward' ? (
@@ -696,13 +706,13 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                         ['patients', 'discharges', 'admissions', 'transfers'].map((f, i) => (
                                             <div key={f} className="space-y-2 text-center">
                                                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{['Total Pacientes', 'Altas', 'Baixas', 'Transf. Ext'][i]}</label>
-                                                <input type="number" required value={formData[f]} onChange={e => setFormData({...formData, [f]: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
+                                                <input type="number" required value={formData[f] || ''} onChange={e => setFormData({...formData, [f]: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
                                             </div>
                                         ))
                                     ) : (
                                         <div className="col-span-4 space-y-2">
                                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Total de Atendimentos / Procedimentos</label>
-                                            <input type="number" required value={formData.procedures || formData.consultations} onChange={e => setFormData({...formData, procedures: e.target.value, consultations: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-2xl outline-none" />
+                                            <input type="number" required value={formData.procedures || formData.consultations || ''} onChange={e => setFormData({...formData, procedures: e.target.value, consultations: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-2xl outline-none" />
                                         </div>
                                     )}
                                 </div>
@@ -750,18 +760,20 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     const shiftId = getField(r, 'shift');
                                     const shift = SHIFTS_PASS.find(s => s.id === shiftId);
                                     const isWard = ['UPI', 'UTI'].includes(sId);
+                                    const ts = getField(r, 'timestamp');
+                                    const timeStr = ts ? new Date(ts).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--';
 
                                     return (
                                         <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm transition-all hover:shadow-lg">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex gap-3">
-                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{sId}</span>
-                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftId}</span>
+                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{sId || 'GERAL'}</span>
+                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftId || 'TURNO'}</span>
                                                 </div>
-                                                <span className="text-[10px] text-slate-300 font-bold">{new Date(getField(r, 'timestamp')).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                <span className="text-[10px] text-slate-300 font-bold">{timeStr}</span>
                                             </div>
                                             
-                                            {/* NOVO: CARD COM MÉTRICAS NO HISTÓRICO */}
+                                            {/* CARD COM MÉTRICAS NO HISTÓRICO */}
                                             <div className="bg-slate-50 p-3 rounded-2xl mb-4 flex gap-4 overflow-x-auto border border-slate-100">
                                                 {isWard ? (
                                                     <>
@@ -776,8 +788,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {getField(r, 'nurseName')}</p>
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {getField(r, 'sgtsNames')}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {getField(r, 'nurseName') || '-'}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {getField(r, 'sgtsNames') || '-'}</p>
                                             </div>
                                             {getField(r, 'intercurrences') && (
                                                 <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{getField(r, 'intercurrences')}"</div>
@@ -1029,7 +1041,6 @@ const EscalaManager = ({ appData }) => {
                             const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
                             const assignment = escalaGerada[String(d)];
 
-                            // Se o modo impressão estiver ativo, esconde dias normais
                             if (!isVermelha) return null;
 
                             return (
@@ -1056,7 +1067,7 @@ const EscalaManager = ({ appData }) => {
 };
 
 // =========================================================================
-// --- PAINEL CHEFIA (ADMIN) ---
+// --- PAINEL PRINCIPAL CHEFIA (ADMIN E RT) ---
 // =========================================================================
 
 const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
@@ -1482,7 +1493,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
                   <div className="bg-white rounded-3xl shadow-sm border border-pink-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
                      <div className="absolute top-0 left-0 w-1 h-full bg-pink-500"></div>
                      <h3 className="font-black text-pink-600 text-lg uppercase tracking-tighter mb-4 flex items-center gap-2"><Baby size={20}/> Licenças Pendentes</h3>
-                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th>{!isApenasRT && <th className="p-4 text-right">Ações</th>}</tr></thead>
+                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4 text-right">Ações</th></tr></thead>
                         <tbody className="divide-y divide-slate-50">
                           {licencasPendentes.map((l, i) => {
                              const anexoUrl = getVal(l, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
@@ -1547,6 +1558,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
             </div>
          );
       case 'escala':
+         // BLOQUEIO DUPLO: Apenas Cimirro vê esta tela
          if (!isCimirro) return null;
          return (
             <div className="animate-fadeIn">
@@ -1570,6 +1582,7 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
       <aside className={`print:hidden ${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
          <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">ENF-HACO</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
+            {/* Menu da Chefia / RT */}
             {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, 
                { id: 'passagem', label: 'Passagem Turno', icon: BookOpen }, 
                { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: isApenasRT ? 0 : (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
@@ -1651,104 +1664,5 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
          )}
       </main>
     </div>
-  );
-};
-
-// =========================================================================
-// --- APP ENTRY COM LOGIN E CACHE SEGURO ---
-// =========================================================================
-
-export default function App() {
-  const [user, setUser] = useState(() => localStorage.getItem('sga_app_user') || null);
-  const [role, setRole] = useState(() => localStorage.getItem('sga_app_role') || null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState("");
-  
-  const [adminModeActive, setAdminModeActive] = useState(true); 
-  
-  const [appData, setAppData] = useState(() => {
-    try {
-      const cached = localStorage.getItem('sga_app_cache');
-      if (cached) return JSON.parse(cached);
-    } catch(e) {}
-    return { officers: [], atestados: [], permutas: [], ferias: [], licencas: [], escalasVermelhas: [], upi: {leitosOcupados: 0, acamados: 0, mediaBraden: 0, mediaFugulin: 0, dataReferencia: '--'} };
-  });
-
-  const fetchSafeJSON = async (url) => {
-     try {
-       const res = await fetch(url);
-       const text = await res.text();
-       if (text.trim().startsWith('<')) throw new Error("Acesso negado (HTML). Verifique se o Apps Script foi implantado como 'Qualquer pessoa'.");
-       return JSON.parse(text);
-     } catch (e) {
-       console.warn("Fetch falhou:", e);
-       return null;
-     }
-  };
-
-  const syncData = async (showFeedback = false) => {
-    setIsSyncing(true);
-    setSyncError("");
-    try {
-      const resG = await fetchSafeJSON(`${API_URL_GESTAO}?action=getData`);
-      if (!resG) throw new Error("Falha na sincronização. A Google não enviou os dados.");
-
-      const newData = {
-        officers: Array.isArray(resG.officers) ? resG.officers : [],
-        atestados: Array.isArray(resG.atestados) ? resG.atestados : [],
-        permutas: Array.isArray(resG.permutas) ? resG.permutas : [],
-        ferias: Array.isArray(resG.ferias) ? resG.ferias : [], 
-        licencas: Array.isArray(resG.licencas) ? resG.licencas : [], 
-        escalasVermelhas: Array.isArray(resG.escalasVermelhas) ? resG.escalasVermelhas : [], 
-        upi: {
-          leitosOcupados: getVal(resG.upiStats, ['ocupacao', 'ocupados', 'leito']) || 0,
-          acamados: getVal(resG.upiStats, ['acamados']) || 0, 
-          mediaBraden: safeParseFloat(getVal(resG.upiStats, ['braden'])),
-          mediaFugulin: safeParseFloat(getVal(resG.upiStats, ['fugulin', 'fugulim'])),
-          dataReferencia: getVal(resG.upiStats, ['data', 'ref']) || new Date().toLocaleDateString('pt-BR')
-        }
-      };
-      
-      setAppData(newData);
-      localStorage.setItem('sga_app_cache', JSON.stringify(newData));
-      if (showFeedback) alert("Sistema Atualizado!");
-    } catch(e) {
-      setSyncError(e.message);
-      if (showFeedback) alert(e.message);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  useEffect(() => { syncData(); }, []);
-
-  const handleLogin = (u, r) => { 
-    setUser(u); 
-    setRole(r); 
-    setAdminModeActive(true); 
-    localStorage.setItem('sga_app_user', u);
-    localStorage.setItem('sga_app_role', r);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setRole(null);
-    setAdminModeActive(true);
-    localStorage.removeItem('sga_app_user');
-    localStorage.removeItem('sga_app_role');
-  }
-  
-  const isCimirro = String(user).toLowerCase().includes('cimirro');
-
-  return (
-    <ErrorBoundary>
-      {!user ? (
-        <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />
-      ) : (role === 'admin' || role === 'rt') && adminModeActive ? (
-        <MainSystem user={user} role={role} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAdminModeActive(false)} isCimirro={isCimirro} />
-      ) : (
-        <UserDashboard user={user} onLogout={handleLogout} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={role === 'admin' || role === 'rt'} onToggleAdmin={() => setAdminModeActive(true)} />
-      )}
-    </ErrorBoundary>
   );
 }
