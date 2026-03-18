@@ -712,7 +712,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                             </div>
 
                             <button type="submit" disabled={submitting} className={`w-full ${submitting ? 'bg-slate-400 animate-pulse' : 'bg-emerald-700 hover:bg-emerald-800'} text-white font-black py-7 rounded-[2rem] text-xl italic shadow-xl shadow-emerald-900/20`}>
-                                {submitting ? 'PROCESSANDO...' : 'ENVIAR PARA PLANILHA'}
+                                {submitting ? 'PROCESSANDO...' : 'ENVIAR OS DADOS'}
                             </button>
                         </form>
                     </div>
