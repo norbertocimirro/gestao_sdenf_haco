@@ -7,7 +7,7 @@ import {
   Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Wand2, Printer, CheckCircle
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Printer, CheckCircle
 } from 'lucide-react';
 
 // =========================================================================
@@ -35,7 +35,6 @@ const SHIFTS_PASS = [
 
 const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// Estilo seguro para os Selects da Passagem de Turno
 const selectStyle = {
     appearance: 'none',
     backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
@@ -45,8 +44,22 @@ const selectStyle = {
 };
 
 // =========================================================================
-// --- HELPERS E FUNÇÕES DE LEITURA (SISTEMA GESTÃO) ---
+// --- HELPERS E FUNÇÕES DE LEITURA (SISTEMA BLINDADO) ---
 // =========================================================================
+
+// Leitor Ultra-Seguro para a Passagem de Turno (Ignora falhas no Google Sheets)
+const safeGet = (obj, searchTerms) => {
+    if (!obj || typeof obj !== 'object') return "";
+    const keys = Object.keys(obj);
+    for (let term of searchTerms) {
+        const t = String(term).trim().toLowerCase();
+        const foundKey = keys.find(k => String(k).trim().toLowerCase() === t);
+        if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && obj[foundKey] !== "") {
+            return obj[foundKey];
+        }
+    }
+    return "";
+};
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -505,7 +518,7 @@ const GanttViewer = ({ feriasData }) => {
 };
 
 // =========================================================================
-// --- MÓDULO PASSAGEM DE TURNO (COM LEITURA DIRETA ROBUSTA) ---
+// --- MÓDULO PASSAGEM DE TURNO (TOTALMENTE BLINDADO) ---
 // =========================================================================
 
 const PassagemTurno = ({ currentUser, onBack }) => {
@@ -530,10 +543,9 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const response = await fetch(API_URL_PASSAGEM);
             const data = await response.json();
             if (data && Array.isArray(data)) {
-                // Ordenação cronológica direta (igual ao seu HTML original)
                 setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
-                    const timeA = new Date(a.timestamp || 0).getTime();
-                    const timeB = new Date(b.timestamp || 0).getTime();
+                    const timeA = new Date(safeGet(a, ['timestamp', 'carimbo de data/hora', 'data']) || 0).getTime() || 0;
+                    const timeB = new Date(safeGet(b, ['timestamp', 'carimbo de data/hora', 'data']) || 0).getTime() || 0;
                     return timeB - timeA;
                 }));
             }
@@ -551,9 +563,23 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         
         const sector = SECTORS_PASS.find(s => s.id === formData.selectedSectorId);
         
-        // Payload enviado com as chaves exatas do seu HTML
+        // Envia múltiplos nomes de chaves para evitar que a formatação do Google Sheets quebre o sistema
         const payload = { 
             ...formData, 
+            sectorId: formData.selectedSectorId,
+            setor: formData.selectedSectorId,
+            turno: formData.shift,
+            enfermeiro: formData.nurseName,
+            sargentos: formData.sgtsNames,
+            pacientes: formData.patients,
+            altas: formData.discharges,
+            baixas: formData.admissions,
+            transferencias: formData.transfers,
+            atendimentos: formData.consultations || formData.procedures,
+            procedimentos: formData.consultations || formData.procedures,
+            intercorrencias: formData.intercurrences,
+            obs: formData.intercurrences,
+            data: new Date().toISOString(),
             sectorName: sector?.name || '', 
             sectorType: sector?.type || '', 
             timestamp: Date.now(), 
@@ -561,11 +587,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         };
 
         try {
-            await fetch(API_URL_PASSAGEM, { 
-                method: 'POST', 
-                mode: 'no-cors', 
-                body: JSON.stringify(payload) 
-            });
+            await fetch(API_URL_PASSAGEM, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
             setTimeout(() => { 
                 fetchSheetData(); 
                 setView('dashboard'); 
@@ -578,23 +600,37 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         }
     };
 
-    // Agrupamento para o Histórico usando a data original do backend
     const filteredAndGrouped = useMemo(() => {
         const filtered = reports.filter(r => {
-            const ts = r.timestamp;
-            if (!r || !ts) return false;
-            const d = new Date(ts);
+            const tsRaw = safeGet(r, ['timestamp', 'carimbo de data/hora', 'data']);
+            if (!r || !tsRaw) return false;
+            
+            let d;
+            if (typeof tsRaw === 'number' || (typeof tsRaw === 'string' && /^\d+$/.test(tsRaw))) {
+                d = new Date(Number(tsRaw));
+            } else {
+                d = new Date(tsRaw);
+            }
+
             if (isNaN(d.getTime())) return false;
             const dayMatch = !filterDay || d.getDate() === parseInt(filterDay);
             const monthMatch = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
             const yearMatch = !filterYear || d.getFullYear() === parseInt(filterYear);
             return dayMatch && monthMatch && yearMatch;
         });
+
         const groups = {};
         filtered.forEach(r => {
-            const ts = r.timestamp;
-            if (!ts) return;
-            const d = new Date(ts);
+            const tsRaw = safeGet(r, ['timestamp', 'carimbo de data/hora', 'data']);
+            if (!tsRaw) return;
+            
+            let d;
+            if (typeof tsRaw === 'number' || (typeof tsRaw === 'string' && /^\d+$/.test(tsRaw))) {
+                d = new Date(Number(tsRaw));
+            } else {
+                d = new Date(tsRaw);
+            }
+            
             if (isNaN(d.getTime())) return;
             const ds = d.toLocaleDateString('pt-BR');
             if (!groups[ds]) groups[ds] = [];
@@ -605,9 +641,14 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
     const availableYears = useMemo(() => {
         const years = [...new Set(reports.map(r => {
-           const ts = r.timestamp;
-           if (!ts) return null;
-           const d = new Date(ts);
+           const tsRaw = safeGet(r, ['timestamp', 'carimbo de data/hora', 'data']);
+           if (!tsRaw) return null;
+           let d;
+           if (typeof tsRaw === 'number' || (typeof tsRaw === 'string' && /^\d+$/.test(tsRaw))) {
+                d = new Date(Number(tsRaw));
+           } else {
+                d = new Date(tsRaw);
+           }
            return isNaN(d.getTime()) ? null : d.getFullYear();
         }))].filter(y => y !== null);
         return years.sort((a,b) => b-a);
@@ -633,16 +674,27 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                 {view === 'dashboard' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
                         {SECTORS_PASS.map(s => {
-                            // LEITURA DIRETA DO GOOGLE SCRIPT (Como no HTML original)
-                            const latest = reports.find(r => r && (r.sectorId === s.id || r.selectedSectorId === s.id));
-                            const shiftVal = latest ? latest.shift : null;
-                            const shift = shiftVal ? SHIFTS_PASS.find(sh => sh.id === shiftVal) : null;
+                            const latest = reports.find(r => {
+                                const rId = safeGet(r, ['selectedSectorId', 'sectorid', 'setor', 'unidade', 'local']);
+                                return r && String(rId).trim().toUpperCase() === s.id.toUpperCase();
+                            });
+                            
+                            const shiftVal = latest ? safeGet(latest, ['shift', 'turno', 'periodo']) : null;
+                            const shift = shiftVal ? SHIFTS_PASS.find(sh => String(sh.id).toLowerCase() === String(shiftVal).toLowerCase()) : null;
                             const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
                             
                             let timeString = '--:--';
-                            if (latest && latest.timestamp) {
-                               const dTemp = new Date(latest.timestamp);
-                               if (!isNaN(dTemp.getTime())) timeString = dTemp.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+                            if (latest) {
+                               const tsRaw = safeGet(latest, ['timestamp', 'carimbo de data/hora', 'data']);
+                               if (tsRaw) {
+                                   let dTemp;
+                                   if (typeof tsRaw === 'number' || (typeof tsRaw === 'string' && /^\d+$/.test(tsRaw))) {
+                                        dTemp = new Date(Number(tsRaw));
+                                   } else {
+                                        dTemp = new Date(tsRaw);
+                                   }
+                                   if (!isNaN(dTemp.getTime())) timeString = dTemp.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+                               }
                             }
 
                             return (
@@ -666,23 +718,23 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                             <div className="grid grid-cols-4 gap-2">
                                                 {s.type === 'ward' ? (
                                                     ['Pac', 'Alt', 'Baix', 'Trn'].map((l, i) => {
-                                                        const keySearch = ['patients', 'discharges', 'admissions', 'transfers'][i];
+                                                        const keySearch = [['patients', 'pacientes', 'censo'], ['discharges', 'altas'], ['admissions', 'baixas'], ['transfers', 'transferencias']][i];
                                                         return (
                                                             <div key={l} className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                                 <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">{l}</p>
-                                                                <p className="text-sm font-black text-slate-800 leading-none">{latest[keySearch] || 0}</p>
+                                                                <p className="text-sm font-black text-slate-800 leading-none">{safeGet(latest, keySearch) || 0}</p>
                                                             </div>
                                                         )
                                                     })
                                                 ) : (
                                                     <div className="col-span-4 bg-slate-50 p-4 rounded-2xl flex justify-between items-center px-6 border border-slate-100/50">
                                                         <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Produção Turno</span>
-                                                        <span className="font-black text-emerald-700 text-lg leading-none">{latest.procedures || latest.consultations || 0}</span>
+                                                        <span className="font-black text-emerald-700 text-lg leading-none">{safeGet(latest, ['procedures', 'procedimentos', 'consultations', 'atendimentos']) || 0}</span>
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="pt-4 border-t border-slate-50">
-                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{latest.nurseName}</span></p>
+                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{safeGet(latest, ['nurseName', 'enfermeiro', 'authorName', 'responsavel'])}</span></p>
                                             </div>
                                         </div>
                                     ) : <div className="py-12 text-center text-slate-200 font-black text-[10px] uppercase tracking-[0.3em] border-2 border-dashed border-slate-50 rounded-[2rem]">Sem registro hoje</div>}
@@ -774,15 +826,20 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     <div className="h-px bg-slate-200 flex-1"></div>
                                 </div>
                                 {filteredAndGrouped[date].map((r, i) => {
-                                    // LEITURA DIRETA DO GOOGLE SCRIPT NO HISTÓRICO
-                                    const sId = r.sectorId || r.selectedSectorId || 'GERAL';
-                                    const shiftId = r.shift || 'TURNO';
-                                    const shift = SHIFTS_PASS.find(s => s.id === shiftId);
-                                    const isWard = ['UPI', 'UTI'].includes(String(sId).toUpperCase());
+                                    const sId = safeGet(r, ['selectedSectorId', 'sectorid', 'setor', 'unidade']);
+                                    const shiftId = safeGet(r, ['shift', 'turno', 'periodo']);
+                                    const shift = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(shiftId).toLowerCase());
+                                    const isWard = ['UPI', 'UTI'].includes(String(sId).trim().toUpperCase());
                                     
                                     let timeStr = '--:--';
-                                    if (r.timestamp) {
-                                       const dTemp = new Date(r.timestamp);
+                                    const tsRaw = safeGet(r, ['timestamp', 'carimbo de data/hora', 'data']);
+                                    if (tsRaw) {
+                                       let dTemp;
+                                       if (typeof tsRaw === 'number' || (typeof tsRaw === 'string' && /^\d+$/.test(tsRaw))) {
+                                            dTemp = new Date(Number(tsRaw));
+                                       } else {
+                                            dTemp = new Date(tsRaw);
+                                       }
                                        if (!isNaN(dTemp.getTime())) timeStr = dTemp.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
                                     }
 
@@ -790,8 +847,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                         <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm transition-all hover:shadow-lg">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex gap-3">
-                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{sId}</span>
-                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftId}</span>
+                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{sId || 'GERAL'}</span>
+                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shift?.color || 'bg-slate-100 text-slate-500'}`}>{shiftId || 'TURNO'}</span>
                                                 </div>
                                                 <span className="text-[10px] text-slate-300 font-bold">{timeStr}</span>
                                             </div>
@@ -800,22 +857,22 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                             <div className="bg-slate-50 p-3 rounded-2xl mb-4 flex gap-4 overflow-x-auto border border-slate-100">
                                                 {isWard ? (
                                                     <>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{r.patients || 0}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{r.discharges || 0}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{r.admissions || 0}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{r.transfers || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{safeGet(r, ['patients', 'pacientes', 'censo']) || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{safeGet(r, ['discharges', 'altas']) || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{safeGet(r, ['admissions', 'baixas', 'internacoes']) || 0}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{safeGet(r, ['transfers', 'transferencias', 'transf']) || 0}</p></div>
                                                     </>
                                                 ) : (
-                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{r.procedures || r.consultations || 0}</p></div>
+                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{safeGet(r, ['procedures', 'procedimentos', 'consultations', 'atendimentos']) || 0}</p></div>
                                                 )}
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {r.nurseName || '-'}</p>
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {r.sgtsNames || '-'}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {safeGet(r, ['nurseName', 'enfermeiro', 'responsavel', 'authorName']) || '-'}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {safeGet(r, ['sgtsNames', 'sargentos', 'equipe']) || '-'}</p>
                                             </div>
-                                            {r.intercurrences && (
-                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{r.intercurrences}"</div>
+                                            {safeGet(r, ['intercurrences', 'intercorrencias', 'obs']) && (
+                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{safeGet(r, ['intercurrences', 'intercorrencias', 'obs'])}"</div>
                                             )}
                                         </div>
                                     );
@@ -1090,7 +1147,7 @@ const EscalaManager = ({ appData }) => {
 };
 
 // =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO E LOGIN ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
 // =========================================================================
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
