@@ -536,29 +536,28 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         transfers: '', procedures: '', consultations: ''
     });
 
-    const fetchSheetData = async () => {
+const fetchSheetData = async () => {
         if (!API_URL_PASSAGEM || API_URL_PASSAGEM === "") return;
         setLoading(true);
         try {
             const response = await fetch(API_URL_PASSAGEM);
             const data = await response.json();
             if (data && Array.isArray(data)) {
-// Dentro de fetchSheetData, melhore a ordenação: [cite: 123]
-setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
-    const parseTS = (obj) => {
-        const val = safeGet(obj, ['timestamp', 'carimbo de data/hora', 'data']);
-        if (!val) return 0;
-        // Tenta converter se for número (timestamp puro) ou string [cite: 139, 142]
-        const d = (typeof val === 'number' || /^\d+$/.test(val)) ? new Date(Number(val)) : new Date(val);
-        return isNaN(d.getTime()) ? 0 : d.getTime();
-    };
-    return parseTS(b) - parseTS(a); // Mais novo primeiro [cite: 123]
-}));
+                // Ordenação ultra-segura pelo timestamp para a Dashboard
+                setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
+                    const parseTS = (obj) => {
+                        const val = safeGet(obj, ['timestamp', 'carimbo de data/hora', 'data']);
+                        if (!val) return 0;
+                        const d = (typeof val === 'number' || /^\d+$/.test(val)) ? new Date(Number(val)) : new Date(val);
+                        return isNaN(d.getTime()) ? 0 : d.getTime();
+                    };
+                    return parseTS(b) - parseTS(a);
+                }));
+            } // <--- Esta chave fecha o if e evita o erro de build
         } catch (error) { 
             console.error("Erro ao carregar dados:", error); 
         } finally { setLoading(false); }
     };
-
     useEffect(() => { fetchSheetData(); }, []);
 
     const handleSubmit = async (e) => {
