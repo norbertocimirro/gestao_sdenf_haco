@@ -19,9 +19,47 @@ const API_URL_PASSAGEM = "https://script.google.com/macros/s/AKfycbyHw6wCJGdI1I1
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
 
+const SECTORS_PASS = [
+    { id: 'UPI', name: 'UPI (Clínica/Cirúrgica)', type: 'ward' },
+    { id: 'UTI', name: 'UTI (Intensiva)', type: 'ward' },
+    { id: 'UCC', name: 'UCC (Centro Cirúrgico)', type: 'surgery' },
+    { id: 'UPA', name: 'UPA (Pronto Atendimento)', type: 'er' },
+    { id: 'CAIS', name: 'CAIS (ESF)', type: 'er' }
+];
+
+const SHIFTS_PASS = [
+    { id: 'Manhã', color: 'bg-amber-100 text-amber-700' },
+    { id: 'Tarde', color: 'bg-orange-100 text-orange-700' },
+    { id: 'Noite', color: 'bg-indigo-100 text-indigo-700' }
+];
+
+const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+const selectStyle = {
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 1rem center',
+    backgroundSize: '1em'
+};
+
 // =========================================================================
-// --- HELPERS E FUNÇÕES DA GESTÃO PRINCIPAL ---
+// --- HELPERS E FUNÇÕES DE LEITURA (SISTEMA BLINDADO) ---
 // =========================================================================
+
+// Tradutor Universal para Passagem de Turno - Lê qualquer cabeçalho da Planilha!
+const safeGet = (obj, searchTerms) => {
+    if (!obj || typeof obj !== 'object') return "";
+    const keys = Object.keys(obj);
+    for (let term of searchTerms) {
+        const cleanTerm = String(term).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const foundKey = keys.find(k => String(k).toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTerm);
+        if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && obj[foundKey] !== "") {
+            return obj[foundKey];
+        }
+    }
+    return "";
+};
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -91,6 +129,15 @@ const calculateDetailedTime = (dateInput) => {
   const validD = Math.max(0, isNaN(d) ? 0 : d);
 
   return { y: validY, m: validM, d: validD, display: `${validY}a ${validM}m ${validD}d` };
+};
+
+const safeParseFloat = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const strVal = String(value);
+  const match = strVal.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match) return 0;
+  const num = parseFloat(match[0].replace(',', '.'));
+  return isNaN(num) ? 0 : num;
 };
 
 const getBradenClass = (score) => {
@@ -182,7 +229,7 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
 };
 
 // =========================================================================
-// --- COMPONENTES VISUAIS GERAIS (MODAIS, WIDGETS) ---
+// --- COMPONENTES VISUAIS GERAIS ---
 // =========================================================================
 
 class ErrorBoundary extends React.Component {
@@ -470,144 +517,181 @@ const GanttViewer = ({ feriasData }) => {
   );
 };
 
-
 // =========================================================================
-// --- MÓDULO: PASSAGEM DE TURNO (TOTALMENTE REESCRITO) ---
+// --- NOVO MÓDULO PASSAGEM DE TURNO (TOTALMENTE RECONSTRUÍDO) ---
 // =========================================================================
 
 const PassagemTurno = ({ currentUser, onBack }) => {
-    const [view, setView] = useState('dashboard');
+    const [view, setView] = useState('dashboard'); 
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-
-    // Filtros Histórico
     const [filterDay, setFilterDay] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
     const [filterYear, setFilterYear] = useState('');
 
-    // Formulário
-    const [form, setForm] = useState({
-        setor: 'UPI',
-        turno: 'Manhã',
-        enfermeiro: currentUser || '',
-        sargentos: '',
-        obs: '',
-        pacientes: '',
-        altas: '',
-        baixas: '',
-        transferencias: '',
-        atendimentos: ''
+    const [formData, setFormData] = useState({
+        sectorId: '', shift: 'Manhã', nurseName: currentUser || '', sgtsNames: '',
+        intercurrences: '', patients: '', discharges: '', admissions: '',
+        transfers: '', procedures: ''
     });
 
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch(API_URL_PASSAGEM);
-            const json = await res.json();
-            
-            // NORMALIZAÇÃO ABSOLUTA: Puxa o dado venha ele como vier da planilha
-            const formatted = json.map(r => {
-                const getSafe = (...keys) => {
-                    for (let k of keys) {
-                        const lowK = k.toLowerCase();
-                        const match = Object.keys(r).find(key => key.toLowerCase() === lowK);
-                        if (match && r[match] !== undefined && r[match] !== null && r[match] !== "") {
-                            return r[match];
-                        }
-                    }
-                    return "";
-                };
+    // O Segredo: Normalizador de Dados Independente
+    const normalizeReport = (rawItem) => {
+        if (!rawItem) return null;
+        
+        const findVal = (...keysToFind) => {
+            for (let k of keysToFind) {
+                const lowerK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const matchedKey = Object.keys(rawItem).find(key => key.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerK);
+                if (matchedKey && rawItem[matchedKey] !== undefined && rawItem[matchedKey] !== "") return rawItem[matchedKey];
+            }
+            return null;
+        };
 
-                const tsRaw = getSafe('timestamp', 'carimbo de data/hora', 'data', 'hora');
-                let finalTs = Date.now();
-                if (tsRaw) {
-                    if (typeof tsRaw === 'number') finalTs = tsRaw;
-                    else if (typeof tsRaw === 'string' && /^\d+$/.test(tsRaw)) finalTs = Number(tsRaw);
-                    else finalTs = new Date(tsRaw).getTime() || Date.now();
-                }
-
-                return {
-                    setor: String(getSafe('sectorid', 'selectedsectorid', 'setor', 'unidade') || 'GERAL').toUpperCase(),
-                    turno: getSafe('shift', 'turno', 'periodo') || 'Manhã',
-                    enfermeiro: getSafe('nursename', 'enfermeiro', 'responsavel') || 'Não Informado',
-                    sargentos: getSafe('sgtsnames', 'sargentos', 'equipe') || '-',
-                    pacientes: Number(getSafe('patients', 'pacientes', 'censo') || 0),
-                    altas: Number(getSafe('discharges', 'altas') || 0),
-                    baixas: Number(getSafe('admissions', 'baixas', 'internacoes') || 0),
-                    transferencias: Number(getSafe('transfers', 'transferencias', 'transf') || 0),
-                    atendimentos: Number(getSafe('procedures', 'consultations', 'atendimentos', 'procedimentos') || 0),
-                    obs: getSafe('intercurrences', 'obs', 'observacoes', 'intercorrencias') || '',
-                    timestamp: finalTs
-                };
-            }).filter(item => item.setor !== 'GERAL'); // Remove lixo
-
-            // Ordem cronológica (Mais recente 1º)
-            formatted.sort((a, b) => b.timestamp - a.timestamp);
-            setReports(formatted);
-        } catch (e) {
-            console.error("Erro na leitura da passagem:", e);
+        const sectorId = findVal('selectedSectorId', 'sectorId', 'setor', 'unidade', 'local');
+        const shift = findVal('shift', 'turno', 'periodo');
+        const nurseName = findVal('nurseName', 'enfermeiro', 'responsavel', 'authorName');
+        const sgtsNames = findVal('sgtsNames', 'sargentos', 'equipe');
+        const intercurrences = findVal('intercurrences', 'intercorrencias', 'obs', 'observacoes');
+        
+        const patients = findVal('patients', 'pacientes', 'censo') || 0;
+        const discharges = findVal('discharges', 'altas') || 0;
+        const admissions = findVal('admissions', 'baixas', 'internacoes') || 0;
+        const transfers = findVal('transfers', 'transferencias', 'transf') || 0;
+        const procedures = findVal('procedures', 'procedimentos', 'consultations', 'atendimentos') || 0;
+        
+        const timestampRaw = findVal('timestamp', 'carimbo de data/hora', 'data', 'hora');
+        let timestamp = Date.now();
+        if (timestampRaw) {
+            if (typeof timestampRaw === 'number') timestamp = timestampRaw;
+            else if (typeof timestampRaw === 'string' && /^\d+$/.test(timestampRaw)) timestamp = Number(timestampRaw);
+            else timestamp = new Date(timestampRaw).getTime();
         }
-        setLoading(false);
+
+        return {
+            sectorId: String(sectorId || '').toUpperCase(),
+            shift: shift || 'Turno',
+            nurseName: nurseName || 'Não Identificado',
+            sgtsNames: sgtsNames || '-',
+            intercurrences: intercurrences || '',
+            patients,
+            discharges,
+            admissions,
+            transfers,
+            procedures,
+            timestamp,
+            original: rawItem
+        };
     };
 
-    useEffect(() => { loadData(); }, []);
+    const fetchSheetData = async () => {
+        if (!API_URL_PASSAGEM || API_URL_PASSAGEM === "") return;
+        setLoading(true);
+        try {
+            const response = await fetch(API_URL_PASSAGEM);
+            const data = await response.json();
+            if (data && Array.isArray(data)) {
+                // Aplicar o nosso super-normalizador a todos os itens vindos da planilha
+                const normalizedData = data.map(normalizeReport).filter(r => r !== null && r.sectorId && !isNaN(r.timestamp));
+                // Ordenar do mais recente para o mais antigo
+                normalizedData.sort((a, b) => b.timestamp - a.timestamp);
+                setReports(normalizedData);
+            }
+        } catch (error) { 
+            console.error("Erro ao carregar dados:", error); 
+        } finally { setLoading(false); }
+    };
+
+    useEffect(() => { fetchSheetData(); }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!API_URL_PASSAGEM) return alert("URL da planilha não configurada.");
         setSubmitting(true);
         
-        // Payload triplo: garante que a planilha absorve os dados, independentemente dos cabeçalhos que tenha lá configurado.
-        const payload = {
-            sectorId: form.setor, selectedSectorId: form.setor, setor: form.setor,
-            shift: form.turno, turno: form.turno,
-            nurseName: form.enfermeiro, enfermeiro: form.enfermeiro,
-            sgtsNames: form.sargentos, sargentos: form.sargentos,
-            patients: form.pacientes || 0, pacientes: form.pacientes || 0,
-            discharges: form.altas || 0, altas: form.altas || 0,
-            admissions: form.baixas || 0, baixas: form.baixas || 0,
-            transfers: form.transferencias || 0, transferencias: form.transferencias || 0,
-            procedures: form.atendimentos || 0, atendimentos: form.atendimentos || 0,
-            intercurrences: form.obs, obs: form.obs, intercorrencias: form.obs,
-            timestamp: Date.now(), data: new Date().toISOString()
+        const sector = SECTORS_PASS.find(s => s.id === formData.sectorId);
+        
+        // Payload Duplo para garantir salvamento no Sheets seja qual for a coluna criada lá
+        const payload = { 
+            sectorId: formData.sectorId,
+            selectedSectorId: formData.sectorId,
+            setor: formData.sectorId,
+            
+            shift: formData.shift,
+            turno: formData.shift,
+
+            nurseName: formData.nurseName,
+            enfermeiro: formData.nurseName,
+            authorName: currentUser || 'Desconhecido',
+
+            sgtsNames: formData.sgtsNames,
+            sargentos: formData.sgtsNames,
+
+            intercurrences: formData.intercurrences,
+            intercorrencias: formData.intercurrences,
+            obs: formData.intercurrences,
+
+            patients: formData.patients || 0,
+            pacientes: formData.patients || 0,
+            censo: formData.patients || 0,
+
+            discharges: formData.discharges || 0,
+            altas: formData.discharges || 0,
+
+            admissions: formData.admissions || 0,
+            baixas: formData.admissions || 0,
+
+            transfers: formData.transfers || 0,
+            transferencias: formData.transfers || 0,
+
+            procedures: formData.procedures || 0,
+            atendimentos: formData.procedures || 0,
+            consultations: formData.procedures || 0,
+
+            timestamp: Date.now(),
+            data: new Date().toISOString(),
+            
+            sectorName: sector?.name || '', 
+            sectorType: sector?.type || ''
         };
 
         try {
             await fetch(API_URL_PASSAGEM, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-            setTimeout(() => {
-                loadData();
-                setView('dashboard');
+            setTimeout(() => { 
+                fetchSheetData(); 
+                setView('dashboard'); 
                 setSubmitting(false);
-                setForm(prev => ({...prev, obs: '', pacientes: '', altas: '', baixas: '', transferencias: '', atendimentos: '', sargentos: ''}));
+                setFormData(prev => ({...prev, intercurrences: '', patients: '', discharges: '', admissions: '', transfers: '', procedures: '', sgtsNames: ''}));
             }, 1500);
-        } catch (e) {
+        } catch (error) { 
             setSubmitting(false);
-            alert("Erro ao gravar.");
+            alert("Erro ao salvar dados.");
         }
     };
 
-    // Agrupador do Histórico
-    const historyGroups = useMemo(() => {
+    const filteredAndGrouped = useMemo(() => {
         const filtered = reports.filter(r => {
             const d = new Date(r.timestamp);
-            const matchD = !filterDay || d.getDate() === parseInt(filterDay);
-            const matchM = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
-            const matchY = !filterYear || d.getFullYear() === parseInt(filterYear);
-            return matchD && matchM && matchY;
+            const dayMatch = !filterDay || d.getDate() === parseInt(filterDay);
+            const monthMatch = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
+            const yearMatch = !filterYear || d.getFullYear() === parseInt(filterYear);
+            return dayMatch && monthMatch && yearMatch;
         });
 
         const groups = {};
         filtered.forEach(r => {
-            const dateStr = new Date(r.timestamp).toLocaleDateString('pt-BR');
-            if (!groups[dateStr]) groups[dateStr] = [];
-            groups[dateStr].push(r);
+            const d = new Date(r.timestamp);
+            const ds = d.toLocaleDateString('pt-BR');
+            if (!groups[ds]) groups[ds] = [];
+            groups[ds].push(r);
         });
         return groups;
     }, [reports, filterDay, filterMonth, filterYear]);
 
     const availableYears = useMemo(() => {
-        const y = [...new Set(reports.map(r => new Date(r.timestamp).getFullYear()))];
-        return y.sort((a, b) => b - a);
+        const years = [...new Set(reports.map(r => new Date(r.timestamp).getFullYear()))];
+        return years.sort((a,b) => b-a);
     }, [reports]);
 
     return (
@@ -622,18 +706,17 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={loadData} className={`p-2.5 bg-slate-800 rounded-xl transition-all ${loading ? 'animate-spin opacity-50' : 'active:scale-90'}`}><RefreshCw size={18}/></button>
+                    <button onClick={fetchSheetData} className={`p-2.5 bg-slate-800 rounded-xl transition-all ${loading ? 'animate-spin opacity-50' : 'active:scale-90'}`}><RefreshCw size={18}/></button>
                 </div>
             </header>
 
             <main className="flex-1 overflow-y-auto p-4 lg:p-8 pb-32">
-                
-                {/* --- DASHBOARD --- */}
                 {view === 'dashboard' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
                         {SECTORS_PASS.map(s => {
-                            const latest = reports.find(r => r.setor === s.id);
-                            const shiftInfo = latest ? SHIFTS_PASS.find(sh => sh.id.toLowerCase() === latest.turno.toLowerCase()) : null;
+                            // A leitura agora é exata e baseada no nosso objeto normalizado
+                            const latest = reports.find(r => r.sectorId === s.id.toUpperCase());
+                            const shiftInfo = latest ? SHIFTS_PASS.find(sh => String(sh.id).toLowerCase() === String(latest.shift).toLowerCase()) : null;
                             const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
                             const timeString = latest ? new Date(latest.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--';
                             const isWard = ['UPI', 'UTI'].includes(s.id);
@@ -648,13 +731,13 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{s.name}</p>
                                             </div>
                                         </div>
-                                        <button onClick={() => { setForm({...form, setor: s.id}); setView('form'); }} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg active:scale-90"><Plus size={22}/></button>
+                                        <button onClick={() => { setFormData({...formData, sectorId: s.id}); setView('form'); }} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg active:scale-90"><Plus size={22}/></button>
                                     </div>
                                     
                                     {latest ? (
                                         <div className="space-y-5">
                                             <div className="flex justify-between items-center">
-                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shiftInfo ? shiftInfo.color : 'bg-slate-100 text-slate-500'}`}>{latest.turno}</span>
+                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shiftInfo ? shiftInfo.color : 'bg-slate-100 text-slate-500'}`}>{latest.shift}</span>
                                                 <span className="text-[10px] text-slate-300 italic font-bold">{timeString}</span>
                                             </div>
                                             
@@ -663,31 +746,31 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                                     <>
                                                         <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Pac</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.pacientes}</p>
+                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.patients}</p>
                                                         </div>
                                                         <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Alt</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.altas}</p>
+                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.discharges}</p>
                                                         </div>
                                                         <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Baix</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.baixas}</p>
+                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.admissions}</p>
                                                         </div>
                                                         <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Trn</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.transferencias}</p>
+                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.transfers}</p>
                                                         </div>
                                                     </>
                                                 ) : (
                                                     <div className="col-span-4 bg-slate-50 p-4 rounded-2xl flex justify-between items-center px-6 border border-slate-100/50">
                                                         <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Produção Turno</span>
-                                                        <span className="font-black text-emerald-700 text-lg leading-none">{latest.atendimentos}</span>
+                                                        <span className="font-black text-emerald-700 text-lg leading-none">{latest.procedures}</span>
                                                     </div>
                                                 )}
                                             </div>
                                             
                                             <div className="pt-4 border-t border-slate-50">
-                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{latest.enfermeiro}</span></p>
+                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{latest.nurseName}</span></p>
                                             </div>
                                         </div>
                                     ) : (
@@ -700,12 +783,14 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                 )}
 
                 {/* --- FORMULÁRIO --- */}
-                {view === 'form' && (
+                {view === 'form' && (() => {
+                    const currentSector = SECTORS_PASS.find(s => s.id === formData.sectorId);
+                    return (
                     <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-2xl animate-fadeIn border border-slate-100">
                         <div className="flex justify-between items-center mb-10">
                             <button onClick={() => setView('dashboard')} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-200"><RefreshCw size={20} className="rotate-180"/></button>
                             <div className="text-right">
-                                <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">{form.setor}</h2>
+                                <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">{formData.sectorId}</h2>
                                 <p className="text-[10px] text-emerald-500 font-black uppercase">Passagem de Turno</p>
                             </div>
                         </div>
@@ -715,42 +800,42 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Qual o Turno?</label>
                                     <div className="flex gap-3 h-14">
                                         {SHIFTS_PASS.map(s => (
-                                            <button key={s.id} type="button" onClick={() => setForm({...form, turno: s.id})} className={`flex-1 rounded-2xl border-2 font-black text-[11px] uppercase tracking-widest transition-all ${form.turno === s.id ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-300'}`}>{s.id}</button>
+                                            <button key={s.id} type="button" onClick={() => setFormData({...formData, shift: s.id})} className={`flex-1 rounded-2xl border-2 font-black text-[11px] uppercase tracking-widest transition-all ${formData.shift === s.id ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-300'}`}>{s.id}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Enfermeiro de Plantão</label>
-                                    <input type="text" required value={form.enfermeiro} onChange={e => setForm({...form, enfermeiro: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-4 focus:ring-emerald-50" />
+                                    <input type="text" required value={formData.nurseName} onChange={e => setFormData({...formData, nurseName: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-4 focus:ring-emerald-50" />
                                 </div>
                             </div>
                             
                             <div className="bg-slate-950 p-8 rounded-[2.5rem] text-white shadow-2xl">
                                 <h3 className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-8 border-l-4 border-emerald-600 pl-4">Censo e Movimentação</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                    {['UPI', 'UTI'].includes(form.setor) ? (
+                                    {currentSector?.type === 'ward' ? (
                                         <>
                                             <div className="space-y-2 text-center">
                                                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Total Pacientes</label>
-                                                <input type="number" required value={form.pacientes} onChange={e => setForm({...form, pacientes: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
+                                                <input type="number" required value={formData.patients} onChange={e => setFormData({...formData, patients: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
                                             </div>
                                             <div className="space-y-2 text-center">
                                                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Altas</label>
-                                                <input type="number" required value={form.altas} onChange={e => setForm({...form, altas: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
+                                                <input type="number" required value={formData.discharges} onChange={e => setFormData({...formData, discharges: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
                                             </div>
                                             <div className="space-y-2 text-center">
                                                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Baixas</label>
-                                                <input type="number" required value={form.baixas} onChange={e => setForm({...form, baixas: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
+                                                <input type="number" required value={formData.admissions} onChange={e => setFormData({...formData, admissions: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
                                             </div>
                                             <div className="space-y-2 text-center">
                                                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Transf. Ext</label>
-                                                <input type="number" required value={form.transferencias} onChange={e => setForm({...form, transferencias: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
+                                                <input type="number" required value={formData.transfers} onChange={e => setFormData({...formData, transfers: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
                                             </div>
                                         </>
                                     ) : (
                                         <div className="col-span-4 space-y-2">
                                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Total de Atendimentos / Procedimentos</label>
-                                            <input type="number" required value={form.atendimentos} onChange={e => setForm({...form, atendimentos: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-2xl outline-none" />
+                                            <input type="number" required value={formData.procedures} onChange={e => setFormData({...formData, procedures: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-2xl outline-none" />
                                         </div>
                                     )}
                                 </div>
@@ -758,12 +843,12 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Nomes dos Sargentos Escalados</label>
-                                <input type="text" required value={form.sargentos} onChange={e => setForm({...form, sargentos: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Sgt Silva, Sgt Santos..." />
+                                <input type="text" required value={formData.sgtsNames} onChange={e => setFormData({...formData, sgtsNames: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Sgt Silva, Sgt Santos..." />
                             </div>
 
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Intercorrências</label>
-                                <textarea value={form.obs} onChange={e => setForm({...form, obs: e.target.value})} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2rem] h-40 outline-none font-bold text-sm shadow-inner" placeholder="Relate as novidades..."></textarea>
+                                <textarea value={formData.intercurrences} onChange={e => setFormData({...formData, intercurrences: e.target.value})} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2rem] h-40 outline-none font-bold text-sm shadow-inner" placeholder="Relate as novidades..."></textarea>
                             </div>
 
                             <button type="submit" disabled={submitting} className={`w-full ${submitting ? 'bg-slate-400 animate-pulse' : 'bg-emerald-700 hover:bg-emerald-800'} text-white font-black py-7 rounded-[2rem] text-xl italic shadow-xl shadow-emerald-900/20`}>
@@ -771,20 +856,20 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                             </button>
                         </form>
                     </div>
-                )}
+                )})}
 
                 {/* --- HISTÓRICO --- */}
                 {view === 'history' && (
                     <div className="space-y-8 animate-fadeIn">
                         <div className="bg-white p-6 rounded-[2.5rem] grid grid-cols-3 gap-3 shadow-sm border border-slate-200">
-                            <select style={{...selectStyle}} value={filterDay} onChange={e => setFilterDay(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Dia</option>{Array.from({length:31}, (_,i)=><option key={i+1}>{i+1}</option>)}</select>
-                            <select style={{...selectStyle}} value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Mês</option>{MONTHS_PASS.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}</select>
-                            <select style={{...selectStyle}} value={filterYear} onChange={e => setFilterYear(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Ano</option>{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select>
+                            <select style={selectStyle} value={filterDay} onChange={e => setFilterDay(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Dia</option>{Array.from({length:31}, (_,i)=><option key={i+1}>{i+1}</option>)}</select>
+                            <select style={selectStyle} value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Mês</option>{MONTHS_PASS.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}</select>
+                            <select style={selectStyle} value={filterYear} onChange={e => setFilterYear(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Ano</option>{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select>
                         </div>
                         
-                        {Object.keys(historyGroups).length === 0 ? (
+                        {Object.keys(filteredAndGrouped).length === 0 ? (
                             <div className="text-center py-24 text-slate-400 font-black uppercase text-[10px] tracking-[0.4em]">Nenhum registro encontrado</div>
-                        ) : Object.keys(historyGroups).map(dateStr => (
+                        ) : Object.keys(filteredAndGrouped).map(dateStr => (
                             <div key={dateStr} className="space-y-6">
                                 <div className="flex items-center gap-4 px-2">
                                     <div className="h-px bg-slate-200 flex-1"></div>
@@ -794,17 +879,17 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     </div>
                                     <div className="h-px bg-slate-200 flex-1"></div>
                                 </div>
-                                {historyGroups[dateStr].map((r, i) => {
-                                    const shiftInfo = SHIFTS_PASS.find(s => s.id.toLowerCase() === r.turno.toLowerCase());
-                                    const isWard = ['UPI', 'UTI'].includes(r.setor);
+                                {filteredAndGrouped[dateStr].map((r, i) => {
+                                    const shiftInfo = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(r.shift).toLowerCase());
+                                    const isWard = ['UPI', 'UTI'].includes(r.sectorId);
                                     const timeStr = new Date(r.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
 
                                     return (
                                         <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm transition-all hover:shadow-lg">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex gap-3">
-                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{r.setor}</span>
-                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shiftInfo ? shiftInfo.color : 'bg-slate-100 text-slate-500'}`}>{r.turno}</span>
+                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{r.sectorId}</span>
+                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shiftInfo ? shiftInfo.color : 'bg-slate-100 text-slate-500'}`}>{r.shift}</span>
                                                 </div>
                                                 <span className="text-[10px] text-slate-300 font-bold">{timeStr}</span>
                                             </div>
@@ -812,22 +897,22 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                             <div className="bg-slate-50 p-3 rounded-2xl mb-4 flex gap-4 overflow-x-auto border border-slate-100">
                                                 {isWard ? (
                                                     <>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{r.pacientes}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{r.altas}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{r.baixas}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{r.transferencias}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{r.patients}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{r.discharges}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{r.admissions}</p></div>
+                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{r.transfers}</p></div>
                                                     </>
                                                 ) : (
-                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{r.atendimentos}</p></div>
+                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{r.procedures}</p></div>
                                                 )}
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {r.enfermeiro}</p>
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {r.sargentos}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {r.nurseName}</p>
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {r.sgtsNames}</p>
                                             </div>
-                                            {r.obs && (
-                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{r.obs}"</div>
+                                            {r.intercurrences && (
+                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{r.intercurrences}"</div>
                                             )}
                                         </div>
                                     );
@@ -840,7 +925,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
             <nav className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 p-5 flex justify-around items-center rounded-t-[3.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.05)] z-30 shrink-0">
                 <button onClick={() => setView('dashboard')} className={`transition-all ${view === 'dashboard' ? 'text-emerald-700 scale-125' : 'text-slate-300'}`}><Activity size={26}/></button>
-                <button onClick={() => { setForm({...form, setor: 'UPI'}); setView('form'); }} className="bg-emerald-700 text-white p-4 rounded-[2rem] -mt-16 shadow-2xl shadow-emerald-500/50 border-[6px] border-white active:scale-90"><Plus size={32}/></button>
+                <button onClick={() => { setFormData({...formData, sectorId: 'UPI'}); setView('form'); }} className="bg-emerald-700 text-white p-4 rounded-[2rem] -mt-16 shadow-2xl shadow-emerald-500/50 border-[6px] border-white active:scale-90"><Plus size={32}/></button>
                 <button onClick={() => setView('history')} className={`transition-all ${view === 'history' ? 'text-emerald-700 scale-125' : 'text-slate-300'}`}><History size={26}/></button>
             </nav>
         </div>
@@ -1100,7 +1185,6 @@ const EscalaManager = ({ appData }) => {
     </div>
   );
 };
-
 
 // =========================================================================
 // --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
@@ -1995,3 +2079,4 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
     </div>
   );
 }
+// FIM DO FICHEIRO - CERTIFIQUE-SE DE COPIAR ATÉ AQUI
