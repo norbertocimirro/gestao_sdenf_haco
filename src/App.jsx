@@ -2039,3 +2039,66 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
     </div>
   );
 }
+// =========================================================================
+// --- COMPONENTE RAIZ (O QUE ESTAVA FALTANDO) ---
+// =========================================================================
+
+const App = () => {
+  const [auth, setAuth] = useState({ loggedIn: false, user: null, role: null });
+  const [appData, setAppData] = useState({ officers: [], atestados: [], permutas: [], ferias: [], licencas: [], escalasVermelhas: [], upi: { leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0 } });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
+  const [isAdminView, setIsAdminView] = useState(false);
+
+  const syncData = async (showLoader = false) => {
+    if (showLoader) setIsSyncing(true);
+    try {
+      const res = await fetch(API_URL_GESTAO);
+      const data = await res.json();
+      setAppData(data);
+      setSyncError(false);
+    } catch (e) {
+      setSyncError(true);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => { syncData(true); }, []);
+
+  const handleLogin = (user, role) => {
+    setAuth({ loggedIn: true, user, role });
+    if (role === 'admin' || role === 'rt') setIsAdminView(true);
+  };
+
+  const handleLogout = () => {
+    setAuth({ loggedIn: false, user: null, role: null });
+    setIsAdminView(false);
+  };
+
+  if (!auth.loggedIn) {
+    return <LoginScreen onLogin={handleLogin} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData(true)} />;
+  }
+
+  return (
+    <ErrorBoundary>
+      {isAdminView ? (
+        <MainSystem 
+          user={auth.user} role={auth.role} onLogout={handleLogout} 
+          appData={appData} syncData={syncData} isSyncing={isSyncing} 
+          onToggleAdmin={() => setIsAdminView(false)} 
+          isCimirro={auth.user.includes('Cimirro')}
+        />
+      ) : (
+        <UserDashboard 
+          user={auth.user} onLogout={handleLogout} 
+          appData={appData} syncData={syncData} isSyncing={isSyncing} 
+          isAdmin={auth.role === 'admin' || auth.role === 'rt'}
+          onToggleAdmin={() => setIsAdminView(true)}
+        />
+      )}
+    </ErrorBoundary>
+  );
+};
+
+export default App; // ESTA É A LINHA QUE O VERCEL/VITE EXIGE
