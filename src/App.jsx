@@ -832,11 +832,13 @@ const fetchSheetData = async () => {
                                 {filteredAndGrouped[date].map((r, i) => {
                                     const sId = safeGet(r, ['selectedSectorId', 'sectorid', 'setor', 'unidade']);
                                     const shiftId = safeGet(r, ['shift', 'turno', 'periodo']);
-                                    const shift = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(shiftId).toLowerCase());
-                                    const sectorConfig = SECTORS_PASS.find(s => s.id.toUpperCase() === String(sId).trim().toUpperCase()); [cite: 4]
-                                    const isWard = sectorConfig?.type === 'ward'; // Agora identifica pelo tipo (ward, er, surgery)
-                                    
-                                    let timeStr = '--:--';
+const shift = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(shiftId).toLowerCase());
+
+// Identifica o tipo de setor baseado na configuração global
+const sectorConfig = SECTORS_PASS.find(s => s.id.toUpperCase() === String(sId).trim().toUpperCase());
+const isWard = sectorConfig?.type === 'ward'; 
+
+let timeStr = '--:--';
                                     const tsRaw = safeGet(r, ['timestamp', 'carimbo de data/hora', 'data']);
                                     if (tsRaw) {
                                        let dTemp;
