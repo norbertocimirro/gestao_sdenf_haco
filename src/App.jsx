@@ -543,12 +543,17 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const response = await fetch(API_URL_PASSAGEM);
             const data = await response.json();
             if (data && Array.isArray(data)) {
-                setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
-                    const timeA = new Date(safeGet(a, ['timestamp', 'carimbo de data/hora', 'data']) || 0).getTime() || 0;
-                    const timeB = new Date(safeGet(b, ['timestamp', 'carimbo de data/hora', 'data']) || 0).getTime() || 0;
-                    return timeB - timeA;
-                }));
-            }
+// Dentro de fetchSheetData, melhore a ordenação: [cite: 123]
+setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => {
+    const parseTS = (obj) => {
+        const val = safeGet(obj, ['timestamp', 'carimbo de data/hora', 'data']);
+        if (!val) return 0;
+        // Tenta converter se for número (timestamp puro) ou string [cite: 139, 142]
+        const d = (typeof val === 'number' || /^\d+$/.test(val)) ? new Date(Number(val)) : new Date(val);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+    return parseTS(b) - parseTS(a); // Mais novo primeiro [cite: 123]
+}));
         } catch (error) { 
             console.error("Erro ao carregar dados:", error); 
         } finally { setLoading(false); }
@@ -829,7 +834,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     const sId = safeGet(r, ['selectedSectorId', 'sectorid', 'setor', 'unidade']);
                                     const shiftId = safeGet(r, ['shift', 'turno', 'periodo']);
                                     const shift = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(shiftId).toLowerCase());
-                                    const isWard = ['UPI', 'UTI'].includes(String(sId).trim().toUpperCase());
+                                    const sectorConfig = SECTORS_PASS.find(s => s.id.toUpperCase() === String(sId).trim().toUpperCase()); [cite: 4]
+                                    const isWard = sectorConfig?.type === 'ward'; // Agora identifica pelo tipo (ward, er, surgery)
                                     
                                     let timeStr = '--:--';
                                     const tsRaw = safeGet(r, ['timestamp', 'carimbo de data/hora', 'data']);
