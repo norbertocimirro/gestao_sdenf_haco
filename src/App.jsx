@@ -804,7 +804,7 @@ setReports(data.filter(item => item && typeof item === 'object').sort((a, b) => 
                             </div>
 
                             <button type="submit" disabled={submitting} className={`w-full ${submitting ? 'bg-slate-400 animate-pulse' : 'bg-emerald-700 hover:bg-emerald-800'} text-white font-black py-7 rounded-[2rem] text-xl italic shadow-xl shadow-emerald-900/20`}>
-                                {submitting ? 'PROCESSANDO...' : 'ENVIAR PARA PLANILHA'}
+                                {submitting ? 'PROCESSANDO...' : 'Gravar Dados'}
                             </button>
                         </form>
                     </div>
@@ -1226,7 +1226,7 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
           <div className="relative">
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
             <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
+               <option value="">{isSyncing && list.length === 0 ? "Verificando Banco de Dados..." : "Escolha o seu nome..."}</option>
                {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
                {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
             </select>
