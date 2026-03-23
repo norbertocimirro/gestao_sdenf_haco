@@ -2,38 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, Users, Activity, AlertCircle, 
   Menu, LogOut, ShieldAlert, ArrowRightLeft, 
-  Cake, BookOpen, Plus, Trash2, Edit3, 
-  UserPlus, RefreshCw, X as CloseIcon, Loader2,
-  Paperclip, TrendingDown, Plane, CheckSquare, Square,
+  Star, Cake, BookOpen, Plus, Trash2, Edit3, 
+  UserPlus, RefreshCw, Send, X as CloseIcon, Save, Loader2,
+  Paperclip, Thermometer, TrendingDown, Plane, CheckSquare, Square,
   ChevronUp, ChevronDown, ChevronsUpDown, CalendarClock, PieChart,
   ChevronLeft, ChevronRight, Key, Lock, Sun, CalendarDays, History, UserCircle, Shield,
-  Bed, Baby, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Printer, CheckCircle
+  Bed, Baby, MapPin, Cloud, CloudRain, Droplets, Wind, Calendar, RefreshCcw, Printer, CheckCircle
 } from 'lucide-react';
 
 // =========================================================================
 // --- CONFIGURAÇÕES GLOBAIS DE CONEXÃO E DADOS ---
 // =========================================================================
 const API_URL_GESTAO = "https://script.google.com/macros/s/AKfycbyrPu0E3wCU4_rNEEium7GGvG9k9FtzFswLiTy9iwZgeL345WiTyu7CUToZaCy2cxk/exec"; 
-const API_URL_PASSAGEM = "https://script.google.com/macros/s/AKfycbyHw6wCJGdI1I1NX7kIwqdyW3BLRcIwBVX28HsimrdElZ2EOY82c4p3Kt73XY0n1vsbww/exec";
 
 const LOCAIS_EXPEDIENTE = ["SDENF", "FUNSA", "CAIS", "UCC", "UPA", "UTI", "UPI", "SAD", "SSOP", "SIL", "FERISTA"];
 const LOCAIS_SERVICO = ["UTI", "UPI"];
-
-const SECTORS_PASS = [
-    { id: 'UPI', name: 'UPI (Clínica/Cirúrgica)', type: 'ward' },
-    { id: 'UTI', name: 'UTI (Intensiva)', type: 'ward' },
-    { id: 'UCC', name: 'UCC (Centro Cirúrgico)', type: 'surgery' },
-    { id: 'UPA', name: 'UPA (Pronto Atendimento)', type: 'er' },
-    { id: 'CAIS', name: 'CAIS (ESF)', type: 'er' }
-];
-
-const SHIFTS_PASS = [
-    { id: 'Manhã', color: 'bg-amber-100 text-amber-700' },
-    { id: 'Tarde', color: 'bg-orange-100 text-orange-700' },
-    { id: 'Noite', color: 'bg-indigo-100 text-indigo-700' }
-];
-
-const MONTHS_PASS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 const selectStyle = {
     appearance: 'none',
@@ -46,20 +29,6 @@ const selectStyle = {
 // =========================================================================
 // --- HELPERS E FUNÇÕES DE LEITURA (SISTEMA BLINDADO) ---
 // =========================================================================
-
-// Leitor Ultra-Seguro para a Passagem de Turno (Ignora falhas no Google Sheets)
-const safeGet = (obj, searchTerms) => {
-    if (!obj || typeof obj !== 'object') return "";
-    const keys = Object.keys(obj);
-    for (let term of searchTerms) {
-        const t = String(term).trim().toLowerCase();
-        const foundKey = keys.find(k => String(k).trim().toLowerCase() === t);
-        if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && obj[foundKey] !== "") {
-            return obj[foundKey];
-        }
-    }
-    return "";
-};
 
 const getVal = (obj, searchTerms) => {
   if (!obj || typeof obj !== 'object') return "";
@@ -129,15 +98,6 @@ const calculateDetailedTime = (dateInput) => {
   const validD = Math.max(0, isNaN(d) ? 0 : d);
 
   return { y: validY, m: validM, d: validD, display: `${validY}a ${validM}m ${validD}d` };
-};
-
-const safeParseFloat = (value) => {
-  if (value === null || value === undefined || value === '') return 0;
-  const strVal = String(value);
-  const match = strVal.match(/-?\d+(?:[.,]\d+)?/);
-  if (!match) return 0;
-  const num = parseFloat(match[0].replace(',', '.'));
-  return isNaN(num) ? 0 : num;
 };
 
 const getBradenClass = (score) => {
@@ -229,7 +189,7 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
 };
 
 // =========================================================================
-// --- COMPONENTES VISUAIS GERAIS (MODAIS, WIDGETS) ---
+// --- COMPONENTES VISUAIS GERAIS ---
 // =========================================================================
 
 class ErrorBoundary extends React.Component {
@@ -326,12 +286,10 @@ const WeatherWidgetMini = () => {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-29.92&longitude=-51.18&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,relative_humidity_2m,cloud_cover&timezone=America%2FSao_Paulo");
+        const res = await fetch("https://api.open-metez.com/v1/forecast?latitude=-29.92&longitude=-51.18&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,relative_humidity_2m,cloud_cover&timezone=America%2FSao_Paulo");
         const data = await res.json();
         setWeather(data.current);
-      } catch (e) {
-        console.error("Erro clima", e);
-      }
+      } catch (e) { console.error("Erro clima", e); }
     };
     fetchWeather();
   }, []);
@@ -351,12 +309,6 @@ const WeatherWidgetMini = () => {
          <span className="flex items-center gap-0.5" title="Umidade Relativa"><Droplets size={10} className="text-blue-400"/> {weather.relative_humidity_2m}%</span>
          <span className="w-px h-3 bg-slate-200"></span>
          <span className="flex items-center gap-0.5" title="Vento"><Wind size={10} className="text-slate-400"/> {weather.wind_speed_10m} km/h</span>
-         {weather.precipitation > 0 && (
-            <>
-               <span className="w-px h-3 bg-slate-200"></span>
-               <span className="flex items-center gap-0.5 text-blue-500" title="Chuva"><CloudRain size={10}/> {weather.precipitation}mm</span>
-            </>
-         )}
       </div>
     </div>
   );
@@ -456,10 +408,10 @@ const GanttViewer = ({ feriasData }) => {
        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <div className="min-w-[800px]">
              <div className="bg-slate-100 flex border-b border-slate-200">
-                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                <div className="w-32 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-0 bg-slate-100 border-r border-slate-200 z-20 flex items-center shrink-0">
                    Militar
                 </div>
-                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center shrink-0">
+                <div className="w-32 md:w-40 p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest sticky left-32 bg-slate-100 border-r border-slate-200 z-20 flex items-center shrink-0">
                    Período
                 </div>
                 <div className="flex-1 flex">
@@ -483,13 +435,12 @@ const GanttViewer = ({ feriasData }) => {
 
                 return (
                    <div key={i} className="flex border-b border-slate-100 hover:bg-slate-50 group transition-colors">
-                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex items-center transition-colors shrink-0">
+                      <div className="w-32 p-3 text-[9px] md:text-[10px] font-black uppercase text-slate-700 tracking-tighter truncate sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 z-20 flex items-center shrink-0">
                          {militar}
                       </div>
-                      <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] flex flex-col justify-center transition-colors shrink-0 relative">
+                      <div className="w-32 md:w-40 p-2 md:p-3 text-[8px] md:text-[9px] font-bold text-amber-700 sticky left-32 bg-amber-50 group-hover:bg-amber-100 border-r border-slate-200 z-20 flex flex-col justify-center shrink-0 relative">
                          <span className="font-mono">{formatDate(start)}</span>
                          <span className="font-mono opacity-60 text-[7px]">até {formatDate(end)}</span>
-                         <span className="absolute top-1 right-1 text-[7px] font-black uppercase bg-amber-200 px-1 rounded text-amber-800">{dias}d</span>
                       </div>
                       <div className="flex-1 flex">
                          {daysArrayF.map(d => {
@@ -498,7 +449,7 @@ const GanttViewer = ({ feriasData }) => {
                             const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
                             
                             let bgClass = "bg-transparent";
-                            if (isVacation) bgClass = "bg-amber-400 shadow-inner z-10 border-t border-b border-amber-500";
+                            if (isVacation) bgClass = "bg-amber-400 z-10 border-t border-b border-amber-500 shadow-inner";
                             else if (isWeekend) bgClass = "bg-slate-100/50";
 
                             return (
@@ -515,383 +466,6 @@ const GanttViewer = ({ feriasData }) => {
        </div>
     </div>
   );
-};
-
-// =========================================================================
-// --- NOVO MÓDULO PASSAGEM DE TURNO (TOTALMENTE RECONSTRUÍDO E BLINDADO) ---
-// =========================================================================
-
-const PassagemTurno = ({ currentUser, onBack }) => {
-    const [view, setView] = useState('dashboard'); 
-    const [reports, setReports] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-
-    const [filterDay, setFilterDay] = useState('');
-    const [filterMonth, setFilterMonth] = useState('');
-    const [filterYear, setFilterYear] = useState('');
-
-    const [formData, setFormData] = useState({
-        sectorId: '', shift: 'Manhã', nurseName: currentUser || '', sgtsNames: '',
-        intercurrences: '', patients: '', discharges: '', admissions: '',
-        transfers: '', procedures: ''
-    });
-
-    const normalizeReport = (rawItem) => {
-        if (!rawItem) return null;
-        
-        const findVal = (...keysToFind) => {
-            for (let k of keysToFind) {
-                const lowerK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const matchedKey = Object.keys(rawItem).find(key => key.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerK);
-                if (matchedKey && rawItem[matchedKey] !== undefined && rawItem[matchedKey] !== null && rawItem[matchedKey] !== "") return rawItem[matchedKey];
-            }
-            return null;
-        };
-
-        const sectorId = findVal('selectedSectorId', 'sectorId', 'setor', 'unidade', 'local');
-        const shift = findVal('shift', 'turno', 'periodo');
-        const nurseName = findVal('nurseName', 'enfermeiro', 'responsavel', 'authorName');
-        const sgtsNames = findVal('sgtsNames', 'sargentos', 'equipe');
-        const intercurrences = findVal('intercurrences', 'intercorrencias', 'obs', 'observacoes');
-        
-        const patients = findVal('patients', 'pacientes', 'censo') || 0;
-        const discharges = findVal('discharges', 'altas') || 0;
-        const admissions = findVal('admissions', 'baixas', 'internacoes') || 0;
-        const transfers = findVal('transfers', 'transferencias', 'transf') || 0;
-        const procedures = findVal('procedures', 'procedimentos', 'consultations', 'atendimentos') || 0;
-        
-        const timestampRaw = findVal('timestamp', 'carimbo de data/hora', 'data', 'hora');
-        let timestamp = Date.now();
-        if (timestampRaw) {
-            if (typeof timestampRaw === 'number') timestamp = timestampRaw;
-            else if (typeof timestampRaw === 'string' && /^\d+$/.test(timestampRaw)) timestamp = Number(timestampRaw);
-            else timestamp = new Date(timestampRaw).getTime();
-        }
-
-        return {
-            sectorId: String(sectorId || '').toUpperCase(),
-            shift: shift || 'Turno',
-            nurseName: nurseName || 'Não Identificado',
-            sgtsNames: sgtsNames || '-',
-            intercurrences: intercurrences || '',
-            patients, discharges, admissions, transfers, procedures,
-            timestamp
-        };
-    };
-
-    const fetchSheetData = async () => {
-        if (!API_URL_PASSAGEM || API_URL_PASSAGEM === "") return;
-        setLoading(true);
-        try {
-            const response = await fetch(API_URL_PASSAGEM);
-            const data = await response.json();
-            if (data && Array.isArray(data)) {
-                const normalizedData = data.map(normalizeReport).filter(r => r !== null && r.sectorId && !isNaN(r.timestamp));
-                normalizedData.sort((a, b) => b.timestamp - a.timestamp);
-                setReports(normalizedData);
-            }
-        } catch (error) { 
-            console.error("Erro ao carregar dados:", error); 
-        } finally { setLoading(false); }
-    };
-
-    useEffect(() => { fetchSheetData(); }, []);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!API_URL_PASSAGEM) return alert("URL da planilha não configurada.");
-        setSubmitting(true);
-        
-        const sector = SECTORS_PASS.find(s => s.id === formData.sectorId);
-        
-        // Payload Duplo Extensivo para garantir leitura perfeita do Google Sheets
-        const payload = { 
-            sectorId: formData.sectorId, selectedSectorId: formData.sectorId, setor: formData.sectorId,
-            shift: formData.shift, turno: formData.shift,
-            nurseName: formData.nurseName, enfermeiro: formData.nurseName, authorName: currentUser || 'Desconhecido',
-            sgtsNames: formData.sgtsNames, sargentos: formData.sgtsNames,
-            intercurrences: formData.intercurrences, intercorrencias: formData.intercurrences, obs: formData.intercurrences,
-            patients: formData.patients || 0, pacientes: formData.patients || 0, censo: formData.patients || 0,
-            discharges: formData.discharges || 0, altas: formData.discharges || 0,
-            admissions: formData.admissions || 0, baixas: formData.admissions || 0,
-            transfers: formData.transfers || 0, transferencias: formData.transfers || 0,
-            procedures: formData.procedures || 0, atendimentos: formData.procedures || 0, consultations: formData.procedures || 0,
-            timestamp: Date.now(), data: new Date().toISOString(),
-            sectorName: sector?.name || '', sectorType: sector?.type || ''
-        };
-
-        try {
-            await fetch(API_URL_PASSAGEM, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-            setTimeout(() => { 
-                fetchSheetData(); 
-                setView('dashboard'); 
-                setSubmitting(false);
-                setFormData(prev => ({...prev, intercurrences: '', patients: '', discharges: '', admissions: '', transfers: '', procedures: '', sgtsNames: ''}));
-            }, 1500);
-        } catch (error) { 
-            setSubmitting(false);
-            alert("Erro ao salvar dados.");
-        }
-    };
-
-    const filteredAndGrouped = useMemo(() => {
-        const filtered = reports.filter(r => {
-            const d = new Date(r.timestamp);
-            const dayMatch = !filterDay || d.getDate() === parseInt(filterDay);
-            const monthMatch = !filterMonth || (d.getMonth() + 1) === parseInt(filterMonth);
-            const yearMatch = !filterYear || d.getFullYear() === parseInt(filterYear);
-            return dayMatch && monthMatch && yearMatch;
-        });
-
-        const groups = {};
-        filtered.forEach(r => {
-            const ds = new Date(r.timestamp).toLocaleDateString('pt-BR');
-            if (!groups[ds]) groups[ds] = [];
-            groups[ds].push(r);
-        });
-        return groups;
-    }, [reports, filterDay, filterMonth, filterYear]);
-
-    const availableYears = useMemo(() => {
-        const years = [...new Set(reports.map(r => new Date(r.timestamp).getFullYear()))];
-        return years.sort((a,b) => b-a);
-    }, [reports]);
-
-    return (
-        <div className="relative w-full h-full min-h-[85vh] bg-slate-50 rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-200 flex flex-col font-sans">
-            <header className="bg-slate-900 text-white p-5 shadow-lg shrink-0 flex justify-between items-center z-20">
-                <div className="flex items-center gap-3">
-                    {onBack && <button onClick={onBack} className="p-2 bg-slate-800 rounded-xl hover:bg-slate-700 transition-all"><ChevronLeft size={18}/></button>}
-                    <div className="bg-emerald-600 p-2 rounded-xl"><Shield size={20} /></div>
-                    <div>
-                        <h1 className="text-xs font-black uppercase tracking-tight leading-none">HACO Integrado</h1>
-                        <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest mt-1">Passagem de Turno</p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={fetchSheetData} className={`p-2.5 bg-slate-800 rounded-xl transition-all ${loading ? 'animate-spin opacity-50' : 'active:scale-90'}`}><RefreshCw size={18}/></button>
-                </div>
-            </header>
-
-            <main className="flex-1 overflow-y-auto p-4 lg:p-8 pb-32">
-                {view === 'dashboard' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-                        {SECTORS_PASS.map(s => {
-                            const latest = reports.find(r => r.sectorId === s.id.toUpperCase());
-                            const shiftInfo = latest ? SHIFTS_PASS.find(sh => String(sh.id).toLowerCase() === String(latest.shift).toLowerCase()) : null;
-                            const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
-                            const timeString = latest && !isNaN(latest.timestamp) ? new Date(latest.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--';
-
-                            return (
-                                <div key={s.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-7 transition-all hover:shadow-xl hover:border-emerald-100">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-4 bg-slate-50 text-slate-700 rounded-2xl"><IconRender size={24}/></div>
-                                            <div>
-                                                <h3 className="font-black text-slate-900 text-2xl tracking-tighter leading-none">{s.id}</h3>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{s.name}</p>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => { setFormData({...formData, sectorId: s.id}); setView('form'); }} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg active:scale-90"><Plus size={22}/></button>
-                                    </div>
-                                    
-                                    {latest ? (
-                                        <div className="space-y-5">
-                                            <div className="flex justify-between items-center">
-                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shiftInfo?.color || 'bg-slate-100 text-slate-500'}`}>{latest.shift}</span>
-                                                <span className="text-[10px] text-slate-300 italic font-bold">{timeString}</span>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {s.type === 'ward' ? (
-                                                    <>
-                                                        <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
-                                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Pac</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.patients}</p>
-                                                        </div>
-                                                        <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
-                                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Alt</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.discharges}</p>
-                                                        </div>
-                                                        <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
-                                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Baix</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.admissions}</p>
-                                                        </div>
-                                                        <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
-                                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Trn</p>
-                                                            <p className="text-sm font-black text-slate-800 leading-none">{latest.transfers}</p>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="col-span-4 bg-slate-50 p-4 rounded-2xl flex justify-between items-center px-6 border border-slate-100/50">
-                                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Produção Turno</span>
-                                                        <span className="font-black text-emerald-700 text-lg leading-none">{latest.procedures}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            
-                                            <div className="pt-4 border-t border-slate-50">
-                                                <p className="text-[10px] text-slate-400 font-bold truncate">Resp: <span className="text-slate-600">{latest.nurseName}</span></p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="py-12 text-center text-slate-200 font-black text-[10px] uppercase tracking-[0.3em] border-2 border-dashed border-slate-50 rounded-[2rem]">Sem registro hoje</div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* --- FORMULÁRIO --- */}
-                {view === 'form' && (() => {
-                    const currentSector = SECTORS_PASS.find(s => s.id === formData.sectorId);
-                    return (
-                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-2xl animate-fadeIn border border-slate-100">
-                        <div className="flex justify-between items-center mb-10">
-                            <button onClick={() => setView('dashboard')} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-200"><RefreshCw size={20} className="rotate-180"/></button>
-                            <div className="text-right">
-                                <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">{formData.sectorId}</h2>
-                                <p className="text-[10px] text-emerald-500 font-black uppercase">Passagem de Turno</p>
-                            </div>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-10">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Qual o Turno?</label>
-                                    <div className="flex gap-3 h-14">
-                                        {SHIFTS_PASS.map(s => (
-                                            <button key={s.id} type="button" onClick={() => setFormData({...formData, shift: s.id})} className={`flex-1 rounded-2xl border-2 font-black text-[11px] uppercase tracking-widest transition-all ${formData.shift === s.id ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-300'}`}>{s.id}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Enfermeiro de Plantão</label>
-                                    <input type="text" required value={formData.nurseName} onChange={e => setFormData({...formData, nurseName: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-4 focus:ring-emerald-50" />
-                                </div>
-                            </div>
-                            
-                            <div className="bg-slate-950 p-8 rounded-[2.5rem] text-white shadow-2xl">
-                                <h3 className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-8 border-l-4 border-emerald-600 pl-4">Censo e Movimentação</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                    {currentSector?.type === 'ward' ? (
-                                        <>
-                                            <div className="space-y-2 text-center">
-                                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Total Pacientes</label>
-                                                <input type="number" required value={formData.patients} onChange={e => setFormData({...formData, patients: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
-                                            </div>
-                                            <div className="space-y-2 text-center">
-                                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Altas</label>
-                                                <input type="number" required value={formData.discharges} onChange={e => setFormData({...formData, discharges: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
-                                            </div>
-                                            <div className="space-y-2 text-center">
-                                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Baixas</label>
-                                                <input type="number" required value={formData.admissions} onChange={e => setFormData({...formData, admissions: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
-                                            </div>
-                                            <div className="space-y-2 text-center">
-                                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Transf. Ext</label>
-                                                <input type="number" required value={formData.transfers} onChange={e => setFormData({...formData, transfers: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-xl outline-none" />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="col-span-4 space-y-2">
-                                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Total de Atendimentos / Procedimentos</label>
-                                            <input type="number" required value={formData.procedures} onChange={e => setFormData({...formData, procedures: e.target.value})} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center font-black text-2xl outline-none" />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Nomes dos Sargentos Escalados</label>
-                                <input type="text" required value={formData.sgtsNames} onChange={e => setFormData({...formData, sgtsNames: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Sgt Silva, Sgt Santos..." />
-                            </div>
-
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Intercorrências</label>
-                                <textarea value={formData.intercurrences} onChange={e => setFormData({...formData, intercurrences: e.target.value})} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2rem] h-40 outline-none font-bold text-sm shadow-inner" placeholder="Relate as novidades..."></textarea>
-                            </div>
-
-                            <button type="submit" disabled={submitting} className={`w-full ${submitting ? 'bg-slate-400 animate-pulse' : 'bg-emerald-700 hover:bg-emerald-800'} text-white font-black py-7 rounded-[2rem] text-xl italic shadow-xl shadow-emerald-900/20`}>
-                                {submitting ? 'PROCESSANDO...' : 'ENVIAR PARA PLANILHA'}
-                            </button>
-                        </form>
-                    </div>
-                )})}
-
-                {/* --- HISTÓRICO --- */}
-                {view === 'history' && (
-                    <div className="space-y-8 animate-fadeIn">
-                        <div className="bg-white p-6 rounded-[2.5rem] grid grid-cols-3 gap-3 shadow-sm border border-slate-200">
-                            <select style={selectStyle} value={filterDay} onChange={e => setFilterDay(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Dia</option>{Array.from({length:31}, (_,i)=><option key={i+1}>{i+1}</option>)}</select>
-                            <select style={selectStyle} value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Mês</option>{MONTHS_PASS.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}</select>
-                            <select style={selectStyle} value={filterYear} onChange={e => setFilterYear(e.target.value)} className="bg-slate-50 p-4 rounded-2xl text-xs font-black outline-none border border-slate-100"><option value="">Ano</option>{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select>
-                        </div>
-                        
-                        {Object.keys(filteredAndGrouped).length === 0 ? (
-                            <div className="text-center py-24 text-slate-400 font-black uppercase text-[10px] tracking-[0.4em]">Nenhum registro encontrado</div>
-                        ) : Object.keys(filteredAndGrouped).map(dateStr => (
-                            <div key={dateStr} className="space-y-6">
-                                <div className="flex items-center gap-4 px-2">
-                                    <div className="h-px bg-slate-200 flex-1"></div>
-                                    <div className="flex items-center gap-2 bg-white px-4 py-1 rounded-full border border-slate-200">
-                                        <Calendar size={14} className="text-emerald-600"/>
-                                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{dateStr}</span>
-                                    </div>
-                                    <div className="h-px bg-slate-200 flex-1"></div>
-                                </div>
-                                {filteredAndGrouped[dateStr].map((r, i) => {
-                                    const shiftInfo = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(r.shift).toLowerCase());
-                                    const isWard = ['UPI', 'UTI'].includes(r.sectorId);
-                                    const timeStr = new Date(r.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-
-                                    return (
-                                        <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm transition-all hover:shadow-lg">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="flex gap-3">
-                                                    <span className="text-[11px] font-black bg-slate-900 text-white px-4 py-1.5 rounded-xl uppercase tracking-tighter">{r.sectorId}</span>
-                                                    <span className={`text-[11px] font-black px-4 py-1.5 rounded-xl ${shiftInfo ? shiftInfo.color : 'bg-slate-100 text-slate-500'}`}>{r.shift}</span>
-                                                </div>
-                                                <span className="text-[10px] text-slate-300 font-bold">{timeStr}</span>
-                                            </div>
-                                            
-                                            <div className="bg-slate-50 p-3 rounded-2xl mb-4 flex gap-4 overflow-x-auto border border-slate-100">
-                                                {isWard ? (
-                                                    <>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Pacientes</p><p className="text-sm font-black text-slate-800">{r.patients}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Altas</p><p className="text-sm font-black text-slate-800">{r.discharges}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Baixas</p><p className="text-sm font-black text-slate-800">{r.admissions}</p></div>
-                                                       <div className="text-center flex-1"><p className="text-[8px] font-black text-slate-400 uppercase">Transf.</p><p className="text-sm font-black text-slate-800">{r.transfers}</p></div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-center w-full"><p className="text-[8px] font-black text-slate-400 uppercase">Atendimentos / Procedimentos</p><p className="text-lg font-black text-emerald-600">{r.procedures}</p></div>
-                                                )}
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">ENF:</span> {r.nurseName}</p>
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase"><span className="text-slate-300 mr-2">SGT:</span> {r.sgtsNames}</p>
-                                            </div>
-                                            {r.intercurrences && (
-                                                <div className="bg-white p-4 rounded-[1.5rem] italic text-xs font-bold text-slate-700 border border-slate-200">"{r.intercurrences}"</div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
-
-            <nav className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 p-5 flex justify-around items-center rounded-t-[3.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.05)] z-30 shrink-0">
-                <button onClick={() => setView('dashboard')} className={`transition-all ${view === 'dashboard' ? 'text-emerald-700 scale-125' : 'text-slate-300'}`}><Activity size={26}/></button>
-                <button onClick={() => { setFormData({...formData, sectorId: 'UPI'}); setView('form'); }} className="bg-emerald-700 text-white p-4 rounded-[2rem] -mt-16 shadow-2xl shadow-emerald-500/50 border-[6px] border-white active:scale-90"><Plus size={32}/></button>
-                <button onClick={() => setView('history')} className={`transition-all ${view === 'history' ? 'text-emerald-700 scale-125' : 'text-slate-300'}`}><History size={26}/></button>
-            </nav>
-        </div>
-    );
 };
 
 // =========================================================================
@@ -941,23 +515,15 @@ const EscalaManager = ({ appData }) => {
      let poolOficiais = (appData.officers || []).map(o => {
         let rawD1 = parseDate(getVal(o, ['plantao 1', 'ultimo 1', 'recente', 'ultimo plantao 1'])); 
         let rawD2 = parseDate(getVal(o, ['plantao 2', 'ultimo 2', 'penultimo', 'ultimo plantao 2'])); 
-        let rawD3 = parseDate(getVal(o, ['plantao 3', 'ultimo 3', 'antepenultimo', 'ultimo plantao 3'])); 
         let isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
-
-        let vazios = 0;
-        if (!rawD1) vazios++;
-        if (!rawD2) vazios++;
-        if (!rawD3) vazios++;
 
         return {
            nomeCompleto: `${getVal(o, ['patente', 'posto'])} ${getVal(o, ['nome'])}`,
            nomeCurto: getVal(o, ['nome']),
            servico: String(getVal(o, ['servico'])).toUpperCase() || 'UPI',
            antiguidade: parseInt(getVal(o, ['antiguidade'])) || 0, 
-           vazios: vazios, 
            d1: rawD1 ? rawD1.getTime() : new Date(2000, 0, 1).getTime(),
            d2: rawD2 ? rawD2.getTime() : new Date(2000, 0, 1).getTime(),
-           d3: rawD3 ? rawD3.getTime() : new Date(2000, 0, 1).getTime(),
            isGestante: isGestante
         }
      });
@@ -981,10 +547,8 @@ const EscalaManager = ({ appData }) => {
             });
 
             disponiveis.sort((a, b) => {
-               if (a.vazios !== b.vazios) return b.vazios - a.vazios; 
                if (a.d1 !== b.d1) return a.d1 - b.d1; 
                if (a.d2 !== b.d2) return a.d2 - b.d2; 
-               if (a.d3 !== b.d3) return a.d3 - b.d3; 
                return b.antiguidade - a.antiguidade;  
             });
 
@@ -992,7 +556,7 @@ const EscalaManager = ({ appData }) => {
                let escalado = disponiveis[0];
                poolOficiais = poolOficiais.map(o => 
                   o.nomeCurto === escalado.nomeCurto 
-                    ? { ...o, d3: o.d2, d2: o.d1, d1: dt.getTime(), vazios: Math.max(0, o.vazios - 1) } 
+                    ? { ...o, d2: o.d1, d1: dt.getTime() } 
                     : o
                );
                return escalado.nomeCompleto;
@@ -1031,7 +595,7 @@ const EscalaManager = ({ appData }) => {
        <div className="print:hidden">
           <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full max-w-md">
              <button onClick={() => setActiveSubTab('oficial')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'oficial' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Mural Publicado</button>
-             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}><Wand2 size={12} className="inline mb-0.5"/> Gerador (Beta)</button>
+             <button onClick={() => setActiveSubTab('gerador')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeSubTab === 'gerador' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}>Gerador (Beta)</button>
           </div>
        </div>
 
@@ -1084,7 +648,7 @@ const EscalaManager = ({ appData }) => {
                <div className="flex gap-2 w-full md:w-auto">
                   <input type="month" value={mesStr} onChange={e => setMesStr(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-xs"/>
                   <button onClick={gerarEscalaAlgoritmo} disabled={isGerando} className="bg-purple-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
-                     {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Escala
+                     {isGerando ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} Gerar Sugestão
                   </button>
                   <button onClick={() => window.print()} disabled={!escalaGerada || isGerando} className="bg-slate-800 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
                      <Printer size={14}/> PDF
@@ -1095,7 +659,7 @@ const EscalaManager = ({ appData }) => {
              <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl mb-6 text-xs text-purple-900 font-medium print:hidden">
                 <div className="mt-2">
                    <label className="block text-[10px] font-black uppercase tracking-widest mb-1">Feriados deste Mês (Dias separados por vírgula):</label>
-                   <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none" />
+                   <input type="text" placeholder="Ex: 3, 14, 21" value={feriados} onChange={e => setFeriados(e.target.value)} className="w-full md:w-1/2 p-2 rounded-lg bg-white border border-purple-200 outline-none" />
                 </div>
              </div>
 
@@ -1120,21 +684,19 @@ const EscalaManager = ({ appData }) => {
                             const isVermelha = isWeekend || isFeriado;
                             const diaNome = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
                             
-                            const bgRow = isVermelha ? 'bg-red-50/40 hover:bg-red-50 print:bg-gray-50' : 'bg-white hover:bg-slate-50 opacity-40 print:hidden';
+                            if (!isVermelha) return null;
                             const assignment = escalaGerada[String(d)];
 
-                            if (!isVermelha) return null;
-
                             return (
-                               <tr key={d} className={`transition-colors ${bgRow}`}>
-                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black ${isVermelha ? 'text-red-500 print:text-black' : 'text-slate-400'}`}>{String(d).padStart(2, '0')}</td>
-                                  <td className={`p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold ${isVermelha ? 'text-red-400 print:text-black' : 'text-slate-400'}`}>
+                               <tr key={d} className="bg-red-50/40 hover:bg-red-50 transition-colors">
+                                  <td className="p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-black text-red-500">{String(d).padStart(2, '0')}</td>
+                                  <td className="p-3 text-center border-r border-slate-100 print:border print:border-gray-300 font-bold text-red-400">
                                      {isFeriado ? 'FER' : diaNome}
                                   </td>
-                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiD) : '-'}</td>
-                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.upiN) : '-'}</td>
-                                  <td className={`p-3 border-r border-slate-100 print:border print:border-gray-300 font-bold text-[10px] uppercase tracking-tighter`}>{assignment ? renderSlot(assignment.utiD) : '-'}</td>
-                                  <td className={`p-3 font-bold text-[10px] uppercase tracking-tighter print:border print:border-gray-300`}>{assignment ? renderSlot(assignment.utiN) : '-'}</td>
+                                  <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.upiD) : '-'}</td>
+                                  <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.upiN) : '-'}</td>
+                                  <td className="p-3 border-r border-slate-100 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.utiD) : '-'}</td>
+                                  <td className="p-3 font-bold text-[10px] uppercase tracking-tighter">{assignment ? renderSlot(assignment.utiN) : '-'}</td>
                                </tr>
                             )
                          })}
@@ -1149,7 +711,7 @@ const EscalaManager = ({ appData }) => {
 };
 
 // =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO E LOGIN ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
 // =========================================================================
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
@@ -1176,20 +738,13 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
     setLoginError('');
     const selectedUser = list.find(o => getVal(o, ['nome']) === user);
     if (selectedUser) {
-       const correctPasswordRaw = getVal(selectedUser, ['senha', 'password', 'pwd']) || '123456';
-       const correctPassword = String(correctPasswordRaw).trim();
-       const inputPassword = String(password).trim();
-       
-       if (inputPassword === correctPassword) {
+       const correctPassword = String(getVal(selectedUser, ['senha', 'pwd']) || '123456').trim();
+       if (String(password).trim() === correctPassword) {
            const nome = getVal(selectedUser, ['nome']);
            let role = getVal(selectedUser, ['role']) || 'user';
-           if (nome.includes('Cimirro') || nome.includes('Zanini') || nome.includes('Renata')) {
-              role = nome.includes('Renata') ? 'rt' : 'admin'; 
-           }
+           if (nome.includes('Cimirro') || nome.includes('Zanini')) role = 'admin';
            onLogin(nome, role);
-       } else {
-           setLoginError('Senha incorreta.');
-       }
+       } else { setLoginError('Senha incorreta.'); }
     }
   };
 
@@ -1203,40 +758,36 @@ const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) =>
               <Plane size={32} className="text-white transform -rotate-12"/>
            </div>
            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase">Enfermagem HACO</h1>
-           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão de Enfermagem</p>
+           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mt-1">Gestão Administrativa</p>
         </div>
         
         {syncError && (
-           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mb-6 border border-red-100 flex items-center justify-between">
+           <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[10px] font-bold uppercase mb-6 border border-red-100 flex items-center justify-between">
               <span>⚠️ Falha na Leitura</span>
-              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Tentar Novamente</button>
+              <button onClick={onForceSync} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">Recarregar</button>
            </div>
         )}
 
         <div className="bg-slate-100 p-1.5 rounded-2xl flex mb-6">
-           <button onClick={() => {setRoleGroup('chefia'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
-           <button onClick={() => {setRoleGroup('tropa'); setUser(''); setPassword(''); setLoginError('');}} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
+           <button onClick={() => {setRoleGroup('chefia'); setUser(''); setPassword('');}} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-xl transition-all ${roleGroup === 'chefia' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>Chefia / RT</button>
+           <button onClick={() => {setRoleGroup('tropa'); setUser(''); setPassword('');}} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-xl transition-all ${roleGroup === 'tropa' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}>Oficiais</button>
         </div>
 
         <div className="space-y-4">
-          <div className="relative">
-            <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Identificação do Militar</label>
-            <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
-               <option value="">{isSyncing && list.length === 0 ? "A ler dados da Planilha..." : "Escolha o seu nome..."}</option>
-               {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
-               {!isSyncing && list.length === 0 && <option value="" disabled>Banco de Dados Vazio.</option>}
-            </select>
-          </div>
+          <select className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer" value={user} onChange={e => {setUser(e.target.value); setPassword(''); setLoginError('');}}>
+             <option value="">{isSyncing && list.length === 0 ? "A carregar dados..." : "Selecione o seu nome..."}</option>
+             {filtered.map((o, idx) => (<option key={idx} value={getVal(o, ['nome'])}>{getVal(o, ['patente', 'posto'])} {getVal(o, ['nome'])}</option>))}
+          </select>
 
           {user && (
-            <div className="relative animate-fadeIn">
+            <div className="animate-fadeIn">
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Senha de Acesso</label>
-              <input type="password" value={password} onChange={e => {setPassword(e.target.value); setLoginError('');}} placeholder="Digite sua senha" onKeyDown={e => e.key === 'Enter' && handleAuth()} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
+              <input type="password" value={password} onChange={e => {setPassword(e.target.value); setLoginError('');}} placeholder="Introduza a sua senha" onKeyDown={e => e.key === 'Enter' && handleAuth()} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
               {loginError && <p className="text-red-500 text-[10px] font-bold mt-2 ml-1">{loginError}</p>}
             </div>
           )}
 
-          <button onClick={handleAuth} disabled={!user || !password || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user && password ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Entrar no Sistema</button>
+          <button onClick={handleAuth} disabled={!user || !password || isSyncing} className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all active:scale-95 ${user && password ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/40' : 'bg-slate-300 cursor-not-allowed'}`}>Aceder ao Sistema</button>
         </div>
       </div>
     </div>
@@ -1273,69 +824,19 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   };
 
-  const userSafeName = String(user).toLowerCase().trim();
-
-  const atestadosFiltrados = (appData.atestados || []).filter(a => {
-     const nomeA = String(getVal(a, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeA.includes(userSafeName) && !userSafeName.includes(nomeA)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(a,['inicio', 'data']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(a => ({...a, _tipo: 'Atestado'})).reverse();
-
-  const permutasFiltradas = (appData.permutas || []).filter(p => {
-     const nomeSolicitante = String(getVal(p, ['solicitante', 'nome', 'militar'])).toLowerCase();
-     const nomeSubstituto = String(getVal(p, ['substituto'])).toLowerCase();
-     if (!nomeSolicitante.includes(userSafeName) && !userSafeName.includes(nomeSolicitante) &&
-         !nomeSubstituto.includes(userSafeName) && !userSafeName.includes(nomeSubstituto)) return false;
-     
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(p,['sai', 'datasai']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(p => ({...p, _tipo: 'Permuta'})).reverse();
-
-  const feriasFiltradas = (appData.ferias || []).filter(f => {
-     const nomeF = String(getVal(f, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeF.includes(userSafeName) && !userSafeName.includes(nomeF)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(f,['inicio', 'data', 'saida']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(f => ({...f, _tipo: 'Férias'})).reverse();
-
-  const licencasFiltradas = (appData.licencas || []).filter(l => {
-     const nomeL = String(getVal(l, ['militar', 'nome', 'oficial'])).toLowerCase();
-     if (!nomeL.includes(userSafeName) && !userSafeName.includes(nomeL)) return false;
-     if (!mesFiltro) return true;
-     const d = parseDate(getVal(l,['inicio', 'data']));
-     return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-  }).map(l => ({...l, _tipo: 'Licença'})).reverse();
-
   const handleSend = async (action, payload) => {
     setIsSaving(true);
     try {
-      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
+      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action, payload: { ...payload, file: fileData } }) });
       setTimeout(() => { setIsSaving(false); setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); syncData(true); }, 1500);
-    } catch(e) { setIsSaving(false); alert("Erro ao enviar."); }
+    } catch(e) { setIsSaving(false); alert("Erro no envio."); }
   };
 
-  const closeModals = () => { setModals({ atestado: false, permuta: false, ferias: false, licenca: false, gantt: false, password: false }); setFileData(null); }
-
-  const handleChangePassword = (e) => {
-     e.preventDefault();
-     if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
-     if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
-     const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
-     if(!myOfficerData) return alert("Erro ao localizar perfil.");
-     handleSend('saveOfficer', { ...myOfficerData, senha: passForm.new });
-  };
-
-  if (activeTab === 'passagem') {
-     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col font-sans p-2 md:p-6 pb-0">
-           <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
-        </div>
-     );
-  }
+  const userSafeName = String(user).toLowerCase().trim();
+  const getMyData = (list) => (list || []).filter(item => {
+    const nomeM = String(getVal(item, ['militar', 'solicitante', 'nome'])).toLowerCase();
+    return nomeM.includes(userSafeName) || userSafeName.includes(nomeM);
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -1347,30 +848,18 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
         <div className="flex items-center gap-2">
            <WeatherWidgetMini />
            {isAdmin && (
-              <button onClick={onToggleAdmin} className="bg-blue-50 p-2.5 rounded-xl text-blue-600 font-black flex items-center gap-2 text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all active:scale-90 border border-blue-200">
+              <button onClick={onToggleAdmin} className="bg-blue-50 p-2.5 rounded-xl text-blue-600 font-black flex items-center gap-2 text-[9px] uppercase tracking-widest border border-blue-200">
                  <Shield size={14}/> Gestão
               </button>
            )}
-           <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90"><Key size={16}/></button>
-           <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all active:scale-90"><LogOut size={16}/></button>
+           <button onClick={() => setModals({...modals, password: true})} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-blue-500 transition-all"><Key size={16}/></button>
+           <button onClick={onLogout} className="bg-slate-100 p-2.5 rounded-xl text-slate-500 hover:text-red-500 transition-all"><LogOut size={16}/></button>
         </div>
       </header>
+
       <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-5">
         <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden"><h2 className="text-xl font-black uppercase tracking-tighter relative z-10">Mural</h2><Plane className="absolute -bottom-4 -right-4 text-white/10" size={100}/></div>
         
-        <button onClick={() => setActiveTab('passagem')} className="w-full bg-emerald-600 text-white p-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/30 flex items-center justify-between active:scale-95 transition-all group border border-emerald-500 hover:bg-emerald-500">
-           <div className="flex items-center gap-4">
-              <div className="bg-white/20 p-3 rounded-2xl group-hover:scale-110 transition-transform">
-                 <Bed size={24} className="text-white"/>
-              </div>
-              <div className="text-left">
-                 <span className="block text-lg tracking-tighter leading-none mb-1">Passagem de Turno</span>
-                 <span className="block text-[9px] text-emerald-100 opacity-90">Registrar Censo e Intercorrências</span>
-              </div>
-           </div>
-           <ChevronRight size={24} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all"/>
-        </button>
-
         <div className="grid grid-cols-4 gap-2">
           <button onClick={() => setModals({...modals, atestado: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-red-50 text-red-500 rounded-xl group-hover:bg-red-500 group-hover:text-white transition-all"><ShieldAlert size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Atestado</span></button>
           <button onClick={() => setModals({...modals, permuta: true})} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-95 group"><div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"><ArrowRightLeft size={18}/></div><span className="font-black text-[8px] uppercase text-slate-700 tracking-widest text-center">Permuta</span></button>
@@ -1383,66 +872,47 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
         </button>
 
         <div className="pt-4">
-           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
-                Meus Registros 
-                <button onClick={()=>syncData(true)} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm active:scale-90"><RefreshCw size={12} className={isSyncing?'animate-spin text-blue-600':''}/></button>
-             </h3>
-             <div className="flex items-center gap-2">
-                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                    <button onClick={() => handleMudarMes(-1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={14}/></button>
-                    <div className="w-28 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
-                    <button onClick={() => handleMudarMes(1)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={14}/></button>
-                 </div>
-                 {mesFiltro && (<button onClick={() => setMesFiltro('')} className="text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>)}
+           <div className="flex justify-between items-center mb-4">
+             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">Meus Registros</h3>
+             <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
+                <button onClick={() => handleMudarMes(-1)} className="p-1 text-slate-400 hover:text-blue-600 transition-all"><ChevronLeft size={14}/></button>
+                <div className="w-24 text-center text-[8px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
+                <button onClick={() => handleMudarMes(1)} className="p-1 text-slate-400 hover:text-blue-600 transition-all"><ChevronRight size={14}/></button>
              </div>
            </div>
 
           <div className="space-y-2">
-            {[...permutasFiltradas, ...atestadosFiltrados, ...feriasFiltradas, ...licencasFiltradas].sort((a,b) => {
-                const dateA = parseDate(getVal(a,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
-                const dateB = parseDate(getVal(b,['inicio', 'data', 'sai', 'datasai']))?.getTime() || 0;
+            {[...getMyData(appData.permutas), ...getMyData(appData.atestados), ...getMyData(appData.ferias), ...getMyData(appData.licencas)].sort((a,b) => {
+                const dateA = parseDate(getVal(a,['inicio', 'sai']))?.getTime() || 0;
+                const dateB = parseDate(getVal(b,['inicio', 'sai']))?.getTime() || 0;
                 return dateB - dateA;
-            }).map((item, i) => {
-              const anexoUrl = getVal(item, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-              let titulo = ""; let icon = null;
-              if (item._tipo === 'Atestado') { titulo = `Afastamento: ${getVal(item,['dias'])}d`; icon = <ShieldAlert size={12} className="text-red-500 inline mr-1"/>; }
-              if (item._tipo === 'Permuta') { 
-                  const eSub = String(getVal(item,['substituto'])).toLowerCase().includes(userSafeName);
-                  titulo = eSub ? `Cobriu: ${getVal(item,['solicitante'])}` : `Pediu Troca: ${getVal(item,['substituto'])}`; 
-                  icon = <ArrowRightLeft size={12} className={eSub ? "text-green-500 inline mr-1" : "text-indigo-500 inline mr-1"}/>; 
-              }
-              if (item._tipo === 'Férias') { titulo = `Férias: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Sun size={12} className="text-amber-500 inline mr-1"/>; }
-              if (item._tipo === 'Licença') { titulo = `Licença: ${getVal(item,['dias', 'quantidade'])}d`; icon = <Baby size={12} className="text-pink-500 inline mr-1"/>; }
-
-              const statusAtual = getVal(item,['status']) || 'Homologado'; 
-              const isRejected = statusAtual.toLowerCase().includes('rejeitado');
-
-              return (
-              <div key={i} className={`bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center ${isRejected ? 'border-red-200' : 'border-slate-100'}`}>
+            }).filter(item => {
+                if (!mesFiltro) return true;
+                const d = parseDate(getVal(item,['inicio', 'sai', 'data']));
+                return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
+            }).map((item, i) => (
+              <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
                 <div className="text-xs">
-                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1 flex items-center">{icon} {titulo}</p>
-                  <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest items-center">
-                    <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'data', 'sai', 'datasai']))}</span>
-                    {getVal(item,['substituto']) && <span className="bg-slate-50 px-2 py-1 rounded flex items-center gap-1"><ArrowRightLeft size={8}/>{formatDate(getVal(item,['entra', 'dataentra']))}</span>}
-                    {anexoUrl && <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 hover:text-blue-700"><Paperclip size={10}/> Anexo</a>}
+                  <p className="font-black text-slate-800 uppercase text-[10px] mb-1">{getVal(item, ['tipo']) || 'Registro'}</p>
+                  <div className="flex gap-2 font-bold text-slate-400 text-[8px] uppercase tracking-widest">
+                    <span className="bg-slate-50 px-2 py-1 rounded">{formatDate(getVal(item,['inicio', 'sai', 'data']))}</span>
+                    {getVal(item, ['dias']) && <span className="bg-slate-50 px-2 py-1 rounded">{getVal(item, ['dias'])}d</span>}
                   </div>
                 </div>
-                <span className={`text-[8px] px-2 py-1 rounded-md font-black uppercase tracking-widest text-right max-w-[100px] leading-tight ${isRejected ? 'bg-red-50 text-red-600' : statusAtual==='Pendente' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{statusAtual}</span>
+                <span className={`text-[8px] px-2 py-1 rounded font-black uppercase ${String(getVal(item,['status'])).toLowerCase() === 'pendente' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{getVal(item, ['status']) || 'Homologado'}</span>
               </div>
-            )})}
-            {(permutasFiltradas.length === 0 && atestadosFiltrados.length === 0 && feriasFiltradas.length === 0 && licencasFiltradas.length === 0) && <p className="text-center text-[10px] text-slate-400 font-bold py-6 uppercase border border-dashed rounded-2xl">Sem registos no período</p>}
+            ))}
           </div>
         </div>
       </main>
 
       {/* MODAIS USER */}
-      {modals.gantt && <Modal title={<><CalendarDays size={18}/> Escala Geral de Férias</>} onClose={closeModals}><GanttViewer feriasData={appData.ferias} /></Modal>}
-      {modals.password && <Modal title="Trocar Senha de Acesso" onClose={closeModals}><form onSubmit={handleChangePassword} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div><button disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button></form></Modal>}
-      {modals.atestado && <Modal title="Anexar Atestado" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Total de Dias</label><input type="number" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,dias:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-red-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Pedido"}</button></form></Modal>}
-      {modals.permuta && <Modal title="Pedir Permuta" onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{id:Date.now().toString(),status:'Pendente',solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Saída</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sai:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Militar Substituto</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data de Substituição</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,entra:e.target.value})}/></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Solicitar Troca"}</button></form></Modal>}
-      {modals.ferias && <Modal title={<><Sun size={18}/> Solicitar Férias</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Quantidade de Dias (Parcelamento)</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione o parcelamento...</option><option value="10">10 dias (Para parcelamento 10/10/10 ou 20/10)</option><option value="15">15 dias (Para parcelamento 15/15)</option><option value="20">20 dias (Para parcelamento 20/10)</option><option value="30">30 dias (Mês Integral)</option></select></div><div className="bg-amber-50 p-3 rounded-xl flex items-start gap-2 border border-amber-100"><AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-amber-800">O pedido ficará <span className="font-black uppercase">Pendente</span> até homologação da Chefia. Recomenda-se olhar o Gantt Geral antes de solicitar.</p></div><button disabled={isSaving} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Férias"}</button></form></Modal>}
-      {modals.licenca && <Modal title={<><Baby size={18}/> Solicitar Licença-Maternidade</>} onClose={closeModals}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveLicenca',{id:Date.now().toString(),status:'Pendente',militar:user,inicio:form.inicio,dias:form.dias});}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Data de Início</label><input type="date" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1" onChange={e=>setForm({...form,inicio:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Duração da Licença</label><select required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 cursor-pointer" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Selecione...</option><option value="120">120 dias</option><option value="180">180 dias</option></select></div><FileUpload onFileSelect={setFileData}/><button disabled={isSaving} className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Enviar...":"Protocolar Licença"}</button></form></Modal>}
+      {modals.gantt && <Modal title="Escala Geral de Férias" onClose={() => setModals({...modals, gantt: false})}><GanttViewer feriasData={appData.ferias} /></Modal>}
+      {modals.password && <Modal title="Trocar Senha" onClose={() => setModals({...modals, password: false})}><form onSubmit={(e) => {e.preventDefault(); if(passForm.new === passForm.confirm) handleSend('saveOfficer', { nome: user, senha: passForm.new });}} className="space-y-4"><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border font-bold" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div><div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Confirmar Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border font-bold" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div><button className="w-full py-4 bg-slate-900 text-white font-black rounded-xl text-[10px] uppercase">Salvar Nova Senha</button></form></Modal>}
+      {modals.atestado && <Modal title="Anexar Atestado" onClose={() => setModals({...modals, atestado: false})}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveAtestado',{militar:user,inicio:form.inicio,dias:form.dias,status:'Pendente'});}} className="space-y-4"><input type="date" required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,inicio:e.target.value})}/><input type="number" required placeholder="Dias de Afastamento" className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,dias:e.target.value})}/><FileUpload onFileSelect={setFileData}/><button className="w-full py-4 bg-red-600 text-white font-black rounded-xl text-[10px] uppercase">Protocolar Atestado</button></form></Modal>}
+      {modals.permuta && <Modal title="Pedir Permuta" onClose={() => setModals({...modals, permuta: false})}><form onSubmit={(e)=>{e.preventDefault(); handleSend('savePermuta',{solicitante:user,substituto:form.sub,datasai:form.sai,dataentra:form.entra,status:'Pendente'});}} className="space-y-4"><input type="date" required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,sai:e.target.value})}/><select required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,sub:e.target.value})}><option value="">Escolha Substituição...</option>{(appData.officers||[]).map((o,i)=><option key={i} value={getVal(o,['nome'])}>{getVal(o,['nome'])}</option>)}</select><input type="date" required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,entra:e.target.value})}/><FileUpload onFileSelect={setFileData}/><button className="w-full py-4 bg-indigo-600 text-white font-black rounded-xl text-[10px] uppercase">Solicitar Troca</button></form></Modal>}
+      {modals.ferias && <Modal title="Solicitar Férias" onClose={() => setModals({...modals, ferias: false})}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveFerias',{militar:user,inicio:form.inicio,dias:form.dias,status:'Pendente'});}} className="space-y-4"><input type="date" required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,inicio:e.target.value})}/><select required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Parcelamento...</option><option value="10">10 dias</option><option value="15">15 dias</option><option value="20">20 dias</option><option value="30">30 dias (Integral)</option></select><button className="w-full py-4 bg-amber-500 text-white font-black rounded-xl text-[10px] uppercase">Registrar Pedido</button></form></Modal>}
+      {modals.licenca && <Modal title="Solicitar Licença" onClose={() => setModals({...modals, licenca: false})}><form onSubmit={(e)=>{e.preventDefault(); handleSend('saveLicenca',{militar:user,inicio:form.inicio,dias:form.dias,status:'Pendente'});}} className="space-y-4"><input type="date" required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,inicio:e.target.value})}/><select required className="w-full p-3 rounded-xl border font-bold" onChange={e=>setForm({...form,dias:e.target.value})}><option value="">Duração...</option><option value="120">120 dias</option><option value="180">180 dias</option></select><FileUpload onFileSelect={setFileData}/><button className="w-full py-4 bg-pink-500 text-white font-black rounded-xl text-[10px] uppercase">Protocolar Licença</button></form></Modal>}
     </div>
   );
 };
@@ -1450,79 +920,32 @@ const UserDashboard = ({ user, onLogout, appData, syncData, isSyncing, isAdmin, 
 const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onToggleAdmin, isCimirro }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
   const [isSaving, setIsSaving] = useState(false);
-  const [homologandoId, setHomologandoId] = useState(null); 
-  
+  const [homologandoId, setHomologandoId] = useState(null);
   const [showOfficerModal, setShowOfficerModal] = useState(false);
-  const [showAtestadoModal, setShowAtestadoModal] = useState(false);
-  const [showPermutaModal, setShowPermutaModal] = useState(false);
-  const [showFeriasModal, setShowFeriasModal] = useState(false);
-  const [showLicencaModal, setShowLicencaModal] = useState(false);
-  const [showPassModal, setShowPassModal] = useState(false);
-  
-  const [historyOfficer, setHistoryOfficer] = useState(null);
-
   const [formOfficer, setFormOfficer] = useState({ expediente: [], servico: '', gestante: '' });
-  const [formAtestado, setFormAtestado] = useState({});
-  const [formPermuta, setFormPermuta] = useState({});
-  const [formFerias, setFormFerias] = useState({});
-  const [formLicenca, setFormLicenca] = useState({});
-  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
-  const [fileData, setFileData] = useState(null);
-
   const [sortConfig, setSortConfig] = useState({ key: 'antiguidade', direction: 'asc' });
 
   const isApenasRT = role === 'rt'; 
-
-  const [mesFiltro, setMesFiltro] = useState(() => {
-     const d = new Date();
-     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
-
-  const handleMudarMes = (direcao) => {
-     let dataBase = new Date();
-     if (mesFiltro) {
-        const [ano, mes] = mesFiltro.split('-');
-        dataBase = new Date(ano, parseInt(mes) - 1, 1);
-     }
-     dataBase.setMonth(dataBase.getMonth() + direcao);
-     setMesFiltro(`${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}`);
-  };
-
-  const obterNomeMes = (referencia) => {
-     if (!referencia) return "TODOS OS REGISTOS";
-     const [ano, mes] = referencia.split('-');
-     const dataFicticia = new Date(ano, parseInt(mes) - 1, 1);
-     return dataFicticia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
-  };
-
-  const licencasAtivas = getActiveAfastamentos(appData.licencas);
-  const atestadosAtivos = getActiveAfastamentos(appData.atestados);
   const absenteismoDados = calculateAbsenteismoStats(appData.atestados, (appData.officers||[]).length);
-  const taxaMensalAbs = absenteismoDados.months[new Date().getMonth()].rate;
-  const nomeMesAtual = absenteismoDados.months[new Date().getMonth()].monthName;
+  const atestadosAtivos = getActiveAfastamentos(appData.atestados);
+  const licencasAtivas = getActiveAfastamentos(appData.licencas);
 
   const sendData = async (action, payload) => {
     setIsSaving(true);
     try {
-      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, payload }) });
-      setTimeout(() => { 
-          setIsSaving(false); 
-          setShowOfficerModal(false); setShowAtestadoModal(false); setShowPermutaModal(false); setShowFeriasModal(false); setShowLicencaModal(false); setShowPassModal(false);
-          setFileData(null); syncData(true); 
-      }, 1500); 
-    } catch (e) { setIsSaving(false); alert("Falha na gravação."); }
+      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action, payload }) });
+      setTimeout(() => { setIsSaving(false); setShowOfficerModal(false); syncData(true); }, 1500); 
+    } catch (e) { setIsSaving(false); alert("Erro de gravação."); }
   };
 
   const handleHomologar = async (id, sheetName, novoStatus = 'Homologado') => {
     if (isApenasRT) return;
-    if (!id) { alert("ERRO DE PLANILHA: Registo sem 'id'."); return; }
     setHomologandoId(id);
     try {
-      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'updateStatus', payload: { sheet: sheetName, id: id, status: novoStatus } }) });
-      setTimeout(() => { setHomologandoId(null); syncData(true); }, 2000);
-    } catch(e) { setHomologandoId(null); alert("Erro de conexão ao atualizar."); }
+      await fetch(API_URL_GESTAO, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'updateStatus', payload: { sheet: sheetName, id: id, status: novoStatus } }) });
+      setTimeout(() => { setHomologandoId(null); syncData(true); }, 1500);
+    } catch(e) { setHomologandoId(null); alert("Erro ao atualizar status."); }
   };
 
   const handleToggleExpediente = (local) => {
@@ -1530,21 +953,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
     if (current.includes(local)) setFormOfficer({...formOfficer, expediente: current.filter(l => l !== local)});
     else setFormOfficer({...formOfficer, expediente: [...current, local]});
   };
-
-  const handleSaveOfficer = (e) => {
-    e.preventDefault();
-    if(isApenasRT) return;
-    sendData('saveOfficer', { ...formOfficer, id: formOfficer.id || Date.now(), expediente: Array.isArray(formOfficer.expediente) ? formOfficer.expediente.join(', ') : '', servico: formOfficer.servico || '' });
-  };
-
-  const handleChangePassword = (e) => {
-    e.preventDefault();
-    if(passForm.new !== passForm.confirm) return alert("As senhas não conferem.");
-    if(passForm.new.length < 4) return alert("A senha deve ter pelo menos 4 caracteres.");
-    const myOfficerData = appData.officers.find(o => getVal(o, ['nome']) === user);
-    if(!myOfficerData) return alert("Erro ao localizar perfil.");
-    sendData('saveOfficer', { ...myOfficerData, senha: passForm.new });
- };
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -1555,9 +963,9 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
   const SortableHeader = ({ label, sortKey, align = 'left' }) => {
     const isActive = sortConfig.key === sortKey;
     return (
-      <th className={`p-3 md:p-4 cursor-pointer hover:bg-slate-100 transition-colors select-none ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`} onClick={() => handleSort(sortKey)}>
+      <th className={`p-4 cursor-pointer hover:bg-slate-100 transition-colors select-none ${align === 'center' ? 'text-center' : 'text-left'}`} onClick={() => handleSort(sortKey)}>
         <div className={`inline-flex items-center gap-1 ${isActive ? 'text-blue-600 font-black' : 'text-slate-400'}`}>
-          {label} {isActive ? (sortConfig.direction === 'asc' ? <ChevronUp size={12}/> : <ChevronDown size={12}/>) : <ChevronsUpDown size={12} className="opacity-40"/>}
+          {label} {isActive ? (sortConfig.direction === 'asc' ? <ChevronUp size={12}/> : <ChevronDown size={12}/>) : <ChevronsUpDown size={12} className="opacity-30"/>}
         </div>
       </th>
     );
@@ -1568,478 +976,313 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
       case 'dashboard':
         const bradenInfo = getBradenClass(appData.upi.mediaBraden);
         const fugulinInfo = getFugulinClass(appData.upi.mediaFugulin);
-        const contagemFUNSA = (appData.officers||[]).filter(o => String(getVal(o,['expediente'])).toUpperCase().includes('FUNSA')).length;
-        const contagemEfetivoBase = (appData.officers||[]).length;
-        const contagemAssistencial = contagemEfetivoBase - contagemFUNSA;
-        const pendentesCount = (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length + (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length;
+        const pendentesTotal = (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length + 
+                               (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length + 
+                               (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length;
 
         return (
           <div className="space-y-6 animate-fadeIn font-sans">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center border border-slate-800 relative overflow-hidden gap-6">
+                <div className="col-span-2 md:col-span-4 bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
                    <div className="absolute -top-10 -right-10 opacity-5"><Activity size={180}/></div>
                    <div className="flex items-center gap-5 relative z-10">
                       <div className="bg-blue-600 p-4 rounded-2xl shadow-lg"><Activity size={28}/></div>
-                      <div>
-                         <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter">Status UPI</h3>
-                      </div>
+                      <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter">Status UPI</h3>
                    </div>
-                   <div className="flex gap-6 md:gap-8 text-center relative z-10 font-black w-full md:w-auto justify-between md:justify-end flex-wrap">
-                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1 flex items-center gap-1 justify-center"><Bed size={10}/> Ocupação</p><p className="text-3xl md:text-4xl">{appData.upi.leitosOcupados} <span className="text-base text-slate-700 font-bold">/ 15</span></p></div>
-                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Acamados</p><p className="text-3xl md:text-4xl text-blue-400">{appData.upi.acamados || 0}</p></div>
-                      <div className="w-px bg-slate-800 hidden md:block"></div>
+                   <div className="flex gap-8 text-center relative z-10 font-black">
+                      <div><p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Ocupação</p><p className="text-3xl">{appData.upi.leitosOcupados} <span className="text-base text-slate-700 font-bold">/ 15</span></p></div>
                       <div>
-                         <p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Braden</p>
-                         <p className="text-3xl md:text-4xl text-yellow-500 mb-1">{appData.upi.mediaBraden.toFixed(1)}</p>
-                         <p className={`text-[8px] uppercase tracking-widest font-black ${bradenInfo.color} bg-slate-800/50 px-2 py-0.5 rounded`}>{bradenInfo.label}</p>
+                         <p className="text-slate-500 text-[9px] uppercase mb-1">Braden</p>
+                         <p className="text-3xl text-yellow-500">{appData.upi.mediaBraden.toFixed(1)}</p>
+                         <span className={`text-[7px] uppercase font-black ${bradenInfo.color}`}>{bradenInfo.label}</span>
                       </div>
                       <div>
-                         <p className="text-slate-500 text-[9px] uppercase tracking-widest mb-1">Fugulin</p>
-                         <p className="text-3xl md:text-4xl text-green-500 mb-1">{appData.upi.mediaFugulin.toFixed(1)}</p>
-                         <p className={`text-[8px] uppercase tracking-widest font-black ${fugulinInfo.color} bg-slate-800/50 px-2 py-0.5 rounded`}>{fugulinInfo.label}</p>
+                         <p className="text-slate-500 text-[9px] uppercase mb-1">Fugulin</p>
+                         <p className="text-3xl text-green-500">{appData.upi.mediaFugulin.toFixed(1)}</p>
+                         <span className={`text-[7px] uppercase font-black ${fugulinInfo.color}`}>{fugulinInfo.label}</span>
                       </div>
                    </div>
                 </div>
-
-                <div className="col-span-2 grid grid-cols-2 gap-4 md:gap-6">
-                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm relative">
-                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efetivo Total</p>
-                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter mb-2">{contagemEfetivoBase}</h3>
-                     <div className="flex gap-2 text-[8px] font-black uppercase tracking-widest w-full px-2">
-                        <span className="bg-blue-50 text-blue-600 py-1 flex-1 text-center rounded">{contagemAssistencial} Assis.</span>
-                        <span className="bg-indigo-50 text-indigo-600 py-1 flex-1 text-center rounded">{contagemFUNSA} Funsa</span>
-                     </div>
-                   </div>
-                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm">
-                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Pendentes</p>
-                     <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{pendentesCount}</h3>
-                   </div>
-                   
-                   <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm relative">
-                     <p className="text-[9px] font-black uppercase text-red-400 tracking-widest mb-2 flex items-center gap-1"><CalendarClock size={10}/> Em Vigor</p>
-                     <div className="flex gap-4 w-full justify-center">
-                        <div className="text-center">
-                           <h3 className="text-2xl md:text-3xl font-black text-red-600 tracking-tighter leading-none">{atestadosAtivos.length}</h3>
-                           <span className="text-[7px] uppercase font-black text-red-400 tracking-widest">Atestados</span>
-                        </div>
-                        <div className="w-px bg-red-200"></div>
-                        <div className="text-center">
-                           <h3 className="text-2xl md:text-3xl font-black text-pink-500 tracking-tighter leading-none">{licencasAtivas.length}</h3>
-                           <span className="text-[7px] uppercase font-black text-pink-400 tracking-widest">Licenças</span>
-                        </div>
-                     </div>
-                   </div>
-
-                   <div className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center justify-center shadow-sm hover:border-blue-200 cursor-pointer transition-all" onClick={() => setActiveTab('absenteismo')}>
-                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1"><PieChart size={10}/> Absenteísmo ({nomeMesAtual})</p>
-                     <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{taxaMensalAbs}%</h3>
-                   </div>
+                <div className="bg-white p-5 rounded-3xl border flex flex-col items-center justify-center shadow-sm">
+                  <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Efetivo Total</p>
+                  <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{(appData.officers||[]).length}</h3>
                 </div>
-
+                <div className="bg-white p-5 rounded-3xl border flex flex-col items-center justify-center shadow-sm">
+                  <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Pendentes</p>
+                  <h3 className="text-3xl font-black text-blue-600 tracking-tighter">{pendentesTotal}</h3>
+                </div>
+                <div className="bg-red-50 p-5 rounded-3xl border border-red-100 flex flex-col items-center justify-center shadow-sm">
+                  <p className="text-[9px] font-black uppercase text-red-400 mb-1">Afastados</p>
+                  <h3 className="text-3xl font-black text-red-600 tracking-tighter">{atestadosAtivos.length + licencasAtivas.length}</h3>
+                  <p className="text-[7px] font-bold text-red-400 uppercase tracking-widest">{atestadosAtivos.length} Atest. / {licencasAtivas.length} Lic.</p>
+                </div>
                 <div className="col-span-2 shadow-sm border border-slate-200 rounded-3xl bg-white overflow-hidden flex flex-col h-full min-h-[200px]">
                    <BirthdayWidget staff={appData.officers}/>
                 </div>
             </div>
           </div>
         );
-      case 'absenteismo':
-         return (
-           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans">
-              <div className="flex justify-between items-center mb-8 border-b pb-6">
-                <div>
-                   <h3 className="font-black text-slate-800 text-xl uppercase tracking-tighter flex items-center gap-2"><TrendingDown className="text-red-500"/> Painel de Absenteísmo</h3>
-                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Cálculo de dias perdidos por Atestados Médicos ({absenteismoDados.currentYear})</p>
-                </div>
-                <div className="text-right">
-                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Taxa Anual Acumulada</p>
-                   <h2 className="text-4xl font-black text-red-600 tracking-tighter">{absenteismoDados.annualRate}%</h2>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 {absenteismoDados.months.map((m, idx) => (
-                    <div key={idx} className={`p-5 rounded-2xl border transition-all ${m.rate > 5 ? 'bg-red-50 border-red-100' : m.rate > 0 ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100 opacity-50'}`}>
-                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{m.monthName}</p>
-                       <div className="flex justify-between items-end">
-                          <div><p className="text-2xl font-black tracking-tighter text-slate-800">{m.rate}%</p></div>
-                          <p className="text-[9px] font-bold uppercase text-slate-400">{m.lostDays} dias</p>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-              <div className="mt-8 bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs text-slate-500 font-bold flex gap-3"><AlertCircle size={16} className="text-blue-500 shrink-0"/><p>A taxa de absenteísmo exclui atestados rejeitados e considera apenas dias homologados cruzados contra a força de trabalho teórica.</p></div>
-           </div>
-         );
       case 'efetivo':
          const sortedOfficers = [...(appData.officers||[])].sort((a,b) => {
             const { key, direction } = sortConfig;
-            let valA, valB;
-            if (key === 'antiguidade') {
-                valA = parseInt(getVal(a, ['antiguidade'])) || 9999; valB = parseInt(getVal(b, ['antiguidade'])) || 9999;
-                return direction === 'asc' ? valA - valB : valB - valA;
-            } else if (key === 'nome') { valA = String(getVal(a, ['nome'])).toLowerCase(); valB = String(getVal(b, ['nome'])).toLowerCase();
-            } else if (key === 'expediente') { valA = String(getVal(a, ['expediente'])).toLowerCase(); valB = String(getVal(b, ['expediente'])).toLowerCase();
-            } else if (key === 'idade') { valA = parseDate(getVal(a, ['nasc']))?.getTime() || 9999999999999; valB = parseDate(getVal(b, ['nasc']))?.getTime() || 9999999999999;
-            } else if (key === 'ingresso') { valA = parseDate(getVal(a, ['ingres']))?.getTime() || 9999999999999; valB = parseDate(getVal(b, ['ingres']))?.getTime() || 9999999999999; }
+            let valA = key === 'antiguidade' ? parseInt(getVal(a,[key])) : String(getVal(a,[key])).toLowerCase();
+            let valB = key === 'antiguidade' ? parseInt(getVal(b,[key])) : String(getVal(b,[key])).toLowerCase();
             if (valA < valB) return direction === 'asc' ? -1 : 1;
             if (valA > valB) return direction === 'asc' ? 1 : -1;
             return 0;
          });
 
          return (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Quadro de Oficiais</h3>
-                {!isApenasRT && <button onClick={() => { setFormOfficer({ expediente: [], servico: '', gestante: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><UserPlus size={16}/> Incluir Oficial</button>}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn font-sans">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-black text-slate-800 text-xl uppercase tracking-tighter">Quadro de Oficiais</h3>
+                {!isApenasRT && <button onClick={() => { setFormOfficer({ expediente: [], servico: '', gestante: '' }); setShowOfficerModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase flex items-center gap-2 shadow-md transition-all active:scale-95"><UserPlus size={16}/> Incluir Oficial</button>}
               </div>
-              <div className="overflow-x-auto"><table className="w-full text-left text-sm font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="idade" align="center" /><SortableHeader label="Praça/Serviço" sortKey="ingresso" align="center" />{!isApenasRT && <th className="p-3 md:p-4 text-right">Ação</th>}</tr>
+              <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[800px]"><thead className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
+                  <tr><SortableHeader label="Ant." sortKey="antiguidade" align="center" /><SortableHeader label="Posto/Nome" sortKey="nome" /><SortableHeader label="Alocação" sortKey="expediente" /><SortableHeader label="Idade" sortKey="nasc" align="center" /><th className="p-4 text-right">Ação</th></tr>
                   </thead><tbody className="divide-y divide-slate-50">
-                    {sortedOfficers.map((o, i) => {
-                      const tIdade = calculateDetailedTime(getVal(o, ['nasc']));
-                      const tServico = calculateDetailedTime(getVal(o, ['ingres']));
-                      const expedientes = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== "");
-                      const isRT = String(getVal(o, ['role'])).toLowerCase() === 'rt'; 
-                      const isGestante = String(getVal(o, ['gestante'])).toLowerCase() === 'sim' || String(getVal(o, ['gestante'])).toLowerCase() === 'true';
-
-                      return (
-                      <tr key={i} className="hover:bg-slate-50/80 group transition-colors">
-                        <td className="p-3 md:p-4 text-center text-slate-300 font-black text-base">{getVal(o, ['antiguidade'])}</td>
-                        <td className="p-3 md:p-4"><div className="flex flex-col items-start gap-1"><div className="flex items-center gap-2"><span onClick={() => setHistoryOfficer(o)} className="font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter text-xs md:text-sm cursor-pointer hover:underline transition-all" title="Ver Dossiê">{getVal(o,['patente','posto'])} {getVal(o, ['nome'])}</span>{isRT && <span className="bg-amber-400 text-slate-900 text-[6px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded shadow-sm">RT Enfermagem</span>}{isGestante && <span className="bg-pink-400 text-white text-[6px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5"><Baby size={8}/> Gestante</span>}</div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(getVal(o,['nasc']))}</span></div></td>
-                        <td className="p-3 md:p-4"><div className="flex flex-col gap-1"><div className="flex flex-wrap gap-1">{expedientes.map((ex, idx) => (<span key={idx} className="bg-blue-50 text-blue-600 text-[7px] font-black uppercase px-1.5 py-0.5 rounded border border-blue-100">{ex}</span>))}</div><span className={`text-[8px] font-black uppercase inline-block ${getVal(o,['servico']) === 'UTI' ? 'text-purple-600' : 'text-blue-600'}`}>SV: {getVal(o,['servico']) || '-'}</span></div></td>
-                        <td className={`p-3 md:p-4 text-center text-[10px] font-bold ${tIdade.y >= 45 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-600'}`}>{tIdade.display}</td>
-                        <td className={`p-3 md:p-4 text-center text-[10px] font-bold ${tServico.y >= 7 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-600'}`}><div className="flex flex-col items-center"><span className="text-[8px] text-slate-400 font-mono">{formatDate(getVal(o,['ingres']))}</span><span>{tServico.display}</span></div></td>
-                        {!isApenasRT && <td className="p-3 md:p-4 text-right"><div className="flex gap-2 justify-end opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => { const expArr = String(getVal(o, ['expediente']) || "").split(',').map(x => x.trim()).filter(x => x !== ""); setFormOfficer({ ...o, nome: getVal(o,['nome']), patente: getVal(o,['patente','posto']), antiguidade: getVal(o,['antiguidade']), nascimento: formatDateForInput(getVal(o,['nasc'])), ingresso: formatDateForInput(getVal(o,['ingres'])), role: getVal(o,['role']), expediente: expArr, servico: getVal(o,['servico']), gestante: isGestante ? 'Sim' : '' }); setShowOfficerModal(true); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"><Edit3 size={14}/></button><button onClick={() => { if(window.confirm(`Remover ${getVal(o,['nome'])}?`)) sendData('deleteOfficer', { nome: getVal(o,['nome']) }); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></td>}
+                   {sortedOfficers.map((o, i) => (
+                      <tr key={i} className="hover:bg-slate-50 group transition-colors">
+                        <td className="p-4 font-black text-slate-300 text-center">{getVal(o, ['antiguidade'])}</td>
+                        <td className="p-4"><div className="flex items-center gap-2 font-black text-blue-600 uppercase text-xs"><span>{getVal(o,['patente', 'posto'])} {getVal(o, ['nome'])}</span>{(String(getVal(o,['gestante'])).toLowerCase()==='sim') && <Baby size={12} className="text-pink-400"/>}</div></td>
+                        <td className="p-4"><div className="flex flex-wrap gap-1">{String(getVal(o, ['expediente'])).split(',').map((ex,idx)=>(<span key={idx} className="bg-slate-100 text-slate-500 text-[7px] font-black uppercase px-1.5 py-0.5 rounded border border-slate-200">{ex.trim()}</span>))}</div><p className="text-[8px] font-black uppercase text-indigo-600 mt-1">Serviço: {getVal(o,['servico']) || '-'}</p></td>
+                        <td className="p-4 text-center text-[10px] font-bold text-slate-500">{calculateDetailedTime(getVal(o,['nasc'])).display}</td>
+                        <td className="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                           {!isApenasRT && (
+                              <button onClick={() => { setFormOfficer({...o, expediente: String(getVal(o,['expediente'])).split(',').map(x=>x.trim())}); setShowOfficerModal(true); }} className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"><Edit3 size={14}/></button>
+                           )}
+                        </td>
                       </tr>
-                    )})}
-                    {sortedOfficers.length === 0 && <tr><td colSpan={isApenasRT ? 5 : 6} className="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhum oficial</td></tr>}
-                  </tbody>
-                </table></div>
+                   ))}
+                </tbody>
+              </table></div>
+            </div>
+         );
+      case 'absenteismo':
+         return (
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 animate-fadeIn font-sans shadow-sm">
+               <div className="flex justify-between items-center mb-8 border-b pb-6">
+                 <div>
+                    <h3 className="font-black text-slate-800 text-xl uppercase tracking-tighter flex items-center gap-2"><TrendingDown className="text-red-500"/> Absenteísmo</h3>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Duração dos Afastamentos ({absenteismoDados.currentYear})</p>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Taxa Anual Acumulada</p>
+                    <h2 className="text-4xl font-black text-red-600 tracking-tighter">{absenteismoDados.annualRate}%</h2>
+                 </div>
+               </div>
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {absenteismoDados.months.map((m, idx) => (
+                     <div key={idx} className={`p-5 rounded-2xl border transition-all ${m.rate > 5 ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
+                        <p className="text-[10px] font-black uppercase text-slate-500 mb-2">{m.monthName}</p>
+                        <div className="flex justify-between items-end">
+                           <p className="text-2xl font-black tracking-tighter text-slate-800">{m.rate}%</p>
+                           <p className="text-[9px] font-bold uppercase text-slate-400">{m.lostDays} dias</p>
+                        </div>
+                     </div>
+                  ))}
+               </div>
             </div>
          );
       case 'atestados':
-         const atestadosListFiltrados = (appData.atestados||[]).filter(a => {
-            if (!mesFiltro) return true;
-            const d = parseDate(getVal(a,['inicio', 'data']));
-            return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-         });
-
+         const atestadosList = (appData.atestados||[]).filter(a => String(getVal(a,['status'])).toLowerCase() !== 'rejeitado');
          return (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Atestados Médicos</h3>
-                 <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                      <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
-                      <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
-                      <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
-                    </div>
-                    {mesFiltro && <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>}
-                    {!isApenasRT && <button onClick={() => setShowAtestadoModal(true)} className="bg-red-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar</button>}
-                 </div>
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm animate-fadeIn">
+               <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-black text-xl uppercase tracking-tighter flex items-center gap-2"><ShieldAlert className="text-red-500"/> Mural de Atestados</h3>
                </div>
-               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th>{!isApenasRT && <th className="p-4 text-right">Ações</th>}</tr></thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {atestadosListFiltrados.map((a, i) => {
-                      const anexoUrl = getVal(a, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-                      const idRegisto = getVal(a, ['id', 'identificador']);
-                      const isVigor = atestadosAtivos.includes(a);
-                      const isPendente = getVal(a,['status']) === 'Pendente';
-                      const isRejeitado = String(getVal(a,['status'])).includes('Rejeitado');
-                      return (
-                      <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase flex items-center gap-2">{getVal(a,['militar'])} {isVigor && <span className="bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded uppercase tracking-widest">Em Vigor</span>}</td>
-                        <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(a,['dias'])}d</td>
-                        <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(a,['inicio', 'data']))}</td>
-                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors" title="Ver Anexo"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
-                        {!isApenasRT && <td className="p-4 text-right">
-                           {isPendente && (
-                              <div className="flex justify-end gap-2">
-                                 <button onClick={()=>handleHomologar(idRegisto, 'Atestados', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
-                                 <button onClick={()=>{const m = window.prompt("Motivo:"); if(m) handleHomologar(idRegisto, 'Atestados', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
-                              </div>
-                           )}
-                        </td>}
-                      </tr>
-                    )})}
-                    {atestadosListFiltrados.length === 0 && <tr><td colSpan={isApenasRT ? 5 : 6} className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Sem registos</td></tr>}
-                  </tbody>
-                </table></div>
-            </div>
-         );
-      case 'permutas':
-         const permutasListFiltradas = (appData.permutas||[]).filter(p => {
-            if (!mesFiltro) return true;
-            const d = parseDate(getVal(p,['sai', 'datasai']));
-            return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-         });
-
-         return (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                 <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Permutas</h3>
-                 <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                      <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
-                      <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
-                      <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
-                    </div>
-                    {mesFiltro && <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>}
-                    {!isApenasRT && <button onClick={() => setShowPermutaModal(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar</button>}
-                 </div>
-               </div>
-               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Solicitante</th><th className="p-4">Substituto</th><th className="p-4">Período (S/E)</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th>{!isApenasRT && <th className="p-4 text-right">Ações</th>}</tr></thead>
-                 <tbody className="divide-y divide-slate-50">
-                   {permutasListFiltradas.map((p, idx) => {
-                     const anexoUrl = getVal(p, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-                     const idRegisto = getVal(p, ['id', 'identificador']);
-                     const isPendente = getVal(p,['status']) === 'Pendente';
-                     const isRejeitado = String(getVal(p,['status'])).includes('Rejeitado');
+               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] font-black uppercase border-b text-slate-400 tracking-widest"><tr><th className="p-4">Militar</th><th className="p-4">Início</th><th className="p-4">Dias</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
+               <tbody className="divide-y divide-slate-50">
+                  {(atestadosList.length > 0) ? (atestadosList.map((a,i)=>{
+                     const idR = getVal(a,['id']);
+                     const isP = getVal(a,['status']) === 'Pendente';
                      return (
-                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                       <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(p, ['solicitante'])}</td>
-                       <td className="p-4 text-slate-600 text-xs font-bold uppercase tracking-tighter">{getVal(p, ['substituto'])}</td>
-                       <td className="p-4"><div className="flex gap-4 font-mono font-bold text-[9px]"><span className="text-red-500">S: {formatDate(getVal(p,['sai','datasai']))}</span><span className="text-green-600">E: {formatDate(getVal(p,['entra','dataentra']))}</span></div></td>
-                       <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                       <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(p, ['status'])}</span></td>
-                       {!isApenasRT && <td className="p-4 text-right">
-                           {isPendente && (
+                     <tr key={i} className="hover:bg-slate-50">
+                        <td className="p-4 font-black uppercase text-xs">{getVal(a,['militar'])}</td>
+                        <td className="p-4 text-[10px] font-bold text-slate-400 font-mono">{formatDate(getVal(a,['inicio']))}</td>
+                        <td className="p-4 text-[10px] font-black text-red-500">{getVal(a,['dias'])} dias</td>
+                        <td className="p-4 text-center">{getVal(a,['anexo']) ? <a href={getVal(a,['anexo'])} target="_blank" rel="noreferrer" className="text-blue-500 p-2 bg-blue-50 rounded-lg inline-block hover:bg-blue-100"><Paperclip size={14}/></a> : '-'}</td>
+                        <td className="p-4"><span className={`px-3 py-1 rounded text-[8px] font-black uppercase ${isP ? 'bg-amber-100 text-amber-600' : 'bg-green-50 text-green-700'}`}>{getVal(a,['status'])}</span></td>
+                        <td className="p-4 text-right">
+                           {isP && !isApenasRT && (
                               <div className="flex justify-end gap-2">
-                                 <button onClick={()=>handleHomologar(idRegisto, 'Permutas', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
-                                 <button onClick={()=>{const m = window.prompt("Motivo:"); if(m) handleHomologar(idRegisto, 'Permutas', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
+                                 <button onClick={()=>handleHomologar(idR, 'Atestados', 'Homologado')} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700">Aprovar</button>
+                                 <button onClick={()=>handleHomologar(idR, 'Atestados', 'Rejeitado')} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-red-100">Rejeitar</button>
                               </div>
                            )}
-                       </td>}
+                        </td>
                      </tr>
-                   )})}
-                   {permutasListFiltradas.length === 0 && <tr><td colSpan={isApenasRT ? 5 : 6} className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma permuta</td></tr>}
-                 </tbody>
+                  )})) : (<tr><td colSpan="6" className="p-12 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">Nenhum registro encontrado</td></tr>)}
+               </tbody>
                </table></div>
             </div>
          );
       case 'ferias':
-         const feriasPendentes = (appData.ferias || []).filter(f => getVal(f, ['status']) === 'Pendente');
          return (
-            <div className="space-y-6">
-               {!isApenasRT && feriasPendentes.length > 0 && (
-                  <div className="bg-white rounded-3xl shadow-sm border border-amber-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
-                     <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                     <h3 className="font-black text-amber-600 text-lg uppercase tracking-tighter mb-4 flex items-center gap-2"><Sun size={20}/> Aprovação de Férias</h3>
-                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias (Parcela)</th><th className="p-4">Início</th><th className="p-4 text-right">Ações</th></tr></thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {feriasPendentes.map((f, i) => {
-                             const idRegisto = getVal(f, ['id', 'identificador']);
-                             return (
-                             <tr key={i} className="hover:bg-amber-50/50 transition-colors">
-                               <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(f, ['militar'])}</td>
-                               <td className="p-4 text-center text-slate-600 font-bold text-xs">{getVal(f, ['dias', 'quantidade'])}d</td>
-                               <td className="p-4 font-mono font-bold text-slate-500 text-[10px]">{formatDate(getVal(f,['inicio', 'data']))}</td>
-                               <td className="p-4 text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <button onClick={()=>handleHomologar(idRegisto, 'Ferias', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-amber-500 text-white px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-amber-600 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
-                                    <button onClick={()=>{const m = window.prompt("Motivo:"); if(m) handleHomologar(idRegisto, 'Ferias', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
-                                  </div>
-                               </td>
-                             </tr>
-                          )})}
-                        </tbody>
-                     </table></div>
-                  </div>
-               )}
-               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Escala de Férias</h3>
-                    {!isApenasRT && <button onClick={() => setShowFeriasModal(true)} className="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all"><Plus size={16}/> Lançamento Direto</button>}
-                  </div>
+            <div className="space-y-6 animate-fadeIn">
+               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                  <h3 className="font-black text-xl uppercase mb-6 tracking-tighter flex items-center gap-2"><Sun className="text-amber-500"/> Escala Geral de Férias</h3>
                   <GanttViewer feriasData={appData.ferias || []} />
                </div>
             </div>
          );
       case 'licencas':
-         const licencasPendentes = (appData.licencas || []).filter(l => getVal(l, ['status']) === 'Pendente');
-         const licencasFiltradas = (appData.licencas||[]).filter(l => {
-            if (!mesFiltro) return true;
-            const d = parseDate(getVal(l,['inicio', 'data']));
-            return d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === mesFiltro;
-         });
-
+         const licencasList = (appData.licencas||[]).filter(l => String(getVal(l,['status'])).toLowerCase() !== 'rejeitado');
          return (
-            <div className="space-y-6">
-               {!isApenasRT && licencasPendentes.length > 0 && (
-                  <div className="bg-white rounded-3xl shadow-sm border border-pink-200 p-6 md:p-8 animate-fadeIn relative overflow-hidden">
-                     <div className="absolute top-0 left-0 w-1 h-full bg-pink-500"></div>
-                     <h3 className="font-black text-pink-600 text-lg uppercase tracking-tighter mb-4 flex items-center gap-2"><Baby size={20}/> Licenças Pendentes</h3>
-                     <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4 text-right">Ações</th></tr></thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {licencasPendentes.map((l, i) => {
-                             const anexoUrl = getVal(l, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-                             const idRegisto = getVal(l, ['id', 'identificador']);
-                             return (
-                             <tr key={i} className="hover:bg-pink-50/50 transition-colors">
-                               <td className="p-4 text-slate-800 text-xs font-black uppercase tracking-tighter">{getVal(l, ['militar'])}</td>
-                               <td className="p-4 text-center text-slate-600 font-bold text-xs">{getVal(l, ['dias', 'quantidade'])}d</td>
-                               <td className="p-4 font-mono font-bold text-slate-500 text-[10px]">{formatDate(getVal(l,['inicio', 'data']))}</td>
-                               <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                               <td className="p-4 text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <button onClick={()=>handleHomologar(idRegisto, 'Licencas', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-pink-500 text-white px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-pink-600 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
-                                    <button onClick={()=>{const m = window.prompt("Motivo:"); if(m) handleHomologar(idRegisto, 'Licencas', `Rejeitado: ${m}`);}} disabled={homologandoId === idRegisto} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50">Rejeitar</button>
-                                  </div>
-                               </td>
-                             </tr>
-                          )})}
-                        </tbody>
-                     </table></div>
-                  </div>
-               )}
-               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 animate-fadeIn">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase tracking-tighter">Mural de Licenças</h3>
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm">
-                          <button onClick={() => handleMudarMes(-1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronLeft size={16}/></button>
-                          <div className="w-36 text-center text-[10px] font-black uppercase text-slate-700 tracking-widest select-none">{obterNomeMes(mesFiltro)}</div>
-                          <button onClick={() => handleMudarMes(1)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all active:scale-95"><ChevronRight size={16}/></button>
-                        </div>
-                        {mesFiltro && <button onClick={() => setMesFiltro('')} className="text-[9px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors shrink-0">Ver Todos</button>}
-                        {!isApenasRT && <button onClick={() => setShowLicencaModal(true)} className="bg-pink-600 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md transition-all ml-auto md:ml-2"><Plus size={16}/> Lançar Licença</button>}
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] text-slate-400 tracking-widest border-b border-slate-100 uppercase"><tr><th className="p-4">Militar</th><th className="p-4 text-center">Dias</th><th className="p-4">Início</th><th className="p-4 text-center">Anexo</th><th className="p-4">Status</th>{!isApenasRT && <th className="p-4 text-right">Ação</th>}</tr></thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {licencasFiltradas.map((l, i) => {
-                      const anexoUrl = getVal(l, ['anexo', 'arquivo', 'documento', 'url', 'link', 'file']);
-                      const idRegisto = getVal(l, ['id', 'identificador']);
-                      const isPendente = getVal(l,['status']) === 'Pendente';
-                      const isRejeitado = String(getVal(l,['status'])).includes('Rejeitado');
-                      
-                      return (
-                      <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 text-slate-800 text-xs md:text-sm font-black tracking-tighter uppercase flex items-center gap-2">{getVal(l,['militar'])}</td>
-                        <td className="p-4 text-center text-slate-500 font-bold text-xs">{getVal(l,['dias'])}d</td>
-                        <td className="p-4 text-[10px] font-mono font-bold text-slate-400">{formatDate(getVal(l,['inicio', 'data']))}</td>
-                        <td className="p-4 text-center">{anexoUrl ? <a href={anexoUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 inline-flex items-center justify-center rounded-lg transition-colors"><Paperclip size={14}/></a> : <span className="text-slate-300">-</span>}</td>
-                        <td className="p-4"><span className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest text-right leading-tight block w-max ${isRejeitado ? 'bg-red-100 text-red-700' : isPendente ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>{getVal(l,['status'])}</span></td>
-                        {!isApenasRT && <td className="p-4 text-right">
-                           {isPendente && (
-                              <button onClick={()=>handleHomologar(idRegisto, 'Licencas', 'Homologado')} disabled={homologandoId === idRegisto} className="bg-pink-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm hover:bg-pink-700 active:scale-95 transition-all disabled:opacity-50">{homologandoId === idRegisto ? <Loader2 size={12} className="animate-spin inline"/> : 'Aprovar'}</button>
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm animate-fadeIn">
+               <h3 className="font-black text-xl uppercase mb-6 tracking-tighter flex items-center gap-2"><Baby className="text-pink-500"/> Mural de Licenças</h3>
+               <div className="overflow-x-auto"><table className="w-full text-left font-sans min-w-[600px]"><thead className="text-[9px] font-black uppercase border-b text-slate-400 tracking-widest"><tr><th className="p-4">Militar</th><th className="p-4">Início</th><th className="p-4">Duração</th><th className="p-4">Status</th><th className="p-4 text-right">Ação</th></tr></thead>
+               <tbody className="divide-y divide-slate-50">
+                  {(licencasList.length > 0) ? (licencasList.map((l,i)=>{
+                     const idR = getVal(l,['id']);
+                     const isP = getVal(l,['status']) === 'Pendente';
+                     return (
+                     <tr key={i} className="hover:bg-slate-50">
+                        <td className="p-4 font-black uppercase text-xs">{getVal(l,['militar'])}</td>
+                        <td className="p-4 text-[10px] font-bold text-slate-400 font-mono">{formatDate(getVal(l,['inicio']))}</td>
+                        <td className="p-4 text-[10px] font-black text-pink-500">{getVal(l,['dias'])} dias</td>
+                        <td className="p-4"><span className={`px-3 py-1 rounded text-[8px] font-black uppercase ${isP ? 'bg-amber-100 text-amber-600' : 'bg-green-50 text-green-700'}`}>{getVal(l,['status'])}</span></td>
+                        <td className="p-4 text-right">
+                           {isP && !isApenasRT && (
+                              <button onClick={()=>handleHomologar(idR, 'Licencas', 'Homologado')} className="bg-pink-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-pink-700">Homologar</button>
                            )}
-                        </td>}
-                      </tr>
-                    )})}
-                    {licencasFiltradas.length === 0 && <tr><td colSpan={isApenasRT ? 5 : 6} className="p-8 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhuma licença no período</td></tr>}
-                  </tbody>
-                </table></div>
-               </div>
+                        </td>
+                     </tr>
+                  )})) : (<tr><td colSpan="5" className="p-12 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">Nenhuma licença no período</td></tr>)}
+               </tbody>
+               </table></div>
             </div>
          );
       case 'escala':
-         if (!isCimirro) return null;
-         return (
-            <div className="animate-fadeIn">
-               <EscalaManager appData={appData} />
-            </div>
-         );
-      
-      // ABA: PASSAGEM DE TURNO NO ADMIN
-      case 'passagem':
-         return (
-             <div className="animate-fadeIn w-full h-full flex flex-col pt-4">
-                 <PassagemTurno currentUser={user} onBack={() => setActiveTab('dashboard')} />
-             </div>
-         );
+         return isCimirro ? <EscalaManager appData={appData} /> : null;
       default: return null;
     }
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden print:bg-white print:h-auto print:overflow-visible">
-      <aside className={`print:hidden ${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 shadow-2xl border-r border-white/5`}>
-         <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">{sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">ENF-HACO</span></div>}<button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-all"><Menu size={20} className="text-slate-400"/></button></div>
+    <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
+      <aside className={`${sidebarOpen ? 'w-64 md:w-72' : 'w-20 md:w-24'} bg-slate-950 text-white transition-all duration-300 flex flex-col z-40 border-r border-white/5 shadow-2xl`}>
+         <div className="p-6 md:p-8 h-20 md:h-24 flex items-center border-b border-white/5">
+            {sidebarOpen && <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl shadow-lg"><Plane size={20}/></div><span className="font-black text-lg md:text-xl uppercase tracking-tighter">ENF-HACO</span></div>}
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="ml-auto p-2 rounded-xl hover:bg-white/10 transition-colors"><Menu size={20}/></button>
+         </div>
          <nav className="flex-1 py-6 px-3 md:px-4 space-y-2 overflow-y-auto">
-            {/* Menu da Chefia / RT */}
-            {[ { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, 
-               { id: 'passagem', label: 'Passagem Turno', icon: BookOpen }, 
-               { id: 'atestados', label: 'Atestados', icon: ShieldAlert, badge: isApenasRT ? 0 : (appData.atestados||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
-               { id: 'permutas', label: 'Permutas', icon: ArrowRightLeft, badge: isApenasRT ? 0 : (appData.permutas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
-               { id: 'ferias', label: 'Férias', icon: Sun, badge: isApenasRT ? 0 : (appData.ferias||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
-               { id: 'licencas', label: 'Licenças', icon: Baby, badge: isApenasRT ? 0 : (appData.licencas||[]).filter(x=>getVal(x,['status'])==='Pendente').length }, 
-               { id: 'efetivo', label: 'Efetivo', icon: Users },
-               isCimirro && { id: 'escala', label: 'Escala Mensal', icon: Calendar }, 
-               { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } ].filter(Boolean).map(item => (
-              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-3.5 md:p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
-                 <div className="relative"><item.icon size={20}/>{item.badge > 0 && <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] flex items-center justify-center text-white font-black">{item.badge}</span>}</div>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}</button>
+            {[ 
+               { id: 'dashboard', label: 'Início', icon: LayoutDashboard }, 
+               { id: 'atestados', label: 'Atestados', icon: ShieldAlert }, 
+               { id: 'ferias', label: 'Férias', icon: Sun }, 
+               { id: 'licencas', label: 'Licenças', icon: Baby }, 
+               { id: 'efetivo', label: 'Efetivo', icon: Users }, 
+               isCimirro && { id: 'escala', label: 'Escala Vermelha', icon: Calendar }, 
+               { id: 'absenteismo', label: 'Absenteísmo', icon: TrendingDown } 
+            ].filter(Boolean).map(item => (
+              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
+                 <item.icon size={20}/>{sidebarOpen && <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{item.label}</span>}
+              </button>
             ))}
          </nav>
-         <div className="p-4 md:p-6 border-t border-white/5 flex flex-col items-center gap-3">
-            {sidebarOpen && <div className="text-center w-full"><div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center font-black shadow-md bg-slate-800 text-white border border-slate-700 mb-2">{user.substring(0,2).toUpperCase()}</div><p className="font-black text-xs tracking-tight truncate w-full uppercase">{user}</p><p className="text-[8px] text-blue-400 uppercase font-bold tracking-widest">{role}</p></div>}
-            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 text-white bg-blue-600 hover:bg-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition-all"><UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}</button>
-            <button onClick={() => setShowPassModal(true)} className="flex items-center justify-center gap-3 text-slate-500 hover:text-blue-500 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><Key size={16}/> {sidebarOpen && 'Trocar Senha'}</button>
-            <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase tracking-widest w-full p-2.5 rounded-xl hover:bg-white/5 transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
+         <div className="p-6 border-t border-white/5 space-y-3">
+            <button onClick={onToggleAdmin} className="flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] uppercase w-full p-3.5 rounded-xl shadow-lg transition-all"><UserCircle size={16}/> {sidebarOpen && 'Meu Painel'}</button>
+            <button onClick={onLogout} className="flex items-center justify-center gap-3 text-slate-500 hover:text-red-400 font-black text-[10px] uppercase w-full p-3 rounded-xl transition-all"><LogOut size={16}/> {sidebarOpen && 'Sair'}</button>
          </div>
       </aside>
-      <main className={`flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 relative z-10 print:p-0 print:bg-white print:overflow-visible ${activeTab === 'passagem' ? 'flex flex-col' : ''}`}>
-         {activeTab !== 'passagem' && (
-             <header className="print:hidden flex justify-between items-end mb-8 md:mb-10 border-b border-slate-200 pb-6 md:pb-8">
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                   <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</p>
-                   <WeatherWidgetMini />
-                </div>
-                <button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button>
-             </header>
-         )}
+
+      <main className="flex-1 overflow-auto p-8 md:p-10 relative bg-slate-50/50">
+         <header className="flex justify-between items-center mb-8 border-b border-slate-200 pb-6 print:hidden">
+            <h2 className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">{new Date().toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}</h2>
+            <div className="flex items-center gap-4">
+               <WeatherWidgetMini />
+               <button onClick={() => syncData(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-all"><RefreshCw size={20} className={isSyncing?'animate-spin':''}/></button>
+            </div>
+         </header>
+
          {renderContent()}
-         
-         {/* MODAIS GESTÃO */}
+
          {showOfficerModal && !isApenasRT && (
-           <Modal title={formOfficer.nome ? "Editar Oficial" : "Incluir Militar"} onClose={() => setShowOfficerModal(false)}>
-              <form onSubmit={handleSaveOfficer} className="space-y-4">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Nome de Guerra</label><input type="text" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nome || ''} onChange={e => setFormOfficer({...formOfficer, nome: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Patente</label><input type="text" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.patente || ''} onChange={e => setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Antiguidade</label><input type="number" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.antiguidade || ''} onChange={e => setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Nasc.</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.nascimento || ''} onChange={e => setFormOfficer({...formOfficer, nascimento: e.target.value})}/></div>
-                    <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1 tracking-widest">Data Praça</label><input type="date" required className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-blue-500 outline-none" value={formOfficer.ingresso || ''} onChange={e => setFormOfficer({...formOfficer, ingresso: e.target.value})}/></div>
-                    <div className="col-span-2 pt-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 tracking-widest mb-2 block">Alocação Expediente (Múltiplo)</label>
-                      <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
-                        {LOCAIS_EXPEDIENTE.map(local => (
-                          <button key={local} type="button" onClick={() => handleToggleExpediente(local)} className={`py-2 px-1 rounded-xl text-[8px] font-black transition-all border ${ (formOfficer.expediente || []).includes(local) ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300' }`}>{local}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="col-span-2 pt-3"><label className="text-[9px] font-black uppercase text-indigo-500 ml-1 tracking-widest mb-2 block">Alocação Serviço (Único)</label>
-                      <div className="flex gap-3">
-                        {LOCAIS_SERVICO.map(serv => (
-                          <button key={serv} type="button" onClick={() => setFormOfficer({...formOfficer, servico: serv})} className={`flex-1 p-3 rounded-2xl text-[10px] font-black transition-all border flex items-center justify-center gap-2 ${ formOfficer.servico === serv ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200' }`}>
-                             {formOfficer.servico === serv ? <CheckSquare size={12}/> : <Square size={12}/>} {serv}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="col-span-2 pt-3">
-                       <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-pink-500 bg-pink-50 p-4 rounded-2xl border border-pink-200 cursor-pointer hover:bg-pink-100 transition-colors">
-                         <input type="checkbox" className="w-4 h-4 accent-pink-500" checked={formOfficer.gestante === 'Sim'} onChange={e => setFormOfficer({...formOfficer, gestante: e.target.checked ? 'Sim' : ''})} />
-                         Militar Gestante (Isenta de Escala Vermelha)
-                       </label>
-                    </div>
-                 </div>
-                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all mt-4">{isSaving ? "A Processar..." : "Gravar Dados"}</button>
-              </form>
-           </Modal>
-         )}
-         {showPassModal && (
-           <Modal title="Trocar Senha de Acesso" onClose={() => setShowPassModal(false)}>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,new:e.target.value})}/></div>
-                 <div><label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Confirmar Nova Senha</label><input type="password" required className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold mt-1 focus:ring-2 outline-none" onChange={e=>setPassForm({...passForm,confirm:e.target.value})}/></div>
-                 <div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2"><Lock size={14} className="text-blue-500 mt-0.5 shrink-0"/><p className="text-[9px] font-bold text-blue-800">Ao guardar, a sua nova senha substituirá a senha padrão. Mantenha-a em segurança.</p></div>
-                 <button type="submit" disabled={isSaving} className="w-full py-4 bg-slate-900 text-white font-black rounded-xl shadow-md text-[10px] uppercase tracking-widest active:scale-95 transition-all">{isSaving?"A Atualizar...":"Salvar Nova Senha"}</button>
-              </form>
-           </Modal>
+            <Modal title={formOfficer.nome ? "Editar Militar" : "Incluir Militar"} onClose={()=>setShowOfficerModal(false)}>
+               <form onSubmit={(e)=>{e.preventDefault(); sendData('saveOfficer', {...formOfficer, expediente: Array.isArray(formOfficer.expediente) ? formOfficer.expediente.join(', ') : formOfficer.expediente});}} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="col-span-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome de Guerra</label><input type="text" required value={getVal(formOfficer,['nome'])} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold focus:ring-2 focus:ring-blue-500 outline-none" onChange={e=>setFormOfficer({...formOfficer, nome: e.target.value})}/></div>
+                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Patente</label><input type="text" required value={getVal(formOfficer,['patente'])} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold outline-none" onChange={e=>setFormOfficer({...formOfficer, patente: e.target.value})}/></div>
+                     <div><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Antiguidade</label><input type="number" required value={getVal(formOfficer,['antiguidade'])} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold outline-none" onChange={e=>setFormOfficer({...formOfficer, antiguidade: e.target.value})}/></div>
+                     <div className="col-span-2 py-3 border-t"><label className="text-[9px] font-black uppercase text-blue-500 ml-1 mb-2 block">Locais Expediente</label>
+                        <div className="grid grid-cols-4 gap-2">
+                           {LOCAIS_EXPEDIENTE.map(local => (
+                              <button key={local} type="button" onClick={() => handleToggleExpediente(local)} className={`py-2 rounded-xl text-[8px] font-black border transition-all ${ (formOfficer.expediente || []).includes(local) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-200' }`}>{local}</button>
+                           ))}
+                        </div>
+                     </div>
+                     <div className="col-span-2"><label className="text-[9px] font-black uppercase text-indigo-500 ml-1 mb-2 block">Alocação Serviço</label>
+                        <div className="flex gap-2">
+                           {LOCAIS_SERVICO.map(serv => (
+                              <button key={serv} type="button" onClick={() => setFormOfficer({...formOfficer, servico: serv})} className={`flex-1 p-3 rounded-xl text-[10px] font-black border transition-all flex items-center justify-center gap-2 ${ formOfficer.servico === serv ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200' }`}>
+                                 {formOfficer.servico === serv ? <CheckSquare size={12}/> : <Square size={12}/>} {serv}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                     <div className="col-span-2 flex items-center gap-3 p-4 bg-pink-50 rounded-2xl border border-pink-100 cursor-pointer" onClick={() => setFormOfficer({...formOfficer, gestante: formOfficer.gestante === 'Sim' ? '' : 'Sim'})}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${formOfficer.gestante === 'Sim' ? 'bg-pink-500 border-pink-500' : 'border-pink-200 bg-white'}`}>
+                           {formOfficer.gestante === 'Sim' && <CheckSquare size={14} className="text-white"/>}
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-pink-600">Militar Gestante (Isenta de Escala Vermelha)</span>
+                     </div>
+                  </div>
+                  <button type="submit" disabled={isSaving} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl uppercase tracking-widest text-xs shadow-lg active:scale-95 transition-all">{isSaving ? 'A Processar...' : 'Gravar Alterações'}</button>
+               </form>
+            </Modal>
          )}
       </main>
     </div>
   );
-};
+}
 
-export default App;
+// =========================================================================
+// --- COMPONENTE APP PRINCIPAL ---
+// =========================================================================
+
+export default function App() {
+  const [auth, setAuth] = useState({ user: null, role: null, isAdmin: false });
+  const [appData, setAppData] = useState({ officers: [], atestados: [], permutas: [], ferias: [], licencas: [], escalasVermelhas: [], upi: { leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0 } });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
+
+  const syncData = async (force = false) => {
+    if (isSyncing) return;
+    setIsSyncing(true); setSyncError(false);
+    try {
+      const response = await fetch(API_URL_GESTAO);
+      const data = await response.json();
+      if (data && data.status === 'success') {
+         setAppData({
+            officers: data.oficiais || [],
+            atestados: data.atestados || [],
+            permutas: data.permutas || [],
+            ferias: data.ferias || [],
+            licencas: data.licencas || [],
+            escalasVermelhas: data.escalaVermelha || [],
+            upi: data.upi_resumo || { leitosOcupados: 0, mediaBraden: 0, mediaFugulin: 0 }
+         });
+      } else { setSyncError(true); }
+    } catch (e) { setSyncError(true); } 
+    finally { setIsSyncing(false); }
+  };
+
+  useEffect(() => { syncData(); }, []);
+
+  if (!auth.user) return <LoginScreen onLogin={(user, role) => setAuth({ user, role, isAdmin: role === 'admin' })} appData={appData} isSyncing={isSyncing} syncError={syncError} onForceSync={() => syncData()} />;
+
+  if (auth.isAdmin) {
+    return (
+      <ErrorBoundary>
+        <MainSystem user={auth.user} role={auth.role} onLogout={() => setAuth({ user: null, role: null, isAdmin: false })} appData={appData} syncData={syncData} isSyncing={isSyncing} onToggleAdmin={() => setAuth({ ...auth, isAdmin: false })} isCimirro={auth.user.includes('Cimirro')} />
+      </ErrorBoundary>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
+      <UserDashboard user={auth.user} onLogout={() => setAuth({ user: null, role: null, isAdmin: false })} appData={appData} syncData={syncData} isSyncing={isSyncing} isAdmin={auth.role === 'rt' || auth.user.includes('Cimirro')} onToggleAdmin={() => setAuth({ ...auth, isAdmin: true })} />
+    </ErrorBoundary>
+  );
+}
