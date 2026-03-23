@@ -47,13 +47,13 @@ const selectStyle = {
 // --- HELPERS E FUNÇÕES DE LEITURA (SISTEMA BLINDADO) ---
 // =========================================================================
 
-// Tradutor Universal para Passagem de Turno - Lê qualquer cabeçalho da Planilha!
+// Leitor Ultra-Seguro para a Passagem de Turno (Ignora falhas no Google Sheets)
 const safeGet = (obj, searchTerms) => {
     if (!obj || typeof obj !== 'object') return "";
     const keys = Object.keys(obj);
     for (let term of searchTerms) {
-        const cleanTerm = String(term).toLowerCase().replace(/[^a-z0-9]/g, '');
-        const foundKey = keys.find(k => String(k).toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTerm);
+        const t = String(term).trim().toLowerCase();
+        const foundKey = keys.find(k => String(k).trim().toLowerCase() === t);
         if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && obj[foundKey] !== "") {
             return obj[foundKey];
         }
@@ -229,7 +229,7 @@ const calculateAbsenteismoStats = (atestados, totalOfficers) => {
 };
 
 // =========================================================================
-// --- COMPONENTES VISUAIS GERAIS ---
+// --- COMPONENTES VISUAIS GERAIS (MODAIS, WIDGETS) ---
 // =========================================================================
 
 class ErrorBoundary extends React.Component {
@@ -518,7 +518,7 @@ const GanttViewer = ({ feriasData }) => {
 };
 
 // =========================================================================
-// --- NOVO MÓDULO PASSAGEM DE TURNO (TOTALMENTE RECONSTRUÍDO) ---
+// --- NOVO MÓDULO PASSAGEM DE TURNO (TOTALMENTE RECONSTRUÍDO E BLINDADO) ---
 // =========================================================================
 
 const PassagemTurno = ({ currentUser, onBack }) => {
@@ -526,6 +526,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+
     const [filterDay, setFilterDay] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
     const [filterYear, setFilterYear] = useState('');
@@ -536,7 +537,6 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         transfers: '', procedures: ''
     });
 
-    // O Segredo: Normalizador de Dados Independente
     const normalizeReport = (rawItem) => {
         if (!rawItem) return null;
         
@@ -544,7 +544,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             for (let k of keysToFind) {
                 const lowerK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
                 const matchedKey = Object.keys(rawItem).find(key => key.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerK);
-                if (matchedKey && rawItem[matchedKey] !== undefined && rawItem[matchedKey] !== "") return rawItem[matchedKey];
+                if (matchedKey && rawItem[matchedKey] !== undefined && rawItem[matchedKey] !== null && rawItem[matchedKey] !== "") return rawItem[matchedKey];
             }
             return null;
         };
@@ -575,13 +575,8 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             nurseName: nurseName || 'Não Identificado',
             sgtsNames: sgtsNames || '-',
             intercurrences: intercurrences || '',
-            patients,
-            discharges,
-            admissions,
-            transfers,
-            procedures,
-            timestamp,
-            original: rawItem
+            patients, discharges, admissions, transfers, procedures,
+            timestamp
         };
     };
 
@@ -592,9 +587,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
             const response = await fetch(API_URL_PASSAGEM);
             const data = await response.json();
             if (data && Array.isArray(data)) {
-                // Aplicar o nosso super-normalizador a todos os itens vindos da planilha
                 const normalizedData = data.map(normalizeReport).filter(r => r !== null && r.sectorId && !isNaN(r.timestamp));
-                // Ordenar do mais recente para o mais antigo
                 normalizedData.sort((a, b) => b.timestamp - a.timestamp);
                 setReports(normalizedData);
             }
@@ -612,48 +605,20 @@ const PassagemTurno = ({ currentUser, onBack }) => {
         
         const sector = SECTORS_PASS.find(s => s.id === formData.sectorId);
         
-        // Payload Duplo para garantir salvamento no Sheets seja qual for a coluna criada lá
+        // Payload Duplo Extensivo para garantir leitura perfeita do Google Sheets
         const payload = { 
-            sectorId: formData.sectorId,
-            selectedSectorId: formData.sectorId,
-            setor: formData.sectorId,
-            
-            shift: formData.shift,
-            turno: formData.shift,
-
-            nurseName: formData.nurseName,
-            enfermeiro: formData.nurseName,
-            authorName: currentUser || 'Desconhecido',
-
-            sgtsNames: formData.sgtsNames,
-            sargentos: formData.sgtsNames,
-
-            intercurrences: formData.intercurrences,
-            intercorrencias: formData.intercurrences,
-            obs: formData.intercurrences,
-
-            patients: formData.patients || 0,
-            pacientes: formData.patients || 0,
-            censo: formData.patients || 0,
-
-            discharges: formData.discharges || 0,
-            altas: formData.discharges || 0,
-
-            admissions: formData.admissions || 0,
-            baixas: formData.admissions || 0,
-
-            transfers: formData.transfers || 0,
-            transferencias: formData.transfers || 0,
-
-            procedures: formData.procedures || 0,
-            atendimentos: formData.procedures || 0,
-            consultations: formData.procedures || 0,
-
-            timestamp: Date.now(),
-            data: new Date().toISOString(),
-            
-            sectorName: sector?.name || '', 
-            sectorType: sector?.type || ''
+            sectorId: formData.sectorId, selectedSectorId: formData.sectorId, setor: formData.sectorId,
+            shift: formData.shift, turno: formData.shift,
+            nurseName: formData.nurseName, enfermeiro: formData.nurseName, authorName: currentUser || 'Desconhecido',
+            sgtsNames: formData.sgtsNames, sargentos: formData.sgtsNames,
+            intercurrences: formData.intercurrences, intercorrencias: formData.intercurrences, obs: formData.intercurrences,
+            patients: formData.patients || 0, pacientes: formData.patients || 0, censo: formData.patients || 0,
+            discharges: formData.discharges || 0, altas: formData.discharges || 0,
+            admissions: formData.admissions || 0, baixas: formData.admissions || 0,
+            transfers: formData.transfers || 0, transferencias: formData.transfers || 0,
+            procedures: formData.procedures || 0, atendimentos: formData.procedures || 0, consultations: formData.procedures || 0,
+            timestamp: Date.now(), data: new Date().toISOString(),
+            sectorName: sector?.name || '', sectorType: sector?.type || ''
         };
 
         try {
@@ -681,8 +646,7 @@ const PassagemTurno = ({ currentUser, onBack }) => {
 
         const groups = {};
         filtered.forEach(r => {
-            const d = new Date(r.timestamp);
-            const ds = d.toLocaleDateString('pt-BR');
+            const ds = new Date(r.timestamp).toLocaleDateString('pt-BR');
             if (!groups[ds]) groups[ds] = [];
             groups[ds].push(r);
         });
@@ -714,12 +678,10 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                 {view === 'dashboard' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
                         {SECTORS_PASS.map(s => {
-                            // A leitura agora é exata e baseada no nosso objeto normalizado
                             const latest = reports.find(r => r.sectorId === s.id.toUpperCase());
                             const shiftInfo = latest ? SHIFTS_PASS.find(sh => String(sh.id).toLowerCase() === String(latest.shift).toLowerCase()) : null;
                             const IconRender = s.id === 'UPI' ? Bed : s.id === 'UTI' ? Activity : s.id === 'UCC' ? Users : AlertCircle;
-                            const timeString = latest ? new Date(latest.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--';
-                            const isWard = ['UPI', 'UTI'].includes(s.id);
+                            const timeString = latest && !isNaN(latest.timestamp) ? new Date(latest.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--';
 
                             return (
                                 <div key={s.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-7 transition-all hover:shadow-xl hover:border-emerald-100">
@@ -737,12 +699,12 @@ const PassagemTurno = ({ currentUser, onBack }) => {
                                     {latest ? (
                                         <div className="space-y-5">
                                             <div className="flex justify-between items-center">
-                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shiftInfo ? shiftInfo.color : 'bg-slate-100 text-slate-500'}`}>{latest.shift}</span>
+                                                <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${shiftInfo?.color || 'bg-slate-100 text-slate-500'}`}>{latest.shift}</span>
                                                 <span className="text-[10px] text-slate-300 italic font-bold">{timeString}</span>
                                             </div>
                                             
                                             <div className="grid grid-cols-4 gap-2">
-                                                {isWard ? (
+                                                {s.type === 'ward' ? (
                                                     <>
                                                         <div className="bg-slate-50 p-2.5 rounded-2xl text-center border border-slate-100/50">
                                                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Pac</p>
@@ -1187,7 +1149,7 @@ const EscalaManager = ({ appData }) => {
 };
 
 // =========================================================================
-// --- TELAS BASE DO SISTEMA DE GESTÃO (LOGIN E PAINEIS) ---
+// --- TELAS BASE DO SISTEMA DE GESTÃO E LOGIN ---
 // =========================================================================
 
 const LoginScreen = ({ onLogin, appData, isSyncing, syncError, onForceSync }) => {
@@ -2078,5 +2040,6 @@ const MainSystem = ({ user, role, onLogout, appData, syncData, isSyncing, onTogg
       </main>
     </div>
   );
-}
-// FIM DO FICHEIRO - CERTIFIQUE-SE DE COPIAR ATÉ AQUI
+};
+
+export default App;
