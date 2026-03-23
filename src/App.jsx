@@ -833,8 +833,6 @@ const fetchSheetData = async () => {
                                     const sId = safeGet(r, ['selectedSectorId', 'sectorid', 'setor', 'unidade']);
                                     const shiftId = safeGet(r, ['shift', 'turno', 'periodo']);
 const shift = SHIFTS_PASS.find(s => String(s.id).toLowerCase() === String(shiftId).toLowerCase());
-
-// Identifica o tipo de setor baseado na configuração global
 const sectorConfig = SECTORS_PASS.find(s => s.id.toUpperCase() === String(sId).trim().toUpperCase());
 const isWard = sectorConfig?.type === 'ward'; 
 
